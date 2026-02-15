@@ -31,7 +31,7 @@ const LogsTab: React.FC<LogsTabProps> = ({ unit, loading }) => {
                 </span>
             </div>
 
-            <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+            <div className="bg-white border border-gray-100 rounded-2xl max-w-[100vw] overflow-x-auto  shadow-sm">
                 <table className="w-full text-left text-sm border-collapse">
                     <thead className="bg-gray-50/50 text-gray-400 text-[10px] font-bold uppercase">
                         <tr>

@@ -1,12 +1,13 @@
 from django.contrib import admin
 
-from .models import Property, Unit, Tenant, UnitPayment, Tenancy, ChangeLog, Charge, ChargeType
+from .models import Property, Unit, Tenant, UnitPayment, Tenancy, TenancyMember, ChangeLog, Charge, ChargeType
 
 # Register your models here.
 admin.site.register(Property)
 admin.site.register(Unit)
 admin.site.register(Tenant)
 admin.site.register(Tenancy)
+admin.site.register(TenancyMember)
 admin.site.register(ChangeLog)
 admin.site.register(Charge)
 admin.site.register(ChargeType)
@@ -17,9 +18,8 @@ class UnitPaymentAdmin(admin.ModelAdmin):
         "month",
         "year",
         "amount_paid",
-        "payment_method",
+        "type",
         "paid_on",
-        "paid_for",
     )
-    list_filter = ("year", "month", "payment_method")
+    list_filter = ("year", "month", "type")
     

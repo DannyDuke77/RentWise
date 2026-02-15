@@ -161,7 +161,14 @@ class UnitViewSet(ModelViewSet):
         tenancy = unit.tenancies.filter(is_active=True).first()
 
         if not tenancy:
-            return Response({"error": f'No active tenancy found for unit {unit.name}'}, status=400)
+            return Response({
+                "payments": [],
+                "balance": 0.0,
+                "monthly_rent": 0.0,
+                "status": unit.status,
+                "charges": 0.0,
+                "charge_details": []
+            }, status=200)
 
         if request.method == 'GET':
             current_balance = tenancy.calculate_balance()
@@ -185,8 +192,9 @@ class UnitViewSet(ModelViewSet):
 
             return Response({
                 "success": True,
-                "message": f"{serializer.validated_data['type'].capitalize()} recorded",
+                "message": f"Payment of KES {serializer.validated_data['amount_paid']} recorded successfully",
                 "balance": float(new_balance),
+                "errors": serializer.errors
             }, status=201)
         
     @action(detail=True, methods=['post'], url_path='vacate')
@@ -227,9 +235,15 @@ class TenantViewSet(ModelViewSet):
     lookup_field = "id"
 
     def get_queryset(self):
-        return Tenant.objects.filter(
-            tenancies__unit__property__owner=self.request.user
+        queryset = Tenant.objects.filter(
+            tenancy_members__tenancy__unit__property__owner=self.request.user
         ).distinct()
+    
+        query = self.request.query_params.get("q")
+        if query:
+            queryset = queryset.filter(full_name__icontains=query)
+            
+        return queryset
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -261,10 +275,11 @@ class TenantViewSet(ModelViewSet):
 
         if request.method == 'POST':
             
-            tenancy, tenant = add_roommate_to_unit(unit, request.data)
+            tenancy, tenant = add_tenant_to_unit(unit, request.data)
 
             return Response({
-                "detail": "Tenant assigned successfully",
+                "success": True,
+                "message": "Tenant added successfully",
                 "tenancy_id": tenancy.id,
                 "tenant_id": tenant.id
             }, status=201)
@@ -331,9 +346,15 @@ class ChargeViewSet(ModelViewSet):
     lookup_field = 'id'
 
     def get_queryset(self):
-        return Charge.objects.select_related(
+        queryset = Charge.objects.select_related(
             'tenancy', 'tenancy__unit', 'tenancy__unit__property'
         ).filter(tenancy__unit__property__owner=self.request.user)
+    
+        tenancy_id = self.request.query_params.get('tenancy')
+        if tenancy_id:
+            queryset = queryset.filter(tenancy_id=tenancy_id)
+            
+        return queryset.order_by('-created_at')
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -348,3 +369,9 @@ class ChargeViewSet(ModelViewSet):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def perform_destroy(self, instance):
+        if instance.status == 'paid':
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("Cannot delete a charge that has already been paid.")
+        instance.delete()

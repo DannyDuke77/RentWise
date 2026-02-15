@@ -4,12 +4,15 @@ import React, { useEffect, useMemo, useState } from "react";
 import { 
     Receipt, Calendar, XCircle, Info, ArrowUpRight, 
     ArrowDownLeft, RefreshCcw, ChevronDown, ChevronUp, Plus ,
-    Download, FileSpreadsheet, FileDown
+    Download, FileSpreadsheet, FileDown,
+    AlertCircle,
+    X
 } from "lucide-react";
 import apiService from "@/app/services/apiService";
 import { exportToCSV } from "@/app/src/utils/exportService";
 import { generateReceiptPDF } from "@/app/src/utils/receiptService";
 import { formatDate, useToday } from "@/app/src/utils/timeStore";
+import { useRouter } from "next/navigation";
 
 const PaymentTab = ({ unit }: { unit: any }) => {
     const today = useToday();
@@ -21,6 +24,7 @@ const PaymentTab = ({ unit }: { unit: any }) => {
     const [monthlyRent, setMonthlyRent] = useState<number>(0);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<Record<string, string[]>>({});
+    const [message, setMessage] = useState("");
 
     // UI State
     const [isFormExpanded, setIsFormExpanded] = useState(false);
@@ -42,11 +46,13 @@ const PaymentTab = ({ unit }: { unit: any }) => {
     const [filterMethod, setFilterMethod] = useState("");
     const [filterDate, setFilterDate] = useState("");
 
+    const router = useRouter();
+
     const fetchPayments = async () => {
         if (!unit?.id) return;
         setLoading(true);
         try {
-            const data = await apiService.get(`/api/properties/unit/${unit.id}/payments/`);
+            const data = await apiService.get(`/api/units/${unit.id}/payments/`);
             setPayments(data.payments || []);
             setBalance(Number(data.balance || 0));
             setCharges(data.charges || []);
@@ -100,19 +106,22 @@ const PaymentTab = ({ unit }: { unit: any }) => {
         };
 
         try {
-            // Using a generic check since backend might not return .success explicitly
-            await apiService.post(`/api/properties/unit/${unit.id}/payments/`, payload);
+            const response = await apiService.post(`/api/units/${unit.id}/payments/`, payload);
+
+            if (response.success){
+                 // Reset & Collapse
+                setAmount("");
+                setPaymentMethod("");
+                setReference("");
+                setNotes("");
+                setPaymentDate(today.toISOString().split('T')[0]);
+                setIsFormExpanded(false);
+                fetchPayments();
+                setMessage(response.message);
+            }
             
-            // Reset & Collapse
-            setAmount("");
-            setPaymentMethod("");
-            setReference("");
-            setNotes("");
-            setPaymentDate(today.toISOString().split('T')[0]);
-            setIsFormExpanded(false);
-            fetchPayments();
         } catch (error: any) {
-            setErrors(error.response?.data?.errors || { amount: ["Failed to record payment"] });
+            setErrors(error.response?.errors || { amount: ["Failed to record payment"] });
         }
     };
 
@@ -130,15 +139,17 @@ const PaymentTab = ({ unit }: { unit: any }) => {
             const payload = {
                 amount_paid: refundAmount,
                 payment_method: refundMethod,
-                reference: `REFUND-${unit.name}-${new Date().getTime().toString().slice(-4)}`,
+                reference: reference || `REFUND-${unit.name}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
                 notes: '',
                 paid_on: today.toISOString().split('T')[0],
                 type: 'refund',
             };
 
-            await apiService.post(`/api/properties/unit/${unit.id}/payments/`, payload);
+            await apiService.post(`/api/units/${unit.id}/payments/`, payload);
             setIsRefundModalOpen(false);
             fetchPayments();
+            setMessage("Refund recorded successfully");
+            setReference("");
         } catch (error: any) {
             setErrors(error.response?.data?.errors || {});
         } finally {
@@ -150,6 +161,16 @@ const PaymentTab = ({ unit }: { unit: any }) => {
         const filename = `Statement_Unit_${unit.name}_${new Date().toISOString().split('T')[0]}`;
         exportToCSV(filteredPayments, filename);
     };
+
+    if (unit.status !== "occupied") {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-2xl bg-gray-50">
+                <AlertCircle className="w-10 h-10 text-gray-300 mb-3" />
+                <p className="text-gray-500 font-medium">No active tenancy found.</p>
+                <p className="text-xs text-gray-400">Assign a tenant first to manage payments.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -218,7 +239,7 @@ const PaymentTab = ({ unit }: { unit: any }) => {
             </div>
 
             {/* COLLAPSIBLE FORM */}
-            <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+            <div className={`border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm ${message ? 'pb-4' : ''}`}>
                 <button 
                     onClick={() => setIsFormExpanded(!isFormExpanded)}
                     className="w-full flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors"
@@ -232,8 +253,16 @@ const PaymentTab = ({ unit }: { unit: any }) => {
                     {isFormExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <Plus className="w-5 h-5 text-blue-600" />}
                 </button>
 
+                {message && 
+                    <div className="w-[calc(100%-32px)] mx-4 bg-green-100 p-2.5 rounded-xl flex items-center justify-between">
+                        <p className="text-sm font-bold text-green-900">{message}</p>
+                        <X onClick={() => setMessage('')} className="w-5 h-5 text-gray-400 cursor-pointer" />
+                    </div>
+                }
+
                 {isFormExpanded && (
                     <form onSubmit={handleRecord} className="p-6 border-t border-gray-100 space-y-4 animate-in fade-in slide-in-from-top-2">
+                        
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold uppercase text-gray-400 ml-1">Amount Paid <span className="text-base text-rose-500">*</span></label>
@@ -366,7 +395,7 @@ const PaymentTab = ({ unit }: { unit: any }) => {
                                     <td className="px-4 py-4 text-gray-600 text-[10px] font-medium w-[150px] max-w-[150px]">
                                         <details>
                                             <summary className="font-bold cursor-pointer">See Note</summary>
-                                            <p>{p.notes}</p>
+                                            <p>{p.notes || "No Note"}</p>
                                         </details>
                                     </td>
                                     <td className={`px-4 py-4 text-right font-black ${

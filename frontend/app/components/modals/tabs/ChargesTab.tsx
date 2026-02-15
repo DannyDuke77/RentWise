@@ -6,6 +6,7 @@ import {
     Plus, Trash2, CheckCircle2, XCircle, 
     Receipt, Info, AlertCircle, Loader2 
 } from "lucide-react";
+import ConfirmModal from "../ConfirmModal";
 
 interface ChargeType {
     id: string;
@@ -33,6 +34,8 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
     const [charges, setCharges] = useState<Charge[]>([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [selectedChargeId, setSelectedChargeId] = useState<string | null>(null);
     
     const [formData, setFormData] = useState({
         charge_type: "",
@@ -40,11 +43,20 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
         description: "",
     });
 
+    const fetchChargeTypes = async () => {
+        try {
+            const data = await apiService.get("/api/charge-types/");
+            setChargeTypes(data || []);
+        } catch (error) {
+            console.error("Failed to fetch types", error);
+        }
+    };
+
     const fetchCharges = useCallback(async () => {
         if (!tenancyId) return;
         setLoading(true);
         try {
-            const data = await apiService.get(`/api/properties/charges/?tenancy=${tenancyId}`);
+            const data = await apiService.get(`/api/charges/?tenancy=${tenancyId}`);
             const list = data || [];
             setCharges(list);
 
@@ -56,15 +68,6 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
             setLoading(false);
         }
     }, [tenancyId, onPendingStatusChange]);
-
-    const fetchChargeTypes = async () => {
-        try {
-            const data = await apiService.get("/api/properties/charge-types/");
-            setChargeTypes(data || []);
-        } catch (error) {
-            console.error("Failed to fetch types", error);
-        }
-    };
 
     useEffect(() => {
         fetchChargeTypes();
@@ -87,7 +90,7 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
         
         setSubmitting(true);
         try {
-            await apiService.post("/api/properties/charges/", {
+            await apiService.post("/api/charges/", {
                 ...formData,
                 tenancy: tenancyId,
             });
@@ -102,20 +105,40 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
 
     const updateStatus = async (id: string, status: string) => {
         try {
-            await apiService.patch(`/api/properties/charges/${id}/status/`, { status });
+            await apiService.patch(`/api/charges/${id}/update-status/`, { status });
             fetchCharges();
         } catch (error) {
             console.error("Update failed", error);
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm("Delete this charge?")) return;
+    const handleDeleteClick = (id: string) => {
+        setSelectedChargeId(id);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!selectedChargeId) return;
+        
+        setSubmitting(true);
+
+        // Block deleting paid charges
+        const charge = charges.find(c => c.id === selectedChargeId);
+        if (charge?.status === "paid") {
+            setSubmitting(false);
+            setSelectedChargeId(null);
+            return;
+        }
+        
         try {
-            await apiService.delete(`/api/properties/charges/${id}/`);
+            await apiService.delete(`/api/charges/${selectedChargeId}/`);
             fetchCharges();
+            setIsDeleteModalOpen(false);
         } catch (error) {
             console.error("Delete failed", error);
+        } finally {
+            setSubmitting(false);
+            setSelectedChargeId(null);
         }
     };
 
@@ -236,9 +259,28 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
                                                 </button>
                                             </>
                                         )}
-                                        <button onClick={() => handleDelete(charge.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="Delete">
+                                        <button 
+                                            onClick={() => handleDeleteClick(charge.id)} 
+                                            disabled={charge.status === 'paid'}
+                                            className={`p-2 rounded-lg transition-colors ${
+                                                charge.status === 'paid' 
+                                                ? 'text-gray-300 cursor-not-allowed' 
+                                                : 'text-rose-500 hover:bg-rose-50'
+                                            }`} 
+                                            title={charge.status === 'paid' ? "Cannot delete paid charges" : "Delete"}
+                                        >
                                             <Trash2 size={18} />
                                         </button>
+
+                                        <ConfirmModal 
+                                            isOpen={isDeleteModalOpen}
+                                            onClose={() => setIsDeleteModalOpen(false)}
+                                            onConfirm={handleConfirmDelete}
+                                            isLoading={submitting}
+                                            title="Permanently delete charge?"
+                                            message="This action cannot be undone. All historical records of this charge will be removed from the system. If you want to cancel the debt but keep a record, consider using 'Waive' instead."
+                                            confirmText="Delete Permanently"
+                                        />
                                     </div>
                                 </div>
                             </div>

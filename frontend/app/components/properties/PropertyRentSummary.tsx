@@ -75,7 +75,7 @@ const PropertyRentSummary = ({
   if (loading) {
     return (
       <div className={`bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden ${className}`}>
-        <div className="p-8 text-center animate-pulse bg-gray-50/50">
+        <div className="p-2 text-center animate-pulse bg-gray-50/50">
           <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-500 mb-3" />
           <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Generating {currentMonthName} Data...</p>
         </div>

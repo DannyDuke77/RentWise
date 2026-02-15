@@ -29,7 +29,7 @@ const ChargeTypesTab = () => {
   const fetchChargeTypes = async () => {
     setLoading(true);
     try {
-      const data = await apiService.get("/api/properties/charge-types/");
+      const data = await apiService.get("/api/charge-types/");
       setChargeTypes(data);
     } catch (error) {
       console.error("Failed to load charge types:", error);

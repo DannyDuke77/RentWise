@@ -70,13 +70,13 @@ def generate_property_audit_pdf(property_obj, audit_data, start_date, end_date):
     elements = []
     styles = getSampleStyleSheet()
 
-    elements.append(Paragraph(f"Financial Position: {property_obj.name}", styles['Title']))
+    elements.append(Paragraph(f"Statement of Financial Position: {property_obj.name}", styles['Title']))
     elements.append(Paragraph(f"Period: {start_date} to {end_date}", styles['Normal']))
     elements.append(Paragraph(f"Opening Cash Balance (BF): KES {audit_data['bal_bf']:,.2f}", styles['Heading3']))
     elements.append(Spacer(1, 12))
 
     # Table Header
-    data = [['Date', 'Unit', 'Tenant', 'Type', 'Money In (KES)', 'Money Out (KES)', 'Cash Balance (KES) ']]
+    data = [['Date', 'Unit', 'Tenant', 'Type', 'Credit (KES)', 'Debit (KES)', 'Balance (KES) ']]
     
     for t in audit_data['ledger']:
         data.append([

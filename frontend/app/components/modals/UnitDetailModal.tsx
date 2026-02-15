@@ -41,7 +41,14 @@ const UnitDetailModal = () => {
         try {
             const res = await apiService.get(`/api/tenants/unit/${unit.id}/`);
             setTenants(res.tenants || []);
-            setTenancyId(res.tenancy_id || null);
+            const tId = res.tenancy_id || null;
+            setTenancyId(tId);
+
+            if (tId) {
+                const chargesData = await apiService.get(`/api/charges/?tenancy=${tId}`);
+                const hasPending = chargesData.some((c: any) => c.status === "pending");
+                setHasPendingCharges(hasPending);
+            }
         } catch (error) {
             setTenants([]);
         } finally {
@@ -140,7 +147,7 @@ const UnitDetailModal = () => {
     };
 
     const content = (
-        <div className="space-y-6">
+        <div className="">
             <TabHeader 
                 currentTab={currentTab} 
                 setCurrentTab={setCurrentTab} 
@@ -148,7 +155,7 @@ const UnitDetailModal = () => {
                 hasPendingCharges={hasPendingCharges}
              />
             
-            <div className="pb-6">
+            <div className="p-4">
                 {currentTab === 'details' && (
                     isEditing ? (
                         <div className="space-y-4 bg-gray-50 p-4 rounded-xl">

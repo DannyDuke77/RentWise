@@ -61,6 +61,7 @@ class UnitDetailSerializer(serializers.ModelSerializer):
     
 class TenantSerializer(serializers.ModelSerializer):
     units = serializers.SerializerMethodField()
+    tenancies = serializers.SerializerMethodField()
     class Meta:
         model = Tenant
         fields = [
@@ -74,6 +75,7 @@ class TenantSerializer(serializers.ModelSerializer):
             'units',
             'is_active',
             'units',
+            'tenancies',
         ]
 
     def get_units(self, tenant):
@@ -87,6 +89,20 @@ class TenantSerializer(serializers.ModelSerializer):
             many=True
         ).data
     
+    def get_tenancies(self, tenant):
+        memberships = tenant.tenancy_members.all().select_related('tenancy__unit', 'tenancy__unit__property')
+        
+        return [
+            {
+                "id": m.tenancy.id,
+                "unit_name": m.tenancy.unit.name,
+                "property_name": m.tenancy.unit.property.name,
+                "is_active": m.is_active,
+                "start_date": m.tenancy.start_date,
+                "end_date": m.left_at.date() if m.left_at else None
+            }
+            for m in memberships
+        ]
     def validate_phone(self, value):
         """
         Replaces TenantForm.clean_phone logic.

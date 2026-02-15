@@ -2,7 +2,7 @@ export const exportToCSV = (data: any[], filename: string) => {
     if (!data || !data.length) return;
 
     // 1. Define Headers
-    const headers = ["Date", "Reference", "Method", "Amount (KES)", "Status"];
+    const headers = ["Date", "Reference", "Method", "Amount (KES)", "Type"];
 
     // 2. Map Data to Rows
     const rows = data.map(p => [
@@ -10,12 +10,13 @@ export const exportToCSV = (data: any[], filename: string) => {
         p.reference || 'N/A',
         p.payment_method?.toUpperCase(),
         Number(p.amount_paid).toFixed(2),
-        Number(p.amount_paid) < 0 ? 'REFUND' : 'PAYMENT'
+        p.type
     ]);
 
     // 3. Construct CSV String
     const csvContent = [
-        headers.join(","),
+        // CSV Header uppercase + bold
+        headers.join(",").toUpperCase(),
         ...rows.map(row => row.join(","))
     ].join("\n");
 

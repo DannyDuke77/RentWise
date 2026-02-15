@@ -111,7 +111,7 @@ const HomePage = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-              <Link href="/register">
+              <Link href="/auth/register">
                 <CustomButton 
                   label="Start Free Trial"
                   className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold rounded-xl text-lg shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 transition-all duration-300"

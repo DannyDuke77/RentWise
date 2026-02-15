@@ -1,11 +1,19 @@
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 from rest_framework.exceptions import ValidationError
-from ..models import Tenancy, Tenant
+from ..models import Tenancy, Tenant, TenancyMember
+from accounts.validators import normalize_kenyan_phone
 
 @transaction.atomic
 def add_tenant_to_unit(unit, data):
+    if hasattr(data, 'dict'):
+        data = data.dict()
+    else:
+        data = data.copy()
+
     if Tenancy.objects.filter(unit=unit, is_active=True).exists():
         raise ValidationError("Unit is currently occupied")
     
@@ -15,6 +23,27 @@ def add_tenant_to_unit(unit, data):
     for field in ["full_name", "id_number", "phone"]:
         if not data.get(field):
             raise ValidationError({"errors": {field: ["Required"]}})
+        
+    try:
+        # 1. Attempt normalization
+        data["phone"] = normalize_kenyan_phone(data["phone"])
+
+        # 2. Attempt tenant retrieval/creation
+        # We wrap this too in case the model's clean() or save() methods 
+        # also call validators that raise DjangoValidationError
+        tenant, created = Tenant.objects.get_or_create(
+            id_number=data["id_number"],
+            defaults={
+                "full_name": data["full_name"],
+                "phone": data["phone"],
+                "email": data.get("email"),
+                "is_active": True
+            }
+        )
+    except DjangoValidationError as e:
+        # This catches the 'Invalid Kenyan phone number' message
+        # and sends it back as {"phone": ["Invalid Kenyan phone number."]}
+        raise ValidationError({"phone": e.messages})
 
     tenant, created = Tenant.objects.get_or_create(
         id_number=data["id_number"],
@@ -31,7 +60,8 @@ def add_tenant_to_unit(unit, data):
         start_date=timezone.now().date(),
         monthly_rent=unit.monthly_rent,
     )
-    tenancy.tenants.add(tenant)
+    
+    TenancyMember.objects.create(tenancy=tenancy, tenant=tenant, is_active=True)
 
     unit.status = "occupied"
     unit.save(update_fields=["status"])
@@ -40,33 +70,23 @@ def add_tenant_to_unit(unit, data):
 
 @transaction.atomic
 def vacate_unit(unit):
-    tenancy = Tenancy.objects.filter(
-        unit=unit,
-        is_active=True
-    ).first()
-
+    tenancy = Tenancy.objects.select_for_update().filter(unit=unit, is_active=True).first()
     if not tenancy:
-        raise ValidationError("No active tenancy found for this unit.")
+        raise ValidationError("No active tenancy found.")
 
-    tenants = list(tenancy.tenants.all())
-
-    # deactivate tenancy
+    # 1. End the lease contract
     tenancy.is_active = False
     tenancy.end_date = timezone.now().date()
-    tenancy.save(update_fields=["is_active", "end_date"])
+    tenancy.save()
 
-    # deactivate tenants
-    for tenant in tenants:
-        tenant.left_at = timezone.now()
-        tenant.is_active = False
-        tenant.save(update_fields=["left_at", "is_active"])
+    # 2. Mark ALL members of this tenancy as having left
+    TenancyMember.objects.filter(tenancy=tenancy, is_active=True).update(
+        is_active=False,
+        left_at=timezone.now()
+    )
 
-    tenancy.tenants.clear()
-
-    # reset unit
     unit.status = "vacant"
-    unit.save(update_fields=["status"])
-
+    unit.save()
     return tenancy
 
 def add_roommate_to_unit(unit, data):
@@ -97,15 +117,19 @@ def add_roommate_to_unit(unit, data):
 @transaction.atomic
 def remove_roommate_from_unit(unit, tenant_id):
     tenancy = get_object_or_404(Tenancy, unit=unit, is_active=True)
-    tenant = get_object_or_404(Tenant, id=tenant_id)
+    
+    # Find the specific relationship record
+    membership = get_object_or_404(
+        TenancyMember, 
+        tenancy=tenancy, 
+        tenant_id=tenant_id, 
+        is_active=True
+    )
 
-    # Validation: Ensure at least one person stays in the unit
-    if tenancy.tenants.count() <= 1:
-        raise ValidationError("At least one tenant must stay in the unit")
+    if tenancy.tenants.filter(tenancymember__is_active=True).count() <= 1:
+        raise ValidationError("At least one tenant must stay. To remove everyone, use 'Vacate'.")
 
-    tenancy.tenants.remove(tenant)
-
-    # Update tenant status
-    tenant.left_at = timezone.now()
-    tenant.is_active = False
-    tenant.save(update_fields=["left_at", "is_active"])
+    # Mark the relationship as inactive and set the leave date
+    membership.is_active = False
+    membership.left_at = timezone.now()
+    membership.save(update_fields=['is_active', 'left_at'])

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import apiService from "../services/apiService";
-import { ChevronLeft, ChevronRight, Loader2, Calendar, DollarSign, CreditCard, Home, FileText, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Calendar, DollarSign, CreditCard, Home, FileText, ExternalLink, HandCoins, CardSim, Landmark } from "lucide-react";
 
 interface Payment {
   id: string;
@@ -34,7 +34,7 @@ const PaymentsPage = () => {
   const fetchPayments = async (pageNum: number) => {
     setLoading(true);
     try {
-      const data: PaginatedPayments = await apiService.get(`/api/properties/payments/?page=${pageNum}&page_size=${pageSize}`);
+      const data: PaginatedPayments = await apiService.get(`/api/payments/?page=${pageNum}&page_size=${pageSize}`);
       setPayments(data.results);
       setPagination({ next: data.next, previous: data.previous, count: data.count });
     } catch (err) {
@@ -61,7 +61,11 @@ const PaymentsPage = () => {
       case 'credit card':
         return <CreditCard className="w-4 h-4" />;
       case 'bank transfer':
-        return <FileText className="w-4 h-4" />;
+        return <Landmark className="w-4 h-4" />;
+      case 'cash':
+        return <HandCoins className="w-4 h-4" />;
+      case 'mpesa':
+        return <CardSim className="w-4 h-4" />
       default:
         return <DollarSign className="w-4 h-4" />;
     }
@@ -69,12 +73,10 @@ const PaymentsPage = () => {
 
   const getPaymentTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'rent':
-        return "bg-blue-100 text-blue-800";
-      case 'deposit':
+      case 'payment':
         return "bg-green-100 text-green-800";
-      case 'fee':
-        return "bg-purple-100 text-purple-800";
+      case 'refund':
+        return "bg-red-100 text-red-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -172,9 +174,9 @@ const PaymentsPage = () => {
                 <p className="text-sm text-gray-600 mt-1">Showing {payments.length} of {pagination.count} payments</p>
               </div>
 
-              {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="">
+              {/* Table that fits every screen */}
+              <div className="overflow-x-auto max-w-[calc(100vw-2rem)]">
+                <table className="min-w-full">
                   <thead>
                     <tr className="bg-gray-50/80 border-b border-gray-200">
                       <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -189,7 +191,7 @@ const PaymentsPage = () => {
                           Tenancy Start
                         </div>
                       </th>
-                      <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
+                      <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount (KES)</th>
                       <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Method</th>
                       <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
                       <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Paid On</th>
@@ -210,7 +212,6 @@ const PaymentsPage = () => {
                             </div>
                             <div>
                               <p className="font-medium text-gray-900">{p.unit_name}</p>
-                              <p className="text-xs text-gray-500 truncate max-w-[120px]">{p.tenancy}</p>
                             </div>
                           </div>
                         </td>
@@ -221,12 +222,9 @@ const PaymentsPage = () => {
                           </div>
                         </td>
                         <td className="py-4 px-6">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
-                              <DollarSign className="w-4 h-4 text-green-600" />
-                            </div>
+                          <div className="text-center">
                             <span className="font-bold text-gray-900 text-lg">
-                              ${parseFloat(p.amount_paid).toLocaleString(undefined, {
+                              {parseFloat(p.amount_paid).toLocaleString(undefined, {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2
                               })}
@@ -240,7 +238,7 @@ const PaymentsPage = () => {
                           </div>
                         </td>
                         <td className="py-4 px-6">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${getPaymentTypeColor(p.type)}`}>
+                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase ${getPaymentTypeColor(p.type)}`}>
                             {p.type}
                           </span>
                         </td>
@@ -263,10 +261,9 @@ const PaymentsPage = () => {
                         <td className="py-4 px-6">
                           {p.reference ? (
                             <div className="flex items-center group cursor-pointer">
-                              <span className="text-gray-700 group-hover:text-blue-600 transition-colors truncate max-w-[120px]">
+                              <span className="text-gray-700 font-semibold text-sm">
                                 {p.reference}
                               </span>
-                              <ExternalLink className="w-4 h-4 ml-2 text-gray-400 group-hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all" />
                             </div>
                           ) : (
                             <span className="text-gray-400 italic">No reference</span>

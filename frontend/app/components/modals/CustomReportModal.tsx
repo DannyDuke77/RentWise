@@ -16,7 +16,6 @@ const CustomReportModal: React.FC<CustomReportModalProps> = ({ propertyId, prope
   const handleDownload = async () => {
     setLoading(true);
     try {
-      // Using the blob method to handle the PDF stream
       const blob = await apiService.getBlob(
         `/api/properties/${propertyId}/audit-report/?month=${month}&year=${year}`
       );

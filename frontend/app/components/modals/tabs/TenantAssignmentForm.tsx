@@ -70,13 +70,12 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
                 // Add roommate
                 if (!tenancyId) throw new Error("Tenancy ID required to add roommate");
                 response = await apiService.post(
-                    `/api/properties/tenancies/${tenancyId}/roommates/add/`,
+                    `/api/units/${unit.id}/add-roommate/`,
                     data
                 );
             } else {
-                // Assign tenant to empty unit
                 response = await apiService.post(
-                    `/api/properties/unit/${unit.id}/assign-tenant/`,
+                    `/api/tenants/unit/${unit.id}/`,
                     data
                 );
             }
@@ -88,7 +87,8 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
                 }, 1500);
             } else {
                 setDetailError(response.detail);
-                setErrors(response.errors || {});
+                setErrors(response || {});
+                console.error("Assignment failed", response);
             }
         } catch (error: any) {
             setErrors({ general: [error.message || "An unexpected error occurred."] });

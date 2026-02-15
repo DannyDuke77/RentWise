@@ -1,94 +1,126 @@
-RENTWISE MANAGEMENT SYSTEM - API DOCUMENTATION
-################## 1. PROPERTIES ##################
-- List Properties
+# RentWise Management System - API Documentation
+
+This API documentation outlines the endpoints available in the RentWise Management System, organized by resource category. All endpoints require authentication and operate on user-owned resources.
+
+## Authentication
+All endpoints require the authenticated user to be logged in. Resources are filtered by the current user's ownership.
+
+## Base URL
+`/api/`
+
+## Response Format
+All responses follow standard HTTP status codes and return JSON payloads unless otherwise specified.
+
+## Error Handling
+Errors return appropriate HTTP status codes with descriptive messages. Common codes:
+- `400` - Bad Request
+- `401` - Unauthorized
+- `403` - Forbidden
+- `404` - Not Found
+- `500` - Server Error
+
+## Date Format
+When date parameters are required, use `YYYY-MM-DD` format unless otherwise specified.
+
+## File Formats
+PDF exports are generated on-demand and streamed as downloadable files.
+
+## Pagination
+List endpoints support pagination through query parameters. Check individual endpoint documentation for details.
+
+## ENDPOINTS
+
+# 1. PROPERTIES 
+- `List Properties`
     GET /api/properties/
     Function: Returns all properties owned by the authenticated user.
     Query Parameters: q (optional search for name or location).
 
-- Create Property
+- `Create Property`
     POST /api/properties/
     Function: Creates a new property assigned to the current user.
 
-- Property Detail
+- `Property Detail`
     GET /api/properties/{id}/
     Function: Retrieves specific property details.
 
-- Rent Summary
+- `Rent Summary`
     GET /api/properties/{id}/rent-summary/
     Function: Fetches a summary of rent data for a specific property.
 
-- Audit Report (PDF)
+- `Audit Report (PDF)`
     GET /api/properties/{id}/audit-report/
     Function: Generates a downloadable financial audit PDF.
     Required Query Params: start_date, end_date (Format: YYYY-MM-DD).
 
-- Property Types
+- `Property Types`
     GET /api/properties/types/
     Function: Lists valid property category options.
 
-################## 2. UNITS ##################
-- List Units
+# 2. UNITS 
+- `List Units`
     GET /api/units/
     Function: Returns units (can be filtered by ?property={id}).
 
-- Update Unit
+- `Update Unit`
     PATCH /api/units/{id}/
     Function: Updates unit details and logs changes to ChangeLog.
 
-- Rent Status
+- `Rent Status`
     GET /api/units/rent-status/
     Function: Provides an overview of occupancy and active status for all units.
 
-- Manage Payments (GET)
+- `Manage Payments (GET)`
     GET /api/units/{id}/payments/
     Function: Returns current balance, monthly rent, and pending charges for the unit's active tenancy.
 
-- Record Payment (POST)
+- `Record Payment (POST)`
     POST /api/units/{id}/payments/
     Function: Processes a new payment and updates the tenancy balance.
 
-- Add Roommate
+- `Add Roommate`
     POST /api/units/{id}/add-roommate/
     Function: Adds a new tenant to an existing active tenancy.
 
-- Remove Roommate
+- `Remove Roommate`
     POST /api/units/{id}/remove-roommate/{tenant_id}/
     Function: Removes a roommate; requires at least one tenant to remain.
 
-- Vacate Unit
+- `Vacate Unit`
     POST /api/units/{id}/vacate/
     Function: Deactivates tenancy, marks tenants as left, and resets unit to "vacant".
 
-################## 3. TENANTS ##################
-- List Tenants
+# 3. TENANTS
+- `List Tenants`
     GET /api/tenants/
     Function: Lists all tenants associated with the user's properties.
 
-- Unit Tenants
+- `Unit Tenants`
     GET /api/tenants/unit/{unit_id}/
     Function: Lists active tenants for a specific unit.
 
-- Assign Tenant (POST)
+- `Assign Tenant (POST)`
     POST /api/tenants/unit/{unit_id}/
     Function: Starts a new tenancy by adding a tenant to a unit.
 
-- Active Tenancies
+- `Active Tenancies`
     GET /api/tenants/active-tenancies/
     Function: Returns a list of all currently active leases.
 
-################## 4. FINANCIALS ##################
-- Payment History
+# 4. FINANCIALS
+- `Payment History`
     GET /api/payments/
     Function: Paginated list of all payments (filterable by unit_id or tenancy_id).
 
-- Charges
-    GET /api/charges/
+- `Charges`
+    GET /api/charges/?tenancy={id}/
     Function: List of all specific charge instances (e.g., Damage, Late Fees).
+    Filtering: Supports ?tenancy={id} to fetch charges for a specific active lease.
 
-- Update Charge Status
+- `Update Charge Status`
     PATCH /api/charges/{id}/update-status/
     Function: Updates the status of a specific charge.
 
-- Charge Types
+- `Charge Types`
     GET/POST /api/charge-types/
     Function: Manages the categories of charges available to the landlord.

@@ -30,6 +30,7 @@ const Modal: React.FC<ModalProps> = ({ label, close, content, isOpen }) => {
 
     const handleClose = useCallback(() => {
         setShowModal(false);
+        window.location.reload();
         setTimeout(() => {
             close();
         }, 300);
@@ -71,7 +72,7 @@ const Modal: React.FC<ModalProps> = ({ label, close, content, isOpen }) => {
                     </div>
                     
                     {/* Content */}
-                    <div className="max-h-[70vh] overflow-y-auto px-8">
+                    <div className="max-h-[70vh] overflow-y-auto">
                         {content}
                     </div>
                 </div>

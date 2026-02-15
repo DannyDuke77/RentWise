@@ -98,7 +98,7 @@ class Unit(models.Model):
 
 class Tenancy(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenants = models.ManyToManyField(Tenant, related_name="tenancies")
+    tenants = models.ManyToManyField(Tenant, related_name="tenancies", through='TenancyMember')
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name='tenancies')
 
     start_date = models.DateField()
@@ -176,7 +176,17 @@ class Tenancy(models.Model):
         # 4. Final Balance
         return total_rent_due + total_charges - total_paid
 
-    
+class TenancyMember(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenancy = models.ForeignKey(Tenancy, on_delete=models.CASCADE, related_name='tenancy_members')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='tenancy_members')
+    joined_at = models.DateTimeField(auto_now_add=True)
+    left_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('tenancy', 'tenant')
+
 class UnitPayment(models.Model):
     TYPE_CHOICES = [
         ('payment', 'Payment'),
