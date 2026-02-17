@@ -26,7 +26,7 @@ const PropertyDetailPage = async ({ params }: { params: Promise<{ id: string }> 
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-8 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 space-y-8 mx-auto">
       {/* Header */}
       <div className="md:flex md:items-center md:justify-between md:gap-6">
         <div className="space-y-1">

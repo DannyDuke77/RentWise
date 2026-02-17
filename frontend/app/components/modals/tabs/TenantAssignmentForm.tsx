@@ -15,7 +15,7 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [errors, setErrors] = useState<Record<string, string[]>>({});
-    const [detailError, setDetailError] = useState<string | null>(null);
+    const [detailMessage, setDetailMessage] = useState<string | null>(null);
 
     const [formData, setFormData] = useState({
         full_name: '',
@@ -86,7 +86,7 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
                     onSuccess();
                 }, 1500);
             } else {
-                setDetailError(response.detail);
+                setDetailMessage(response.detail);
                 setErrors(response || {});
                 console.error("Assignment failed", response);
             }
@@ -113,8 +113,8 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-                {detailError && 
-                    <p className="text-red-700 text-sm w-full bg-red-100 py-2 px-4 rounded-xl"><strong>Error:</strong> {detailError}</p>
+                {detailMessage && 
+                    <p className="text-gray-800 text-sm w-full bg-gray-200 py-2 px-4 rounded-xl"><strong>Detail:</strong> {detailMessage}</p>
                 }
 
                 <div className="text-center mb-6">

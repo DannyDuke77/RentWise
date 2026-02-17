@@ -47,10 +47,15 @@ const UnitModal = () => {
             formData.append('monthly_rent', rent);
             formData.append('status', status);
             formData.append('floor', floor);
+            formData.append('is_active', 'true');
 
-            const response = await apiService.post(`/api/properties/${propertyId}/units/`, formData);
+            if (propertyId) {
+                formData.append('property', propertyId);
+            }
 
-            if (response.success) {
+            const response = await apiService.post(`/api/units/`, formData);
+
+            if (response.id) {
                 console.log('Unit added successfully');
                 setSuccess(true);
                 
@@ -67,8 +72,8 @@ const UnitModal = () => {
                     setSuccess(false);
                 }, 1500);
             } else {
-                console.error('Error adding unit:', response.errors);
-                setErrors(response.errors);
+                console.log('Error adding unit:', response);
+                setErrors(response);
             }
         } catch (error) {
             console.error('Error adding unit:', error);
@@ -102,7 +107,7 @@ const UnitModal = () => {
     ];
 
     const content = (
-        <div className="space-y-6">
+        <div className="p-4 space-y-6">
             {/* Property Info */}
             {propertyName && (
                 <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
@@ -137,10 +142,11 @@ const UnitModal = () => {
                     </div>
                     <input
                         type="text"
-                        className={`w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 placeholder:text-gray-400 text-gray-900 ${errors.name ? errorStyle : ''}`}
+                        className={`w-full uppercase px-4 py-3 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 placeholder:text-gray-400 text-gray-900 ${errors.name ? errorStyle : ''}`}
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => setName(e.target.value.toUpperCase())}
                         placeholder="e.g., A101, Suite 202"
+                        
                     />
                     {errors.name && (
                         <p className="text-sm text-red-600 -mt-1">

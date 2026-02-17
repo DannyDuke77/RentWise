@@ -28,7 +28,7 @@ PDF exports are generated on-demand and streamed as downloadable files.
 ## Pagination
 List endpoints support pagination through query parameters. Check individual endpoint documentation for details.
 
-## ENDPOINTS
+### ################################## ENDPOINTS ##################################
 
 # 1. PROPERTIES 
 - `List Properties`
@@ -61,6 +61,10 @@ List endpoints support pagination through query parameters. Check individual end
 - `List Units`
     GET /api/units/
     Function: Returns units (can be filtered by ?property={id}).
+
+- `Create Unit`
+    POST /api/units/
+    Function: Creates a new unit.
 
 - `Update Unit`
     PATCH /api/units/{id}/

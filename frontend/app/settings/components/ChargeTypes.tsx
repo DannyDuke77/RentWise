@@ -47,7 +47,7 @@ const ChargeTypesTab = () => {
       return alert("Please provide valid name and amount");
     }
     try {
-      await apiService.post("/api/properties/charge-types/", { 
+      await apiService.post("/api/charge-types/", { 
         name: newName, 
         default_amount: Number(newAmount) 
       });
@@ -74,7 +74,7 @@ const ChargeTypesTab = () => {
   const handleUpdate = async (id: string) => {
     if (!editName || !editAmount || Number(editAmount) <= 0) return;
     try {
-      await apiService.patch(`/api/properties/charge-types/${id}/`, {
+      await apiService.patch(`/api/charge-types/${id}/`, {
         name: editName,
         default_amount: Number(editAmount),
       });
@@ -88,7 +88,7 @@ const ChargeTypesTab = () => {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to deactivate this charge type?")) return;
     try {
-        await apiService.patch(`/api/properties/charge-types/${id}/`, { is_active: false });
+        await apiService.patch(`/api/charge-types/${id}/`, { is_active: false });
         setChargeTypes(chargeTypes.filter(ct => ct.id !== id));
     } catch (error) {
         console.error("Failed to deactivate charge type:", error);
@@ -115,20 +115,20 @@ const ChargeTypesTab = () => {
             <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder="Charge Name"
+              placeholder="Charge Name e.g. Window Damage"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
+              className="w-full pl-10 pr-3 py-2 bg-gray-50 border border-gray-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
             />
           </div>
-          <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">Ksh</span>
+          <div className="relative flex-[2]">
+            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="number"
-              placeholder="0.00"
+              placeholder="Default Amount e.g. 1000"
               value={newAmount}
               onChange={(e) => setNewAmount(e.target.value === "" ? "" : Number(e.target.value))}
-              className="w-full pl-12 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
+              className="w-full pl-10 pr-3 py-2 bg-gray-50 border border-gray-280 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
             />
           </div>
           <button

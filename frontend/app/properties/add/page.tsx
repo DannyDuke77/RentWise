@@ -69,15 +69,16 @@ const AddPropertyPage = () => {
             formData.append('property_type', propertyType);
             formData.append('location', location);
             formData.append('description', description);
+            formData.append('is_active', 'true');
 
             const response = await apiService.post('/api/properties/', formData);
 
-            if (response.success) {
+            if (response.id) {
                 console.log('Property added successfully');
-                router.push(`/properties/${response.property.id}`);
+                router.push(`/properties/${response.id}`);
             } else {
-                console.error('Error adding property:', response.errors);
-                setErrors(response.errors);
+                console.log('Error adding property:', response);
+                setErrors(response);
             }
         } catch (error) {
             console.error('Error adding property:', error);
@@ -133,7 +134,7 @@ const AddPropertyPage = () => {
                         <div className="flex items-center gap-2">
                             <Home className="w-5 h-5 text-blue-600" />
                             <label className="text-sm font-semibold text-gray-900">
-                                Property Name
+                                Property Name <span className="text-red-600">*</span>
                             </label>
                         </div>
                         <input 
@@ -157,7 +158,7 @@ const AddPropertyPage = () => {
                             <div className="flex items-center gap-2">
                                 <Type className="w-5 h-5 text-blue-600" />
                                 <label className="text-sm font-semibold text-gray-900">
-                                    Property Type
+                                    Property Type <span className="text-red-600">*</span>
                                 </label>
                             </div>
                             
@@ -191,7 +192,7 @@ const AddPropertyPage = () => {
                             <div className="flex items-center gap-2">
                                 <MapPin className="w-5 h-5 text-blue-600" />
                                 <label className="text-sm font-semibold text-gray-900">
-                                    Location
+                                    Location <span className="text-red-600">*</span>
                                 </label>
                             </div>
                             <input 

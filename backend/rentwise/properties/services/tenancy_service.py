@@ -117,6 +117,7 @@ def add_roommate_to_unit(unit, data):
 @transaction.atomic
 def remove_roommate_from_unit(unit, tenant_id):
     tenancy = get_object_or_404(Tenancy, unit=unit, is_active=True)
+    tenant = get_object_or_404(Tenant, id=tenant_id)
     
     # Find the specific relationship record
     membership = get_object_or_404(
@@ -126,8 +127,12 @@ def remove_roommate_from_unit(unit, tenant_id):
         is_active=True
     )
 
-    if tenancy.tenants.filter(tenancymember__is_active=True).count() <= 1:
+    if tenancy.tenants.filter(tenancy_members__is_active=True).count() <= 1:
         raise ValidationError("At least one tenant must stay. To remove everyone, use 'Vacate'.")
+    
+    tenant.is_active = False
+    tenant.save(update_fields=["is_active"])
+    
 
     # Mark the relationship as inactive and set the leave date
     membership.is_active = False

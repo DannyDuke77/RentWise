@@ -207,15 +207,18 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
                         />
                     </div>
                 </div>
-
-                <button
-                    type="submit"
-                    disabled={submitting}
-                    className="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus size={16} />}
-                    Add Charge
-                </button>
+                {chargeTypes.length === 0 ? 
+                    <p className="text-xs text-gray-800">No charge types found. Please <a href="/settings?tab=charges" className="text-blue-600 hover:underline">add a charge type</a>.</p>
+                :
+                    <button
+                        type="submit"
+                        disabled={submitting}
+                        className="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                        {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus size={16} />}
+                        Add Charge
+                    </button>
+                }
             </form>
 
             {/* Charges List */}

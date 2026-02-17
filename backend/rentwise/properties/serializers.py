@@ -52,7 +52,7 @@ class UnitDetailSerializer(serializers.ModelSerializer):
     def get_tenant_names(self, obj):
         active_tenancy = obj.tenancies.filter(is_active=True).first()
         if active_tenancy:
-            return ", ".join([tenant.full_name for tenant in active_tenancy.tenants.all()])
+            return ", ".join([tenant.full_name for tenant in active_tenancy.tenants.all().filter(is_active=True)])
         return None
     
     def get_rent_status(self, unit):

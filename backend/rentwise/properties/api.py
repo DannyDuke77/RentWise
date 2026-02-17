@@ -23,7 +23,7 @@ from .services.tenancy_service import add_tenant_to_unit, vacate_unit, add_roomm
 from .services.unit_service import update_unit
 
 class Pagination(PageNumberPagination):
-    page_size = 10  # default
+    page_size = 10
     page_size_query_param = "page_size"
     max_page_size = 100
     
