@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { error } from "console";
 
 interface ModalProps {
     label: string;
@@ -30,7 +29,6 @@ const Modal: React.FC<ModalProps> = ({ label, close, content, isOpen }) => {
 
     const handleClose = useCallback(() => {
         setShowModal(false);
-        window.location.reload();
         setTimeout(() => {
             close();
         }, 300);
@@ -50,7 +48,7 @@ const Modal: React.FC<ModalProps> = ({ label, close, content, isOpen }) => {
             />
             
             {/* Modal */}
-            <div className={`relative w-full max-w-2xl transition-all duration-300 ${
+            <div className={`relative w-full max-w-3xl transition-all duration-300 ${
                 showModal 
                 ? 'opacity-100 translate-y-0' 
                 : 'opacity-0 translate-y-4'

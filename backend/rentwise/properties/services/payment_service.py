@@ -12,6 +12,9 @@ def process_payment(tenancy, validated_data):
 
     if amount <= 0:
         raise ValidationError("Payment amount must be positive.")
+    
+    payment_month = validated_data.get("month", validated_data["paid_on"].month)
+    payment_year = validated_data.get("year", validated_data["paid_on"].year)
 
     UnitPayment.objects.create(
         tenancy=tenancy,
@@ -19,8 +22,8 @@ def process_payment(tenancy, validated_data):
         payment_method=validated_data["payment_method"],
         reference=validated_data.get("reference", ""),
         paid_on=validated_data["paid_on"],
-        year=validated_data["paid_on"].year,
-        month=validated_data["paid_on"].month,
+        year=payment_year,
+        month=payment_month,
         type=validated_data["type"],
         notes=validated_data.get("notes", ""),
     )

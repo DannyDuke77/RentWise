@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import ConfirmModal from "../ConfirmModal";
 
-interface ChargeType {
+export interface ChargeType {
     id: string;
     name: string;
     default_amount: string;
@@ -26,11 +26,11 @@ interface Charge {
 interface ChargesTabProps {
     unit: any;
     tenancyId?: string | null;
+    chargeTypes?: ChargeType[];
     onPendingStatusChange: (hasPending: boolean) => void;
 }
 
-const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps) => {
-    const [chargeTypes, setChargeTypes] = useState<ChargeType[]>([]);
+const ChargesTab = ({ unit, tenancyId, chargeTypes, onPendingStatusChange }: ChargesTabProps) => {
     const [charges, setCharges] = useState<Charge[]>([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -43,21 +43,13 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
         description: "",
     });
 
-    const fetchChargeTypes = async () => {
-        try {
-            const data = await apiService.get("/api/charge-types/");
-            setChargeTypes(data || []);
-        } catch (error) {
-            console.error("Failed to fetch types", error);
-        }
-    };
 
     const fetchCharges = useCallback(async () => {
         if (!tenancyId) return;
         setLoading(true);
         try {
             const data = await apiService.get(`/api/charges/?tenancy=${tenancyId}`);
-            const list = data || [];
+            const list = Array.isArray(data) ? data : [];
             setCharges(list);
 
             const hasPending = list.some((c: Charge) => c.status === "pending");
@@ -70,13 +62,12 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
     }, [tenancyId, onPendingStatusChange]);
 
     useEffect(() => {
-        fetchChargeTypes();
         fetchCharges();
     }, [fetchCharges]);
 
     const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const typeId = e.target.value;
-        const selectedType = chargeTypes.find(ct => ct.id === typeId);
+        const selectedType = chargeTypes?.find(ct => ct.id === typeId);
         setFormData(prev => ({
             ...prev,
             charge_type: typeId,
@@ -182,7 +173,7 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
                             className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         >
                             <option value="">Select Type</option>
-                            {chargeTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            {chargeTypes?.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                     </div>
                     <div className="space-y-1">
@@ -207,7 +198,7 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
                         />
                     </div>
                 </div>
-                {chargeTypes.length === 0 ? 
+                {chargeTypes?.length === 0 ? 
                     <p className="text-xs text-gray-800">No charge types found. Please <a href="/settings?tab=charges" className="text-blue-600 hover:underline">add a charge type</a>.</p>
                 :
                     <button

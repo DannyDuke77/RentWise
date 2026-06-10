@@ -5,31 +5,43 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.shortcuts import get_object_or_404
 from datetime import datetime
-from django.utils import timezone
-from decimal import Decimal
-from django.db import transaction
 
-from .serializers import PropertyDetailSerializer, UnitDetailSerializer, TenantSerializer, UnitRentStatusSerializer, PropertyRentSummarySerializer, UnitPaymentCreateSerializer, UnitPaymentSerializer, ChargeStatusUpdateSerializer, TenancyDropdownSerializer, ChargeSerializer, ChargeTypeSerializer, ChargeCreateSerializer
-from .models import Property, Unit, Tenant, UnitPayment, Tenancy, ChangeLog, Charge, ChargeType
+from .serializers import (
+    PropertyDetailSerializer, UnitDetailSerializer, TenantSerializer, 
+    UnitPaymentCreateSerializer, UnitPaymentSerializer, ChargeStatusUpdateSerializer, 
+    TenancyDropdownSerializer, ChargeSerializer, ChargeTypeSerializer, ChargeCreateSerializer
+)
+from .models import Property, Unit, Tenant, UnitPayment, Tenancy, Charge, ChargeType, TenancyMember
 
 # Services
 from .services.reports import get_property_audit_data, generate_property_audit_pdf
 from .services.payment_service import process_payment
 from .services.tenancy_service import add_tenant_to_unit, vacate_unit, add_roommate_to_unit, remove_roommate_from_unit
 from .services.unit_service import update_unit
+from .services.rent import get_property_dashboard, get_property_units
 
 class Pagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = "page_size"
     max_page_size = 100
+
+    def get_paginated_response(self, data):
+        return Response({
+            "message": "Data fetched successfully",
+            "success": True,
+            "count": self.page.paginator.count,
+            "next": self.get_next_link(),
+            "previous": self.get_previous_link(),
+            "results": data,
+        })
     
 class PropertyViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = PropertyDetailSerializer
+    pagination_class = Pagination
     lookup_field = "id"
 
     def get_queryset(self):
@@ -40,49 +52,65 @@ class PropertyViewSet(ModelViewSet):
             queryset = queryset.filter(
                 Q(name__icontains=query) | Q(location__icontains=query)
             )
+            
+        if self.action in ['retrieve', 'list']:
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'units',
+                    queryset=Unit.objects.filter(is_active=True).prefetch_related(
+                        Prefetch(
+                            'tenancies',
+                            queryset=Tenancy.objects.filter(is_active=True).prefetch_related(
+                                Prefetch(
+                                    'tenancy_members',
+                                    queryset=TenancyMember.objects.filter(is_active=True).select_related('tenant')
+                                )
+                            )
+                        )
+                    )
+                )
+            )
         return queryset
-    
-    @action(detail=True, methods=['get'], url_path='rent-summary')
-    def rent_summary(self, request, id=None):
-        """
-        Accessible at: GET /api/properties/<id>/rent-summary/
-        """
-        property_obj = self.get_object()
-        serializer = PropertyRentSummarySerializer(property_obj)
-        return Response(serializer.data)
-    
-    @action(detail=False, methods=['get'], url_path='types')
-    def property_types(self, request):
-        """
-        Accessible at: GET /api/properties/types/
-        """
-        return Response([
-            {"value": value, "label": label}
-            for value, label in Property.PROPERTY_TYPES
-        ])
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            "message": "Properties fetched successfully",
-            "success": True,
-            "properties": serializer.data, 
-            "total_properties": queryset.count(),
-        })
     
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
+    @action(detail=True, methods=["get"])
+    def units(self, request, id=None):
+        get_object_or_404(Property, id=id, owner=request.user)
+        data = get_property_units(id)
+        
+        page = self.paginate_queryset(data)
+        if page is not None:
+            return self.get_paginated_response(page)
+        
+        return Response(data)
+    
+    @action(detail=True, methods=['get'], url_path='rent-summary')
+    def rent_summary(self, request, id=None):
+        """
+        Extracts financial aggregations straight from the real dashboard payload.
+        """
+        get_object_or_404(Property, id=id, owner=request.user)
+        dashboard_data = get_property_dashboard(id)
+        return Response({
+            "id": dashboard_data["property"]["id"],
+            "name": dashboard_data["property"]["name"],
+            "summary": dashboard_data["summary"]
+        })
+    
+    @action(detail=False, methods=['get'], url_path='types')
+    def property_types(self, request):
+        return Response([
+            {"value": value, "label": label}
+            for value, label in Property.PROPERTY_TYPES
+        ])
+
     @action(detail=True, methods=['get'], url_path='audit-report')
     def audit_report(self, request, id=None):
-        """
-        Accessible at: GET /api/properties/<id>/audit-report/?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
-        """
-        property_obj = self.get_object() # Automatically checks owner permissions
+        property_obj = self.get_object() 
         
         try:
-            # Extract and validate dates from query parameters
             start_date_str = request.query_params.get('start_date')
             end_date_str = request.query_params.get('end_date')
             
@@ -94,11 +122,9 @@ class PropertyViewSet(ModelViewSet):
         except (ValueError, TypeError):
             return HttpResponse("Invalid date format. Use YYYY-MM-DD.", status=400)
 
-        # Utilize your existing service functions
         audit_data = get_property_audit_data(property_obj, start_date, end_date)
         pdf_buffer = generate_property_audit_pdf(property_obj, audit_data, start_date, end_date)
         
-        # Build the PDF response
         response = HttpResponse(pdf_buffer.getvalue(), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Position_{property_obj.name}.pdf"'
         return response
@@ -106,6 +132,7 @@ class PropertyViewSet(ModelViewSet):
 class UnitViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = UnitDetailSerializer
+    pagination_class = Pagination
     lookup_field = "id"
 
     def get_queryset(self):
@@ -115,17 +142,20 @@ class UnitViewSet(ModelViewSet):
         property_id = self.request.query_params.get("property")
         if property_id:
             queryset = queryset.filter(property_id=property_id)
+            
+        if self.action in ['list', 'retrieve']:
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'tenancies',
+                    queryset=Tenancy.objects.filter(is_active=True).prefetch_related(
+                        Prefetch(
+                            'tenancy_members',
+                            queryset=TenancyMember.objects.filter(is_active=True).select_related('tenant')
+                        )
+                    )
+                )
+            )
         return queryset
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            "message": "Units fetched successfully",
-            "success": True,
-            "units": serializer.data, 
-            "total_units": queryset.count(),
-        })
 
     def perform_create(self, serializer):
         property_id = self.request.data.get("property")
@@ -134,29 +164,40 @@ class UnitViewSet(ModelViewSet):
 
     def perform_update(self, serializer):
         unit = self.get_object()
-
         update_unit(unit, serializer, self.request.user)
-        
 
     @action(detail=False, methods=['get'], url_path='rent-status')
     def rent_status(self, request):
         """
-        Accessible at: GET /api/units/rent-status/
+        Leverages the core dashboard payload to collect all unit statuses 
+        safely if property context is provided, protecting the DB from N+1.
         """
-        queryset = self.filter_queryset(self.get_queryset()).filter(is_active=True)
-        serializer = UnitRentStatusSerializer(queryset, many=True)
-        
+        property_id = request.query_params.get("property")
+        if property_id:
+            get_object_or_404(Property, id=property_id, owner=request.user)
+            dashboard_data = get_property_dashboard(property_id)
+            
+            formatted_units = [
+                {
+                    "id": u["id"],
+                    "name": u["name"],
+                    "monthly_rent": u["monthly_rent"],
+                    "rent_status": u["rent_status"]
+                }
+                for u in dashboard_data["units"]
+            ]
+            return Response({
+                "success": True,
+                "units_rent_status": formatted_units
+            })
+            
         return Response({
-            "success": True,
-            "units_rent_status": serializer.data
-        })
+            "success": False,
+            "message": "Property ID query parameter is required for rent-status view queries."
+        }, status=400)
     
     @action(detail=True, methods=['get', 'post'], url_path='payments')
     def manage_payments(self, request, id=None):
-        """
-        GET: Returns balance, rent, charges, and payment history.
-        POST: Records a new payment and updates tenancy balance.
-        """
         unit = self.get_object()
         tenancy = unit.tenancies.filter(is_active=True).first()
 
@@ -176,7 +217,7 @@ class UnitViewSet(ModelViewSet):
             payments = tenancy.payments.all().order_by("-created_at")
             
             return Response({
-                "payments": UnitPaymentCreateSerializer(payments, many=True).data,
+                "payments": UnitPaymentSerializer(payments, many=True).data,
                 "balance": float(current_balance),
                 "monthly_rent": float(tenancy.monthly_rent),
                 "status": "arrears" if current_balance > 0 else "credit" if current_balance < 0 else "settled",
@@ -200,37 +241,28 @@ class UnitViewSet(ModelViewSet):
     @action(detail=True, methods=['post'], url_path='vacate')
     def vacate_unit(self, request, id=None):
         unit = self.get_object()
-
         vacate_unit(unit)
-
         return Response(
             {"detail": "Tenant moved out successfully"}, 
             status=status.HTTP_200_OK
         )
-    
         
     @action(detail=True, methods=['post'], url_path='add-roommate')
     def add_roommate(self, request, id=None):
         unit = self.get_object()
-        
         tenant = add_roommate_to_unit(unit, request.data)
-
         return Response({"detail": "Roommate added", "tenant_id": tenant.id}, status=201)
 
     @action(detail=True, methods=['post'], url_path='remove-roommate/(?P<tenant_id>[^/.]+)')
     def remove_roommate(self, request, id=None, tenant_id=None):
-        """
-        Accessible at: POST /api/units/<id>/remove-roommate/<tenant_id>/
-        """
         unit = self.get_object()
-        
         remove_roommate_from_unit(unit, tenant_id)
-
         return Response({"detail": "Roommate removed successfully"}, status=status.HTTP_200_OK)
     
 class TenantViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = TenantSerializer
+    pagination_class = Pagination
     queryset = Tenant.objects.all()
     lookup_field = "id"
 
@@ -238,28 +270,25 @@ class TenantViewSet(ModelViewSet):
         queryset = Tenant.objects.filter(
             tenancy_members__tenancy__unit__property__owner=self.request.user
         ).distinct()
-    
+        
+        if self.action in ['list', 'retrieve', 'unit_tenants']:
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'tenancy_members',
+                    queryset=TenancyMember.objects.filter(is_active=True).select_related(
+                        'tenancy__unit', 
+                        'tenancy__unit__property'
+                    )
+                )
+            )
+            
         query = self.request.query_params.get("q")
         if query:
             queryset = queryset.filter(full_name__icontains=query)
-            
         return queryset
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            "message": "Tenants fetched successfully",
-            "success": True,
-            "tenants": serializer.data, 
-            "total_tenants": queryset.count(),
-        })
     
     @action(detail=False, methods=['get', 'post'], url_path='unit/(?P<unit_id>[^/.]+)')
     def unit_tenants(self, request, unit_id=None):
-        """
-        Accessible at: /api/tenants/unit/<unit_id>/ 
-        """
         unit = get_object_or_404(Unit, id=unit_id)
 
         if request.method == 'GET':
@@ -274,9 +303,12 @@ class TenantViewSet(ModelViewSet):
             })
 
         if request.method == 'POST':
-            
-            tenancy, tenant = add_tenant_to_unit(unit, request.data)
-
+            billing_start_date = request.data.get('billing_start_date')
+            tenancy, tenant = add_tenant_to_unit(
+                unit, 
+                request.data, 
+                billing_start_date=billing_start_date
+            )
             return Response({
                 "success": True,
                 "message": "Tenant added successfully",
@@ -284,12 +316,8 @@ class TenantViewSet(ModelViewSet):
                 "tenant_id": tenant.id
             }, status=201)
         
-    
     @action(detail=False, methods=['get'], url_path='active-tenancies')
     def active_tenancies(self, request):
-        """
-        Accessible at: GET /api/tenants/active-tenancies/
-        """
         queryset = Tenancy.objects.filter(
             is_active=True, 
             unit__property__owner=self.request.user
@@ -301,21 +329,17 @@ class TenantViewSet(ModelViewSet):
             "tenancies": serializer.data
         })
 
-    
 class PaymentViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
-    serializer_class = UnitPaymentSerializer
     pagination_class = Pagination
+    lookup_field = 'id'
+    serializer_class = UnitPaymentSerializer
 
     def get_queryset(self):
-        """
-        Filters payments to only show those belonging to the logged-in owner.
-        """
         queryset = UnitPayment.objects.select_related(
             "tenancy", "tenancy__unit", "tenancy__unit__property"
         ).filter(tenancy__unit__property__owner=self.request.user)
 
-        # Handle optional filtering via query params
         tenancy_id = self.request.query_params.get("tenancy_id")
         unit_id = self.request.query_params.get("unit_id")
 
@@ -325,14 +349,11 @@ class PaymentViewSet(ModelViewSet):
             queryset = queryset.filter(tenancy__unit_id=unit_id)
 
         return queryset.order_by("-paid_on")
-
-    def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
-        return response
     
 class ChargeTypeViewSet(ModelViewSet):
     serializer_class = ChargeTypeSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = Pagination
     lookup_field = 'id'
 
     def get_queryset(self):
@@ -343,6 +364,7 @@ class ChargeTypeViewSet(ModelViewSet):
 
 class ChargeViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
+    pagination_class = Pagination
     lookup_field = 'id'
 
     def get_queryset(self):
@@ -353,7 +375,6 @@ class ChargeViewSet(ModelViewSet):
         tenancy_id = self.request.query_params.get('tenancy')
         if tenancy_id:
             queryset = queryset.filter(tenancy_id=tenancy_id)
-            
         return queryset.order_by('-created_at')
 
     def get_serializer_class(self):

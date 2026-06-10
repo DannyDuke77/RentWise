@@ -2,20 +2,25 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { 
-    Receipt, Calendar, XCircle, Info, ArrowUpRight, 
-    ArrowDownLeft, RefreshCcw, ChevronDown, ChevronUp, Plus ,
-    Download, FileSpreadsheet, FileDown,
-    AlertCircle,
-    X
+    Receipt, Info, ArrowUpRight, ArrowDownLeft, 
+    RefreshCcw, ChevronUp, Plus,
+    FileSpreadsheet, FileDown,
+    AlertCircle, X
 } from "lucide-react";
 import apiService from "@/app/services/apiService";
 import { exportToCSV } from "@/app/src/utils/exportService";
 import { generateReceiptPDF } from "@/app/src/utils/receiptService";
-import { formatDate, useToday } from "@/app/src/utils/timeStore";
-import { useRouter } from "next/navigation";
+import { useToday } from "@/app/src/utils/timeStore";
+import { PropertyType } from "@/app/properties/page";
 
-const PaymentTab = ({ unit }: { unit: any }) => {
+interface PaymentTabProps {
+    property: PropertyType | null;
+    unit: any;
+}
+
+const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     const today = useToday();
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
     // Data State
     const [payments, setPayments] = useState<any[]>([]);
@@ -25,6 +30,7 @@ const PaymentTab = ({ unit }: { unit: any }) => {
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<Record<string, string[]>>({});
     const [message, setMessage] = useState("");
+    const [profile, setProfile] = useState<any>(null);
 
     // UI State
     const [isFormExpanded, setIsFormExpanded] = useState(false);
@@ -46,10 +52,21 @@ const PaymentTab = ({ unit }: { unit: any }) => {
     const [filterMethod, setFilterMethod] = useState("");
     const [filterDate, setFilterDate] = useState("");
 
-    const router = useRouter();
+    useEffect(() => {
+        const loadProfile = async () => {
+            if (!unit?.id || unit.status !== 'occupied') return;
+            try {
+            const data = await apiService.get("/api/auth/settings/business-profile/");
+            setProfile(data);
+            } finally {
+            setLoading(false);
+            }
+        };
+        loadProfile();
+    }, []);
 
     const fetchPayments = async () => {
-        if (!unit?.id) return;
+        if (!unit?.id || unit.status !== 'occupied') return;
         setLoading(true);
         try {
             const data = await apiService.get(`/api/units/${unit.id}/payments/`);
@@ -96,10 +113,25 @@ const PaymentTab = ({ unit }: { unit: any }) => {
             return;
         }
 
+        const selectedDate = new Date(paymentDate);
+        let targetMonth = selectedDate.getMonth() + 1;
+        let targetYear = selectedDate.getFullYear();
+
+        if (summary.arrears <= 0 && selectedDate.getDate() > 25) {
+            if (targetMonth === 12) {
+                targetMonth = 1;
+                targetYear += 1;
+            } else {
+                targetMonth += 1;
+            }
+        }
+
         const payload = {
             amount_paid: Number(amount),
             payment_method: paymentMethod,
             reference,
+            month: targetMonth,
+            year: targetYear,
             paid_on: paymentDate,
             type: 'payment',
             notes: notes,
@@ -109,7 +141,6 @@ const PaymentTab = ({ unit }: { unit: any }) => {
             const response = await apiService.post(`/api/units/${unit.id}/payments/`, payload);
 
             if (response.success){
-                 // Reset & Collapse
                 setAmount("");
                 setPaymentMethod("");
                 setReference("");
@@ -188,8 +219,8 @@ const PaymentTab = ({ unit }: { unit: any }) => {
                         <h4 className="text-sm font-black text-gray-900 leading-tight">
                             {today.toLocaleString('default', { month: 'long' })} {today.getFullYear()}
                         </h4>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-                            Current Billing Period
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-tight">
+                            {today.getDate() > 25 ? "Next Billing Cycle" : "Current Billing Cycle"}
                         </p>
                     </div>
                 </div>
@@ -197,6 +228,18 @@ const PaymentTab = ({ unit }: { unit: any }) => {
                 <div className="px-3 py-1 bg-green-100 rounded-full text-[10px] font-bold text-gray-500 uppercase">
                     Active Session
                 </div>
+            </div>
+            <div className="mb-2">
+                {summary.arrears <= 0 && today.getDate() > 25 ? (
+                    <p className="text-sm font-bold text-rose-600 flex items-center gap-1">
+                        <AlertCircle className="w-5 h-5" /> 
+                        Any payments now will reflect for <span className="uppercase underline">{nextMonth.toLocaleString('default', { month: 'long' })}</span> billing cycle
+                    </p>
+                ) : (
+                    <p className="text-sm font-bold text-gray-500">
+                        {today.toLocaleString('default', { month: 'long' })} billing cycle in progress. Payments will reflect in the current cycle.
+                    </p>
+                )}
             </div>
             {/* NET POSITION HEADER */}
             <div className="flex items-center justify-between p-5 bg-gray-900 text-white rounded-2xl shadow-xl">
@@ -411,7 +454,7 @@ const PaymentTab = ({ unit }: { unit: any }) => {
 
                                     <td className="px-4 py-4 text-center">
                                         <button 
-                                            onClick={() => generateReceiptPDF(p, unit, '')}
+                                            onClick={() => generateReceiptPDF(p, property, unit, profile)}
                                             className="p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm"
                                         >
                                             <FileDown className="w-4 h-4" />

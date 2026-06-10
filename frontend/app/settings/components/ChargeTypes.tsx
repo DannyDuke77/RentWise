@@ -30,7 +30,8 @@ const ChargeTypesTab = () => {
     setLoading(true);
     try {
       const data = await apiService.get("/api/charge-types/");
-      setChargeTypes(data);
+      console.log("Fetched charge types:", data);
+      setChargeTypes(data.results);
     } catch (error) {
       console.error("Failed to load charge types:", error);
     } finally {
@@ -142,80 +143,80 @@ const ChargeTypesTab = () => {
       </div>
 
       {/* List */}
-      <div className="space-y-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-        {chargeTypes.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-            <p className="text-gray-400 italic">No records found.</p>
+        {!chargeTypes.length ? (
+          <div className="text-center py-12">
+            <p className="text-gray-400 -ml-20 italic">No charge types found. Please create a new one using the fields above.</p>
           </div>
         ) : (
-          chargeTypes.map((ct) => (
-            <div
-              key={ct.id}
-              className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-                editingId === ct.id ? "border-blue-500 bg-blue-50 shadow-sm" : "border-gray-100 bg-white hover:border-gray-300 shadow-sm"
-              }`}
-            >
-              {editingId === ct.id ? (
-                /* EDIT MODE */
-                <div className="flex flex-1 flex-col md:flex-row gap-3 items-center">
-                  <input
-                    className="w-full md:w-auto flex-[2] px-3 py-1.5 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                  />
-                  <div className="relative w-full md:w-auto flex-1">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">Ksh</span>
+          <div className="space-y-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {chargeTypes.map((ct) => (
+              <div 
+                key={ct.id}
+                className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                  editingId === ct.id ? "border-blue-500 bg-blue-50 shadow-sm" : "border-gray-100 bg-white hover:border-gray-300 shadow-sm"
+                }`}
+              >
+                {editingId === ct.id ? (
+                  /* EDIT MODE */
+                  <div className="flex flex-1 flex-col md:flex-row gap-3 items-center">
                     <input
-                      type="number"
-                      className="w-full pl-8 pr-3 py-1.5 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none"
-                      value={editAmount}
-                      onChange={(e) => setEditAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="w-full md:w-auto flex-[2] px-3 py-1.5 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
                     />
-                  </div>
-                  <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={() => handleUpdate(ct.id)} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                      <Check size={18} />
-                    </button>
-                    <button onClick={cancelEditing} className="p-2 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300">
-                      <X size={18} />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* VIEW MODE */
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 flex items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                      <DollarSign size={20} />
+                    <div className="relative w-full md:w-auto flex-1">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">Ksh</span>
+                      <input
+                        type="number"
+                        className="w-full pl-8 pr-3 py-1.5 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none"
+                        value={editAmount}
+                        onChange={(e) => setEditAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                      />
                     </div>
-                    <div>
-                      <h4 className="font-bold text-gray-900 leading-tight">{ct.name}</h4>
-                      <p className="text-sm font-medium text-gray-500 uppercase tracking-tighter">
-                        Ksh {ct.default_amount.toLocaleString()}
-                      </p>
+                    <div className="flex gap-2 w-full md:w-auto">
+                      <button onClick={() => handleUpdate(ct.id)} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <Check size={18} />
+                      </button>
+                      <button onClick={cancelEditing} className="p-2 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300">
+                        <X size={18} />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => startEditing(ct)}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    >
-                      <Edit3 size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(ct.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))
+                ) : (
+                  /* VIEW MODE */
+                  <>
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 flex items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                        <DollarSign size={20} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-900 leading-tight">{ct.name}</h4>
+                        <p className="text-sm font-semibold text-blue-500 uppercase tracking-wider">
+                          Ksh {ct.default_amount.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => startEditing(ct)}
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Edit3 size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(ct.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}          
+          </div>
         )}
       </div>
-    </div>
   );
 };
 

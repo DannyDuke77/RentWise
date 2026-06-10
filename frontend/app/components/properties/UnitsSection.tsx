@@ -2,15 +2,16 @@
 
 import { useState, useMemo, useEffect } from "react";
 import UnitRow from "./UnitRow";
+import { Building, ChevronLeft, ChevronRight, Search, CircleX } from "lucide-react";
 import { UnitType } from "../modals/UnitModal";
-import { Building, ChevronLeft, ChevronRight, Search, Filter, Home, Circle, CircleX } from "lucide-react";
-import AddUnitButton from "../navigation/AddUnitButton";
+import { PropertyType } from "@/app/properties/page";
 
 type Props = {
+  property: PropertyType;
   units: UnitType[];
 };
 
-const UnitsSection = ({ units }: Props) => {
+const UnitsSection = ({ property, units }: Props) => {
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -19,15 +20,15 @@ const UnitsSection = ({ units }: Props) => {
 
     const q = query.toLowerCase();
 
-    return units.filter((unit: any) => {
+    return units.filter((unit: UnitType) => {
       const unitName = unit.name?.toLowerCase() || "";
       const status = unit.status?.toLowerCase() || "";
-      const tenantNames = unit.tenant_names?.toLowerCase() || "";
+      const tenantNames = unit.tenant_names?.join(", ").toLowerCase() || "";
       
       return (
         unitName.includes(q) ||
         status.includes(q) ||
-        tenantNames.includes(q) // This works for "David" or "Francis" or "Kamau"
+        tenantNames.includes(q)
       );
     });
   }, [query, units]);
@@ -48,15 +49,17 @@ const UnitsSection = ({ units }: Props) => {
   const statusCounts = useMemo(() => {
     const counts = { occupied: 0, vacant: 0, maintenance: 0 };
     units.forEach(unit => {
-      counts[unit.status]++;
+      if (unit.status in counts) {
+        counts[unit.status]++;
+      }
     });
     return counts;
   }, [units]);
 
   return (
-    <div className="px-2 max-h-[550px] overflow-y-auto border border-gray-100 shadow-sm overflow-hidden">
+    <div className="px-2 overflow-y-auto border border-gray-100 shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="p-3  border-b border-gray-100">
+      <div className="p-3 border-b border-gray-100">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Units</h2>
@@ -66,7 +69,7 @@ const UnitsSection = ({ units }: Props) => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Status Filters (Optional) */}
+            {/* Status Filters */}
             <div className="hidden sm:flex items-center gap-2">
               <div className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full" />
@@ -144,6 +147,7 @@ const UnitsSection = ({ units }: Props) => {
             {paginatedUnits.map((unit) => (
               <UnitRow
                 key={unit.id}
+                property={property}
                 unit={unit}
               />
             ))}
@@ -206,7 +210,7 @@ const UnitsSection = ({ units }: Props) => {
 
                   <button
                     disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((p) => p + 1)}
+                    onClick={() => setCurrentPage((p) => p - 1)}
                     className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Next

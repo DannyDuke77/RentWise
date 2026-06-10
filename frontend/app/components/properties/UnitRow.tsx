@@ -1,23 +1,18 @@
 'use client';
 
-import { User, ChevronRight, Home, DollarSign, Wrench, Square, UserCheck, UserX, MoreVertical, Edit2, Trash2 } from "lucide-react";
+import { User, Home, DollarSign, Wrench, UserCheck, UserX, MoreVertical, Edit2, Trash2 } from "lucide-react";
 import { Menu, Transition } from "@headlessui/react";
 import ViewUnitButton from "../navigation/ViewUnitButton";
-import { UnitType } from "../modals/UnitModal";
-import { use, useEffect, useState } from "react";
-import apiService from "@/app/services/apiService";
-import { useToday } from "@/app/src/utils/timeStore";
 import useUnitDetailModal from "@/app/hooks/useUnitDetailModal";
+import { UnitType } from "../modals/UnitModal";
+import { PropertyType } from "@/app/properties/page";
+
+export type PaymentStatus = "unknown" | "paid" | "partial" | "unpaid" | "vacant";
 
 interface UnitRowProps {
+  property: PropertyType;
   unit: UnitType;
 }
-
-const statusStyles = {
-  occupied: 'bg-emerald-100 text-emerald-800',
-  vacant: 'bg-rose-100 text-rose-800',
-  maintenance: 'bg-amber-100 text-amber-800',
-};
 
 const statusIcons = {
   occupied: <UserCheck className="text-green-500" width={20} height={20} />,
@@ -25,80 +20,44 @@ const statusIcons = {
   maintenance: <Wrench className="text-yellow-500" width={20} height={20} />
 };
 
-type PaymentStatus = "unknown" | "paid" | "partial" | "unpaid";
-
-const UnitRow: React.FC<UnitRowProps> = ({
-  unit,
-}) => {
-  const today = useToday();
-  const [payments, setPayments] = useState<any[]>([]);
-
+const UnitRow: React.FC<UnitRowProps> = ({ property, unit }) => {
   const unitDetailModal = useUnitDetailModal();
 
-  useEffect(() => {
-    if (!unit?.id) return;
-
-    const fetchPayments = async () => {
-      try {
-        const data = await apiService.get(`/api/units/${unit.id}/payments/`);
-        setPayments(data.payments); // array of payments for this unit
-      } catch (error) {
-        setPayments([]); // fallback
-      }
-    };
-
-    fetchPayments();
-  }, [unit?.id]);
-
-
-  const getThisMonthPaymentSummary = (): { status: PaymentStatus; totalPaid: number; remaining: number } => {
-    if (!unit) return {
-      status: "unknown",
-      totalPaid: 0,
-      remaining: 0,
-    };
-
-    const month = today.getMonth();
-    const year = today.getFullYear();
-
-    // Filter payments made in the current month
-    const thisMonthPayments = payments.filter(p => {
-        const paymentDate = new Date(p.paid_for);
-        return paymentDate.getFullYear() === year && paymentDate.getMonth() === month;
-    });
-
-    const totalPaid = thisMonthPayments.reduce((sum, p) => sum + Number(p.amount_paid), 0);
-    const remaining = Math.max(unit.monthly_rent - totalPaid, 0);
-
-    let status: "paid" | "partial" | "unpaid" = "unpaid";
-    if (totalPaid >= unit.monthly_rent) status = "paid";
-    else if (totalPaid > 0) status = "partial";
+  // Pure data extractor—no internal state or secondary network requests
+  const getPaymentSummary = () => {
+    const status = (unit.rent_status?.status || "unpaid") as PaymentStatus;
+    const totalPaid = unit.rent_status?.paid || 0;
+    const balance = unit.rent_status?.balance || 0;
+    const remaining = balance > 0 ? Math.min(balance, unit.rent_status?.rent || unit.monthly_rent) : 0;
 
     return { status, totalPaid, remaining };
   };
 
-  const unitPaymentStatus = getThisMonthPaymentSummary();
+  const unitPaymentStatus = getPaymentSummary();
 
-  const paymentStatusColors = {
+  const paymentStatusColors: Record<PaymentStatus, string> = {
     unknown: "bg-gray-100 text-gray-800 border-gray-200",
     paid: "bg-emerald-100 text-emerald-800 border-emerald-200",
     partial: "bg-yellow-100 text-yellow-800 border-yellow-200",
     unpaid: "bg-rose-100 text-rose-800 border-rose-200",
+    vacant: "bg-gray-100 text-gray-500 border-gray-200",
   };
 
   const statusColorMap: Record<PaymentStatus, string> = {
-    unknown: 'bg-gray-100 text-gray-800 border-gray-200',
-    paid: 'text-green-500',
-    partial: 'text-yellow-500',
-    unpaid: 'text-rose-500'
+    unknown: 'text-gray-500',
+    paid: 'text-emerald-600',
+    partial: 'text-amber-500',
+    unpaid: 'text-rose-600',
+    vacant: 'text-gray-400 italic font-normal',
   };
+  
   const statusColor = statusColorMap[unitPaymentStatus.status] || '';
 
   return (
     <div className="group p-4 flex items-center justify-between hover:bg-gradient-to-r hover:from-white hover:to-gray-50/50 border-6 border-transparent hover:border-l-6 hover:border-l-blue-400 transition-all duration-300">
       {/* Left Content */}
       <div className="flex items-center gap-4 flex-1 min-w-0">
-        {/* Unit Number */}
+        {/* Unit Number Badge */}
         <div className="relative">
           <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 text-blue-700 font-bold rounded-xl flex items-center justify-center">
             {unit.name}
@@ -108,16 +67,18 @@ const UnitRow: React.FC<UnitRowProps> = ({
           </div>
         </div>
 
-        {/* Info */}
+        {/* Info Area */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-bold text-gray-900 truncate">Unit {unit.name}</h3>
-            <span className="">{statusIcons[unit.status]}</span>
+            <h3 className={`font-bold text-gray-900 truncate ${unit.status === 'maintenance' ? 'line-through decoration-2' : ''}`}>
+              Unit {unit.name}
+            </h3>
+            <span>{statusIcons[unit.status]}</span>
           </div>
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
             <p className="text-sm text-gray-600 truncate">
-              {unit.tenant_names || 'N/A'}
+              {unit.tenant_names ? unit.tenant_names : unit.status.toUpperCase()}
             </p>
           </div>
         </div>
@@ -125,28 +86,29 @@ const UnitRow: React.FC<UnitRowProps> = ({
 
       {/* Right Content */}
       <div className="flex items-center gap-6">
-        {/* Rent */}
+        {/* Desktop Rent Column */}
         <div className="hidden md:flex items-center gap-2">
           <DollarSign className="w-4 h-4 text-gray-400" />
           <div className="text-right">
-            <p className={`font-bold ${statusColor}`}>{unit.monthly_rent}</p>
+            <p className={`font-bold ${statusColor}`}>{unit.monthly_rent.toLocaleString()}</p>
             <p className="text-xs text-gray-500">monthly</p>
           </div>
         </div>
         
-        {/* Mobile Rent */}
+        {/* Mobile Rent Display */}
         <div className="md:hidden flex items-center gap-1">
           <DollarSign className="w-4 h-4 text-gray-400" />
-          <span className={`font-bold ${statusColor}`}>{unit.monthly_rent}</span>
+          <span className={`font-bold ${statusColor}`}>{unit.monthly_rent.toLocaleString()}</span>
         </div>
 
-        {/* Payment Status */}
+        {/* Payment Status Badge */}
         <span className={`hidden md:flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full ${paymentStatusColors[unitPaymentStatus.status]}`}>
           {unitPaymentStatus.status.toUpperCase()}
         </span>
 
+        {/* Dropdown Menu Hooks */}
         <div className="flex items-center gap-2">
-          <ViewUnitButton unit={unit} />
+          <ViewUnitButton property={property} unit={unit as any} />
 
           <Menu as="div" className="relative">
              <Menu.Button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
@@ -166,7 +128,7 @@ const UnitRow: React.FC<UnitRowProps> = ({
                    <Menu.Item>
                      {({ active }) => (
                        <button
-                         onClick={() => unitDetailModal.open(unit, true)}
+                         onClick={() => unitDetailModal.open(property, unit as any, true)}
                          className={`${active ? 'bg-blue-50 text-blue-700' : 'text-gray-700'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}
                        >
                          <Edit2 className="mr-2 h-4 w-4" /> Edit
@@ -176,7 +138,7 @@ const UnitRow: React.FC<UnitRowProps> = ({
                    <Menu.Item>
                      {({ active }) => (
                        <button
-                         onClick={() => unitDetailModal.open(unit, false)}
+                         onClick={() => unitDetailModal.open(property, unit as any, false)}
                          className={`${active ? 'bg-rose-50 text-rose-700' : 'text-gray-700'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}
                        >
                          <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -188,8 +150,6 @@ const UnitRow: React.FC<UnitRowProps> = ({
              </Transition>
            </Menu>
         </div>
-        {/* Action */}
-        
       </div>
     </div>
   );

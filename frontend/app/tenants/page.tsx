@@ -12,7 +12,8 @@ import {
   CalendarIcon,
   CheckCircleIcon,
   HistoryIcon,
-  XCircleIcon 
+  XCircleIcon, 
+  Users
 } from "lucide-react";
 
 export type TenantType = {
@@ -42,7 +43,7 @@ const TenantsPage = () => {
             setLoading(true);
             setError(null);
             const response = await apiService.get(`/api/tenants/${query ? `?q=${query}` : ''}`);
-            setTenants(response.tenants || []);
+            setTenants(response.results || []);
         } catch (error) {
             if (error instanceof Error) setError(error.message);
         } finally {
@@ -81,9 +82,12 @@ const TenantsPage = () => {
     );
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Tenant Directory</h1>
+                <h1 className="flex items-center space-x-3">
+                    <Users className="w-10 h-10" /> 
+                    <span className="text-3xl font-bold text-gray-900 uppercase">Tenant Directory</span>
+                </h1>
                 <p className="mt-2 text-gray-600">Historical and active tracking of all residents</p>
             </div>
 
@@ -142,7 +146,7 @@ const TenantsPage = () => {
                     <p className="text-gray-500">No tenants recorded in the system.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {tenants.map((tenant) => (
                         <div key={tenant.id} className="bg-white border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                             <div className="p-6">

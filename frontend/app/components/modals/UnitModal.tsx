@@ -19,6 +19,12 @@ export type UnitType = {
     floor: string;
     is_active: 'active' | 'inactive';
     payments: any[];
+    rent_status: {
+        balance: number;
+        status: 'paid' | 'partial' | 'unpaid';
+        paid: number;
+        rent: number;
+    };
 }
 
 const UnitModal = () => {

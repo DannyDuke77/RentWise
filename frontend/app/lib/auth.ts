@@ -1,7 +1,6 @@
 import { cookies } from "next/headers"
 import { jwtDecode } from "jwt-decode"
 
-const DEBUG = process.env.NODE_ENV !== 'production';
 
 export type AuthUser = {
   id: string
@@ -20,8 +19,8 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     try {
         const decoded: any = jwtDecode(token)
 
-        if (DEBUG) console.log('getAuthUser: Decoded token:', decoded);
-        if (DEBUG) console.log('getAuthUser: Decoded name:', decoded.name);
+        // console.log('getAuthUser: Decoded token:', decoded);
+        // console.log('getAuthUser: Decoded name:', decoded.name);
 
         // Check if token is expired
         if (decoded.exp * 1000 < Date.now()) return null

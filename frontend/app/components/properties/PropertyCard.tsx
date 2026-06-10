@@ -5,8 +5,8 @@ interface PropertyCardProps {
   id: string;
   name: string;
   location: string;
-  units: number;
-  occupancy: number;
+  units_count: number;
+  occupied_units_count: number;
 }
 
 const statusMap = {
@@ -24,10 +24,10 @@ const statusMap = {
   }
 };
 
-const getStatus = (units: number, occupancy: number) => {
+const getStatus = (units: number, occupied_units: number) => {
   if (units === 0) return 'low';
-  if (occupancy === units) return 'full';
-  if (occupancy > 0) return 'partial';
+  if (occupied_units === units) return 'full';
+  if (occupied_units > 0) return 'partial';
   return 'low';
 };
 
@@ -35,10 +35,10 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
   id,
   name,
   location,
-  units,
-  occupancy,
+  units_count,
+  occupied_units_count,
 }) => {
-  const status = getStatus(units, occupancy);
+  const status = getStatus(units_count, occupied_units_count);
   const statusInfo = statusMap[status];
 
   return (
@@ -54,7 +54,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
           </span>
           <span className="flex items-center gap-1.5">
             <Layers size={14} className="text-gray-400" />
-            {units} Units
+            {units_count} Units
           </span>
         </div>
       </div>
@@ -62,7 +62,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
       <div className="flex items-center justify-between md:justify-end gap-6">
         <div className="text-right hidden sm:block">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Occupancy</p>
-          <p className="text-sm font-bold text-gray-700">{Math.round((occupancy / units) * 100) || 0}% Full</p>
+          <p className="text-sm font-bold text-gray-700">{Math.round((occupied_units_count / units_count) * 100) || 0}% Full</p>
         </div>
 
         <div className="flex items-center gap-3">

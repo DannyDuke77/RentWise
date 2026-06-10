@@ -16,6 +16,7 @@ class Property(models.Model):
         ('bedsitter', 'Bedsitter'),
         ('house', 'House'),
         ('commercial', 'Commercial'),
+        ('other', 'Other'),
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -104,6 +105,12 @@ class Tenancy(models.Model):
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
 
+    billing_start_date = models.DateField(
+        null=True, 
+        blank=True, 
+        help_text="The date from which rent calculation begins. If blank, start_date is used."
+    )
+
     monthly_rent = models.DecimalField(max_digits=10, decimal_places=2)
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # + = arrears, - = credit
 
@@ -122,56 +129,39 @@ class Tenancy(models.Model):
 
     def __str__(self):
         return f"{self.unit} - Tenancy starting {self.start_date}"
+    
+    def get_effective_billing_start(self):
+        return self.billing_start_date or self.start_date
 
     def calculate_balance(self, up_to_date=None, start_from=None):
         """
         Calculates the tenancy balance up to a specific date.
 
-        Balance =
-            Rent Due
-        + Charges
-        - Payments
-        + Refund adjustments
+        Balance = Rent Due + Charges - Payments + Refund adjustments
         """
 
         if up_to_date is None:
-            up_to_date = self.end_date or timezone.now().date()
+            up_to_date = timezone.now().date()
 
-        actual_start = start_from if start_from and start_from > self.start_date else self.start_date
+        billing_start = self.get_effective_billing_start()
+        actual_start = start_from if start_from and start_from > billing_start else billing_start
 
         if up_to_date < actual_start:
-            return Decimal("0.00")
-
-        # 1. Calculate Rent Due
-        months_elapsed = (
-            (up_to_date.year - actual_start.year) * 12
-            + (up_to_date.month - actual_start.month)
-            + 1
-        )
-
-        total_rent_due = Decimal(months_elapsed) * self.monthly_rent
+            total_rent_due = Decimal("0.00")
+        else:
+            # 1. Calculate Rent Due
+            months_elapsed = ((up_to_date.year - actual_start.year) * 12
+                + (up_to_date.month - actual_start.month) + 1)
+            total_rent_due = Decimal(months_elapsed) * self.monthly_rent
 
         # 2. Calculate Charges
-        charges_query = self.charges.filter(
-            created_at__date__lte=up_to_date
-        )
-
-        total_charges = sum(
-            (c.amount for c in charges_query if c.status != "waived"),
-            Decimal("0.00")
-        )
+        total_charges = sum((c.amount for c in self.charges.filter(created_at__date__lte=up_to_date) if c.status != "waived"), Decimal("0.00"))
 
 
         # 3. Calculate Payments & Refunds
         payments_query = self.payments.filter(paid_on__date__lte=up_to_date)
 
-        total_paid = Decimal("0.00")
-
-        for p in payments_query:
-            if p.type == "payment":
-                total_paid += p.amount_paid
-            elif p.type == "refund":
-                total_paid -= p.amount_paid
+        total_paid = sum((p.amount_paid if p.type == "payment" else -p.amount_paid for p in payments_query), Decimal("0.00"))
 
         # 4. Final Balance
         return total_rent_due + total_charges - total_paid

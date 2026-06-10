@@ -8,7 +8,7 @@ from ..models import Tenancy, Tenant, TenancyMember
 from accounts.validators import normalize_kenyan_phone
 
 @transaction.atomic
-def add_tenant_to_unit(unit, data):
+def add_tenant_to_unit(unit, data, billing_start_date=None):
     if hasattr(data, 'dict'):
         data = data.dict()
     else:
@@ -25,12 +25,9 @@ def add_tenant_to_unit(unit, data):
             raise ValidationError({"errors": {field: ["Required"]}})
         
     try:
-        # 1. Attempt normalization
         data["phone"] = normalize_kenyan_phone(data["phone"])
 
-        # 2. Attempt tenant retrieval/creation
-        # We wrap this too in case the model's clean() or save() methods 
-        # also call validators that raise DjangoValidationError
+        # Tenant retrieval/creation
         tenant, created = Tenant.objects.get_or_create(
             id_number=data["id_number"],
             defaults={
@@ -41,11 +38,9 @@ def add_tenant_to_unit(unit, data):
             }
         )
     except DjangoValidationError as e:
-        # This catches the 'Invalid Kenyan phone number' message
-        # and sends it back as {"phone": ["Invalid Kenyan phone number."]}
         raise ValidationError({"phone": e.messages})
 
-    tenant, created = Tenant.objects.get_or_create(
+    tenant, _ = Tenant.objects.get_or_create(
         id_number=data["id_number"],
         defaults={
             "full_name": data["full_name"],
@@ -57,11 +52,13 @@ def add_tenant_to_unit(unit, data):
 
     tenancy = Tenancy.objects.create(
         unit=unit,
-        start_date=timezone.now().date(),
+        start_date=data.get("start_date", timezone.now().date()),
         monthly_rent=unit.monthly_rent,
+        billing_start_date=billing_start_date,
+        is_active=True
     )
     
-    TenancyMember.objects.create(tenancy=tenancy, tenant=tenant, is_active=True)
+    TenancyMember.objects.create(tenancy=tenancy, tenant=tenant)
 
     unit.status = "occupied"
     unit.save(update_fields=["status"])
@@ -74,12 +71,12 @@ def vacate_unit(unit):
     if not tenancy:
         raise ValidationError("No active tenancy found.")
 
-    # 1. End the lease contract
+    # End the lease contract
     tenancy.is_active = False
     tenancy.end_date = timezone.now().date()
     tenancy.save()
 
-    # 2. Mark ALL members of this tenancy as having left
+    # Mark all members of this tenancy as having left
     TenancyMember.objects.filter(tenancy=tenancy, is_active=True).update(
         is_active=False,
         left_at=timezone.now()

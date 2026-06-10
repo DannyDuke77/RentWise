@@ -3,12 +3,13 @@ import {
   Home, 
   UserCheck, 
   UserMinus, 
-  Wrench 
+  Wrench,
+  ChartLine
 } from "lucide-react";
 
 interface StatCardProps {
   title: string;
-  value: number;
+  value: number | string;
 }
 
 // Mapping titles to icons and colors for better visual cues
@@ -18,6 +19,7 @@ const iconMap: Record<string, { icon: any, color: string, bg: string }> = {
   "Occupied Units": { icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-50" },
   "Vacant Units": { icon: UserMinus, color: "text-amber-600", bg: "bg-amber-50" },
   "Units in Maintenance": { icon: Wrench, color: "text-rose-600", bg: "bg-rose-50" },
+  "Average Occupancy": { icon: ChartLine, color: "text-purple-600", bg: "bg-purple-50" },
 };
 
 const StatCard = ({ title, value }: StatCardProps) => {
@@ -35,11 +37,10 @@ const StatCard = ({ title, value }: StatCardProps) => {
         </p>
       </div>
       
-      <div className="flex items-baseline gap-2">
+      <div className="flex justify-center gap-2">
         <p className="text-3xl font-bold text-gray-900">
           {value.toLocaleString()}
-        </p>
-        {/* Optional: You can add trend indicators here later */}
+        </p>        
       </div>
     </div>
   );

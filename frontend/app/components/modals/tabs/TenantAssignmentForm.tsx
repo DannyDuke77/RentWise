@@ -21,7 +21,8 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
         full_name: '',
         phone: '',
         email: '',
-        id_number: ''
+        id_number: '',
+        billing_start_date: '',
     });
 
     const handleUnitStatusChange = () => {
@@ -67,7 +68,6 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
             let response;
 
             if (hasTenant) {
-                // Add roommate
                 if (!tenancyId) throw new Error("Tenancy ID required to add roommate");
                 response = await apiService.post(
                     `/api/units/${unit.id}/add-roommate/`,
@@ -188,6 +188,21 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
                             />
                         </div>
                         {errors.id_number && <p className="text-red-600 text-xs mt-1">{errors.id_number[0]}</p>}
+                    </div>
+
+                    {/* Billing Start Date */}
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-700 uppercase ml-1">Billing Start Date <span className="text-sm text-red-600">*</span></label>
+                        <div className="relative">
+                            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input
+                                type="date"
+                                className={inputClass('billing_start_date')}
+                                value={formData.billing_start_date}
+                                onChange={(e) => setFormData({ ...formData, billing_start_date: e.target.value })}
+                            />
+                        </div>
+                        {errors.billing_start_date && <p className="text-red-600 text-xs mt-1">{errors.billing_start_date[0]}</p>}
                     </div>
                 </div>
 

@@ -15,7 +15,6 @@ import {
   ChevronRight,
   Menu,
   X,
-  Home,
   User
 } from "lucide-react"
 
@@ -143,7 +142,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ appUser }) => {
           </div>
           
           {/* Close Button for Mobile/Tablet */}
-          {(isSmallScreen || (isMediumScreen && isOpen)) && (
+          {(isSmallScreen) && (
             <button 
               onClick={toggleSidebar}
               className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-all duration-300"
@@ -154,7 +153,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ appUser }) => {
           )}
           
           {/* Collapse/Expand Button for Desktop */}
-          {!isSmallScreen && !isMediumScreen && (
+          {!isSmallScreen && (
             <button 
               onClick={toggleSidebar}
               className={`p-2 text-gray-400 z-10 hover:text-white hover:bg-gray-700/50 rounded-lg transition-all duration-300

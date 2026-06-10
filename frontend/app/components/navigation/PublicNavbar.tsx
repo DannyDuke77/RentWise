@@ -10,7 +10,7 @@ const PublicNavbar = () => {
 
     return (
         <>
-            <nav className="fixed top-0 w-full z-50 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800 shadow-2xl">
+            <nav className="fixed top-0 w-full z-50 backdrop-blur-lg border-b border-gray-800 shadow-2xl">
                 <div className="mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
                         {/* Logo */}

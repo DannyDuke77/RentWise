@@ -14,9 +14,10 @@ import PaymentTab from "./tabs/PaymentTab";
 import LogsTab from "./tabs/LogsTab";
 import TabHeader from "./TabHeader";
 import ChargesTab from "./tabs/ChargesTab";
+import { ChargeType } from "./tabs/ChargesTab";
 
 const UnitDetailModal = () => {
-    const { unit, isOpen, close, isEditing: initialIsEditing } = useUnitDetailModal();
+    const { property, unit, isOpen, close, isEditing: initialIsEditing } = useUnitDetailModal();
     const unitDetailModal = useUnitDetailModal();
     const [currentTab, setCurrentTab] = useState<'details' | 'tenant' | 'payment' | 'charges' | 'logs'>('details');
     const [tenants, setTenants] = useState<any[]>([]);
@@ -25,6 +26,7 @@ const UnitDetailModal = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
     const [hasPendingCharges, setHasPendingCharges] = useState(false);
+    const [chargeTypes, setChargeTypes] = useState<ChargeType[]>([]);
     const router = useRouter();
 
     const [formData, setFormData] = useState({
@@ -34,31 +36,63 @@ const UnitDetailModal = () => {
         status: "vacant",
     });
 
-
-    const fetchTenants = async () => {
-        if (!unit?.id) return;
-        setLoading(true);
-        try {
-            const res = await apiService.get(`/api/tenants/unit/${unit.id}/`);
-            setTenants(res.tenants || []);
-            const tId = res.tenancy_id || null;
-            setTenancyId(tId);
-
-            if (tId) {
-                const chargesData = await apiService.get(`/api/charges/?tenancy=${tId}`);
-                const hasPending = chargesData.some((c: any) => c.status === "pending");
-                setHasPendingCharges(hasPending);
-            }
-        } catch (error) {
-            setTenants([]);
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        if (isOpen) {
+            setCurrentTab('details');
         }
-    };
+    }, [isOpen]);
 
     useEffect(() => {
-        fetchTenants();
+        if (!unit?.id) return;
+
+        let isActive = true;
+
+        const load = async () => {
+            setLoading(true);
+            try {
+                const res = await apiService.get(`/api/tenants/unit/${unit.id}/`);
+
+                if (!isActive) return;
+
+                if (res && (res.tenants || Array.isArray(res))) {
+                    const tenantData = res.tenants || (Array.isArray(res) ? res : []);
+                    setTenants(tenantData);
+                    setTenancyId(res.tenancy_id || null);
+                } else {
+                    setTenants([]);
+                    setTenancyId(null);
+                }
+            } catch (error) {
+                if (isActive) setTenants([]);
+            } finally {
+                if (isActive) setLoading(false);
+            }
+        };
+
+        load();
+
+        return () => {
+            isActive = false;
+        };
     }, [unit?.id]);
+
+    const fetchChargeTypes = async () => {
+        if (!unit?.id || unit.status !== 'occupied') return;
+        try {
+            const data = await apiService.get("/api/charge-types/");
+            console.log("Fetched charge types:", data);
+            setChargeTypes(Array.isArray(data.results) ? data.results : []);
+        } catch (error) {
+            console.error("Failed to fetch types", error);
+            setChargeTypes([]);
+        }
+    };
+    
+    useEffect(() => {
+        if (currentTab === 'charges') {
+            fetchChargeTypes();
+        }
+    }, [currentTab]);
 
     const handleRemoveRoommate = async (tenantId: string) => {
         if (!tenancyId || !confirm("Remove this tenant from the unit?")) return;
@@ -85,7 +119,6 @@ const UnitDetailModal = () => {
         setLoading(true);
         try {
             await apiService.post(`/api/units/${unit?.id}/vacate/`, {});
-            fetchTenants();
         } finally {
             setLoading(false);
         }
@@ -211,6 +244,7 @@ const UnitDetailModal = () => {
                         </div>
                     ) : (
                         <DetailsTab 
+                            property={property}
                             unit={unit} 
                             tenants={tenants} 
                             loading={loading} 
@@ -224,16 +258,17 @@ const UnitDetailModal = () => {
                     <TenantAssignmentForm 
                         unit={unit} 
                         tenancyId={tenancyId || undefined}
-                        onSuccess={() => { fetchTenants(); setCurrentTab('details'); }} 
+                        onSuccess={() => { setCurrentTab('details'); }} 
                         hasTenant={tenants && tenants.length > 0}
                     />
                 )}
-                {currentTab === 'payment' && <PaymentTab unit={unit} />}
+                {currentTab === 'payment' && <PaymentTab property={property} unit={unit} />}
 
                 {currentTab === 'charges' && (
                     <ChargesTab
                         unit={unit} 
                         tenancyId={tenancyId} 
+                        chargeTypes={chargeTypes}
                         onPendingStatusChange={setHasPendingCharges}
                     />
                 )}

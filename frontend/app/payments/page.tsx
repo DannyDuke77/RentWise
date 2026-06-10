@@ -84,12 +84,15 @@ const PaymentsPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-8xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Payments</h1>
+              <h1 className="flex items-center space-x-3 ">
+                <DollarSign className="w-10 h-10" />
+                <span className="text-3xl font-bold text-gray-900 uppercase">Payments</span>
+              </h1>
               <p className="text-gray-600 mt-2">Track and manage all payment transactions</p>
             </div>
             <div className="flex items-center space-x-4">

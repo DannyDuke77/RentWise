@@ -4,8 +4,6 @@ import AppSidebar from "../navigation/AppSidebar";
 
 const Navbar = async () => {
     const user = await getAuthUser();
-
-    console.log('User: ', user);
     
     if (!user) {
         return <PublicNavbar />

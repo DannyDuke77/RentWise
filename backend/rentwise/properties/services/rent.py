@@ -1,41 +1,66 @@
-from django.db.models import Sum
-from django.utils import timezone
-from django.db import models
 from decimal import Decimal
-
-from properties.models import UnitPayment
-
-from django.db.models import Sum
+from django.db.models import Prefetch, Subquery, Sum, OuterRef, Value, DecimalField
+from django.db.models.functions import Coalesce
 from django.utils import timezone
+from properties.models import Property, Unit, Tenancy, TenancyMember, UnitPayment, Charge
 
-def get_unit_rent_status(unit):
-    tenancy = unit.tenancies.filter(is_active=True).first()
+def _prefetch_units(property_obj):
+    charge_sum = (
+        Charge.objects
+        .filter(tenancy=OuterRef("pk"))
+        .values("tenancy")
+        .annotate(total=Sum("amount"))
+        .values("total")
+    )
+    
+    payment_sum = (
+        UnitPayment.objects
+        .filter(tenancy=OuterRef("pk"))
+        .values("tenancy")
+        .annotate(total=Sum("amount_paid"))
+        .values("total")
+    )
+
+    tenancy_queryset = (
+        Tenancy.objects
+        .filter(is_active=True)
+        .annotate(
+            ledger_balance=Coalesce(Subquery(charge_sum), Value(0, output_field=DecimalField()))
+            - Coalesce(Subquery(payment_sum), Value(0, output_field=DecimalField()))
+        )
+        .prefetch_related(
+            Prefetch(
+                "tenancy_members",
+                queryset=TenancyMember.objects.filter(is_active=True).select_related("tenant"),
+            ),
+            "payments",
+        )
+    )
+
+    return list(
+        Unit.objects
+        .filter(property=property_obj, is_active=True)
+        .prefetch_related(Prefetch("tenancies", queryset=tenancy_queryset))
+    )
+
+def _compute_unit_rent_status(unit, tenancy, payments_this_month):
     if not tenancy:
         return {
             "rent": unit.monthly_rent,
-            "paid": 0,
-            "balance": 0,
+            "paid": Decimal("0.00"),
+            "balance": Decimal("0.00"),
             "status": "vacant",
         }
-
-    # 1. Total Ledger Truth (Balance including all payments/refunds)
-    total_balance = tenancy.calculate_balance()
-
-    # 2. Monthly Performance (Payments made strictly THIS calendar month, considering refunds)
-    now = timezone.now()
-    payments_this_month = tenancy.payments.filter(
-        paid_on__year=now.year,
-        paid_on__month=now.month
-    )
 
     this_month_paid = Decimal("0.00")
     for p in payments_this_month:
         if p.type == "payment":
             this_month_paid += p.amount_paid
         elif p.type == "refund":
-            this_month_paid -= p.amount_paid  # refunds reduce monthly collection
+            this_month_paid -= p.amount_paid
 
-    # 3. Status Logic (based on total balance)
+    total_balance = tenancy.ledger_balance
+
     if total_balance <= 0:
         status = "paid"
     elif total_balance < tenancy.monthly_rent:
@@ -44,22 +69,16 @@ def get_unit_rent_status(unit):
         status = "unpaid"
 
     return {
-        "rent": float(tenancy.monthly_rent),
-        "paid": float(this_month_paid),
-        "balance": float(total_balance),
+        "rent": tenancy.monthly_rent,
+        "paid": this_month_paid,
+        "balance": total_balance,
         "status": status,
     }
 
 
-def get_property_rent_summary(property):
-    units = property.units.filter(is_active=True)
-    occupied_units = units.filter(status='occupied')
-
-    # Expected rent
-    expected = Decimal(units.aggregate(total=Sum("monthly_rent"))["total"] or 0)
-    occupied_expected = Decimal(occupied_units.aggregate(total=Sum("monthly_rent"))["total"] or 0)
-
-    # Initialize totals
+def _build_units_data(units, year, month):
+    expected = Decimal("0.00")
+    occupied_expected = Decimal("0.00")
     total_arrears = Decimal("0.00")
     total_credits = Decimal("0.00")
     effective_collection = Decimal("0.00")
@@ -67,38 +86,108 @@ def get_property_rent_summary(property):
     paid_units = 0
     partial_units = 0
     unpaid_units = 0
+    occupied_count = 0
+    total_count = 0
+
+    units_payload = []
 
     for unit in units:
-        status_data = get_unit_rent_status(unit)
-        balance = Decimal(status_data["balance"])
-        monthly_rent = Decimal(status_data["rent"])
-        amount_paid_this_month = Decimal(status_data["paid"])
+        total_count += 1
+        expected += unit.monthly_rent
 
-        # --- Separate debt from credit ---
-        if balance > 0:
-            total_arrears += balance      # tenant owes money
-        elif balance < 0:
-            total_credits += abs(balance) # tenant has a credit
+        all_tenancies = unit.tenancies.all()
+        tenancy = all_tenancies[0] if all_tenancies else None
 
-        # --- Compliance / Progress Bar Logic ---
-        if status_data["status"] == "paid":
-            effective_collection += monthly_rent
-            paid_units += 1
-        elif status_data["status"] == "partial":
-            effective_collection += min(amount_paid_this_month, monthly_rent)
-            partial_units += 1
+        payments_this_month = []
+        if tenancy:
+            for p in tenancy.payments.all():
+                if p.paid_on.year == year and p.paid_on.month == month:
+                    payments_this_month.append(p)
+
+        rent_status = _compute_unit_rent_status(unit, tenancy, payments_this_month)
+
+        if tenancy:
+            occupied_count += 1
+            rent = rent_status["rent"]
+            balance = rent_status["balance"]
+            month_paid = rent_status["paid"]
+            
+            occupied_expected += rent
+
+            if balance > 0:
+                total_arrears += balance
+            elif balance < 0:
+                total_credits += abs(balance)
+
+            if rent_status["status"] == "paid":
+                effective_collection += rent
+                paid_units += 1
+            elif rent_status["status"] == "partial":
+                effective_collection += min(month_paid, rent)
+                partial_units += 1
+            else:
+                unpaid_units += 1
+
+            tenant_names = ", ".join(
+                tm.tenant.full_name for tm in tenancy.tenancy_members.all()
+            )
         else:
-            unpaid_units += 1
+            tenant_names = ""
 
-    return {
+        units_payload.append({
+            "id": str(unit.id),
+            "name": unit.name,
+            "property": str(unit.property.name),
+            "status": unit.status,
+            "floor": unit.floor,
+            "monthly_rent": float(unit.monthly_rent),
+            "tenant_names": tenant_names,
+            "rent_status": {
+                "rent": float(rent_status["rent"]),
+                "paid": float(rent_status["paid"]),
+                "balance": float(rent_status["balance"]),
+                "status": rent_status["status"],
+            },
+        })
+
+    summary = {
         "expected": float(expected),
         "occupied_expected": float(occupied_expected),
         "paid": float(effective_collection),
         "balance": float(total_arrears),
         "total_credits": float(total_credits),
-        "occupied_units": occupied_units.count(),
+        "occupied_units": occupied_count,
         "paid_units": paid_units,
         "partial_units": partial_units,
         "unpaid_units": unpaid_units,
-        "total_units": units.count(),
-    }   
+        "total_units": total_count,
+    }
+
+    return units_payload, summary
+
+def get_property_dashboard(property_id):
+    now = timezone.now()
+    
+    property_obj = Property.objects.get(id=property_id)
+    
+    units = _prefetch_units(property_obj)
+    _, summary = _build_units_data(units, now.year, now.month)
+
+    return {
+        "property": {
+            "id": str(property_obj.id),
+            "name": property_obj.name,
+            "location": property_obj.location,
+        },
+        "summary": summary,
+    }
+
+def get_property_units(property_id):
+    now = timezone.now()
+    
+    property_obj = Property.objects.get(id=property_id)
+    
+    units = _prefetch_units(property_obj)
+    units_payload, _ = _build_units_data(units, now.year, now.month)
+
+    return units_payload

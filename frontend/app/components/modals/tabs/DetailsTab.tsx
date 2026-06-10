@@ -6,8 +6,10 @@ import {
     User, Phone, Mail, Home, FileText, 
     UserPlus, AlertCircle, EllipsisVertical, Copy, Check 
 } from "lucide-react";
+import { PropertyType } from "@/app/properties/page";
 
 interface DetailsTabProps {
+    property: PropertyType | null;
     unit: any;
     tenants: any;
     loading: boolean;
@@ -16,12 +18,10 @@ interface DetailsTabProps {
     onAssignClick: () => void;
 }
 
-// --- Atomic Skeleton Component ---
 const Skeleton = ({ className }: { className?: string }) => (
     <div className={`animate-pulse bg-gray-200 rounded-lg ${className}`} />
 );
 
-// --- Full Tab Skeleton ---
 const DetailsTabSkeleton = () => (
     <div className="space-y-8">
         <div className="h-32 w-full bg-gray-100 rounded-2xl p-6 flex justify-between items-center">
@@ -52,7 +52,7 @@ const DetailsTabSkeleton = () => (
     </div>
 );
 
-const DetailsTab = ({ unit, tenants, loading, onRemoveRoommate, onRemoveTenancy, onAssignClick }: DetailsTabProps) => {
+const DetailsTab = ({ property, unit, tenants, loading, onRemoveRoommate, onRemoveTenancy, onAssignClick }: DetailsTabProps) => {
 
     const getFloorDisplay = (floor: string) => {
         const num = Number(floor);
@@ -75,12 +75,12 @@ const DetailsTab = ({ unit, tenants, loading, onRemoveRoommate, onRemoveTenancy,
                     <div className="flex items-center gap-2">
                         <h2 className="text-2xl font-bold">{unit?.name}</h2>
                         {tenants && tenants.length > 0 && (
-                            <span className="text-xs font-semibold bg-white/20 px-2 py-0.5 rounded-full">
+                            <span className="text-sm font-semibold bg-white/20 px-2 py-0.5 rounded-full">
                                 {tenants.length} {tenants.length === 1 ? 'Tenant' : 'Tenants'}
                             </span>
                         )}
                     </div>
-                    <p className="text-sm text-blue-100">{getFloorDisplay(unit?.floor)} • {unit?.property?.name}</p>
+                    <p className="text-sm text-blue-100">{getFloorDisplay(unit?.floor)} • {property?.name}</p>
                 </div>
                 <div className="mt-4 md:mt-0 text-right">
                     <div className="text-2xl font-bold">KES {unit?.monthly_rent?.toLocaleString()}</div>
@@ -92,7 +92,7 @@ const DetailsTab = ({ unit, tenants, loading, onRemoveRoommate, onRemoveTenancy,
             <div className="space-y-4">
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wide ml-1">Occupancy Details</h3>
 
-                {tenants && tenants.length > 0 ? (
+                {Array.isArray(tenants) && tenants.length > 0 ? (
                     <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {tenants.map((t: any) => (

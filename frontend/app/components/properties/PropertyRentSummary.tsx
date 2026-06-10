@@ -136,11 +136,11 @@ const PropertyRentSummary = ({
                 <p className="text-sm font-black text-green-700">{summary.paid_units}</p>
               </div>
               <div className="p-2 bg-yellow-50/50 border border-yellow-100 rounded-lg text-center">
-                <span className="text-[9px] font-bold text-yellow-600 uppercase block">Part</span>
+                <span className="text-[9px] font-bold text-yellow-600 uppercase block">Partial</span>
                 <p className="text-sm font-black text-yellow-700">{summary.partial_units}</p>
               </div>
               <div className="p-2 bg-red-50/50 border border-red-100 rounded-lg text-center">
-                <span className="text-[9px] font-bold text-red-600 uppercase block">Owe</span>
+                <span className="text-[9px] font-bold text-red-600 uppercase block">Unpaid</span>
                 <p className="text-sm font-black text-red-700">{summary.unpaid_units}</p>
               </div>
             </div>
@@ -166,7 +166,7 @@ const PropertyRentSummary = ({
               <span className="text-sm font-bold uppercase tracking-wider">Generate Master Ledger</span>
             </button>
             
-            <div className="flex items-center justify-between text-[11px] text-gray-500 font-medium px-1">
+            <div className="flex items-center justify-between text-sm text-gray-500 font-medium px-1">
               <span>Potential: KES {summary.expected.toLocaleString()}</span>
               <span>Occupied: {summary.occupied_units} units</span>
             </div>

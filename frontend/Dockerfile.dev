@@ -1,0 +1,10 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --network-timeout=100000 --fetch-retries=5 --fetch-retry-mintimeout=20000
+
+COPY . .
+
+CMD ["npm", "run", "dev"]
