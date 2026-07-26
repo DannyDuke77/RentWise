@@ -65,7 +65,7 @@ export const generateReceiptPDF = (payment: any, property: any, unit: any, profi
         head: [['Description', 'Payment Method', 'Amount']],
         body: [
             [
-                `Rental Payment - ${unit?.name || 'Unit'}`,
+                `${payment.type === 'payment' ? 'Rental Payment' : 'Refund'} - ${unit?.name || 'Unit'} (${payment.payment_method === 'manual' ? 'CHARGE' : ''})`,
                 payment.payment_method?.toUpperCase(),
                 `${profile?.currency || 'KES'} ${Number(payment.amount_paid).toLocaleString()}`
             ]
@@ -87,13 +87,14 @@ export const generateReceiptPDF = (payment: any, property: any, unit: any, profi
     // 5. TOTAL & STATUS
     const finalY = (doc as any).lastAutoTable.finalY + 20;
     
-    doc.setFontSize(40);
-    doc.setTextColor(220, 252, 231); 
-    doc.text("PAID", 15, finalY + 5);
+    doc.setFontSize(30);
+    const color = payment.type === "payment" ? [34, 197, 94] : [239, 68, 68];
+    doc.setTextColor(color[0], color[1], color[2]);
+    doc.text(payment.type === "payment" ? "PAID" : "REFUNDED", 15, finalY + 5);
     
     doc.setFontSize(12);
     doc.setTextColor(0);
-    doc.text(`Total Received:`, 110, finalY);
+    doc.text(`${payment.type === 'payment' ? 'Total Received:' : 'Total Refunded:'}`, 110, finalY);
     doc.setFontSize(14);
     doc.text(`${profile?.currency || 'KES'} ${Number(payment.amount_paid).toLocaleString()}`, 150, finalY);
 

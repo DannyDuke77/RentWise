@@ -148,13 +148,13 @@ class UnitPaymentSerializer(serializers.ModelSerializer):
         model = UnitPayment
         fields = [
             "id", "tenancy", "tenancy_start", "unit_name", "amount_paid",
-            "payment_method", "type", "paid_on", "month", "year", "paid_for", "reference"
+            "payment_method", "type", "category", "paid_on", "month", "year", "paid_for", "reference", "notes"
         ]
 
 class UnitPaymentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = UnitPayment
-        fields = ["id", "amount_paid", "payment_method", "type", "paid_on", "month", "year", "reference", "notes"]
+        fields = ["id", "amount_paid", "payment_method", "type", "category", "paid_on", "month", "year", "reference", "notes"]
         extra_kwargs = {
             'payment_method': {
                 'error_messages': {
@@ -162,6 +162,7 @@ class UnitPaymentCreateSerializer(serializers.ModelSerializer):
                     'required': 'Payment method is required.',
                 }
             },
+            'category': {'required': False},
             'month': {'required': False},
             'year': {'required': False}
         }

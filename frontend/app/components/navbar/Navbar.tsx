@@ -1,6 +1,6 @@
 import { getAuthUser } from "@/app/lib/auth";
-import PublicNavbar from "../navigation/PublicNavbar";
-import AppSidebar from "../navigation/AppSidebar";
+import PublicNavbar from "./PublicNavbar";
+import AppSidebar from "./AppSidebar";
 
 const Navbar = async () => {
     const user = await getAuthUser();

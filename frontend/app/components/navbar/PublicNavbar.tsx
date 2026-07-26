@@ -10,25 +10,25 @@ const PublicNavbar = () => {
 
     return (
         <>
-            <nav className="fixed top-0 w-full z-50 backdrop-blur-lg border-b border-gray-800 shadow-2xl">
+            <nav className="fixed top-0 w-full z-50 backdrop-blur-lg shadow-2xl">
                 <div className="mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
                         {/* Logo */}
-                        <Link href="/" className="flex items-center group hover:scale-105 transition-all duration-300">
+                        <Link href="/" className="flex items-center gap-2 group hover:scale-105 transition-all duration-300">
                             <div className="relative">
                                 <Image
                                     src="/RentWise_logo.png"
                                     alt="RentWise Logo"
                                     width={64}
                                     height={64}
-                                    className=""
+                                    className="bg-gray-800/80 rounded-full"
                                 />
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                                <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
                                     RentWise
                                 </span>
-                                <span className="text-xs text-gray-400 -mt-1">Property Management</span>
+                                <span className="text-xs text-gray-600 -mt-1">Property Management</span>
                             </div>
                         </Link>
 
@@ -36,17 +36,17 @@ const PublicNavbar = () => {
                         <div className="hidden md:flex items-center space-x-1">
                             <Link 
                                 href="/support" 
-                                className="flex items-center gap-2 px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-xl transition-all duration-300 group"
+                                className="flex items-center gap-2 px-4 py-2 hover:text-blue-400 transition-all duration-300 group"
                             >
-                                <HelpCircle className="w-4 h-4 text-gray-500 group-hover:text-blue-400 transition-colors" />
-                                <span>Help & Support</span>
+                                <HelpCircle className="w-4 h-4 group-hover:text-blue-400 transition-colors" />
+                                <span className="">Help & Support</span>
                             </Link>
                             
                             <div className="h-6 w-px bg-gray-700 mx-2"></div>
                             
                             <Link 
                                 href="/auth/login" 
-                                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-medium rounded-xl hover:from-blue-500 hover:to-cyan-500 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 group"
+                                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-medium rounded-lg hover:from-blue-500 hover:to-cyan-500 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 group"
                             >
                                 <LogIn className="w-4 h-4" />
                                 <span>Sign In</span>
@@ -81,7 +81,7 @@ const PublicNavbar = () => {
                             height={40}
                             className="rounded-xl"
                         />
-                        <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                        <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
                             RentWise
                         </span>
                     </div>

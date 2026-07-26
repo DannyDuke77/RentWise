@@ -119,6 +119,7 @@ class Tenancy(models.Model):
 
     class Meta:
         ordering = ['-start_date']
+        verbose_name_plural = 'Tenancies'
         constraints = [
             models.UniqueConstraint(
                 fields=['unit'],
@@ -159,12 +160,23 @@ class Tenancy(models.Model):
 
 
         # 3. Calculate Payments & Refunds
-        payments_query = self.payments.filter(paid_on__date__lte=up_to_date)
+        payments_query = self.payments.filter(paid_on__date__lte=up_to_date, category="rent")
 
         total_paid = sum((p.amount_paid if p.type == "payment" else -p.amount_paid for p in payments_query), Decimal("0.00"))
 
         # 4. Final Balance
         return total_rent_due + total_charges - total_paid
+
+    def get_deposit_held(self):
+        """
+        Total security deposit currently held for this tenancy, independent
+        of the rent balance. Refund-type deposit entries subtract from it.
+        """
+        deposit_payments = self.payments.filter(category="deposit")
+        return sum(
+            (p.amount_paid if p.type == "payment" else -p.amount_paid for p in deposit_payments),
+            Decimal("0.00"),
+        )
 
 class TenancyMember(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -189,9 +201,16 @@ class UnitPayment(models.Model):
         ('bank', 'Bank Transfer'),
     ]
 
+    CATEGORY_CHOICES = [
+        ('rent', 'Rent'),
+        ('deposit', 'Security Deposit'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenancy = models.ForeignKey(Tenancy, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
-    
+
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='rent')
+
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
 
     year = models.IntegerField()

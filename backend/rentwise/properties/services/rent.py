@@ -1,39 +1,19 @@
 from decimal import Decimal
-from django.db.models import Prefetch, Subquery, Sum, OuterRef, Value, DecimalField
-from django.db.models.functions import Coalesce
+from django.db.models import Prefetch
 from django.utils import timezone
-from properties.models import Property, Unit, Tenancy, TenancyMember, UnitPayment, Charge
+from properties.models import Property, Unit, Tenancy, TenancyMember
 
 def _prefetch_units(property_obj):
-    charge_sum = (
-        Charge.objects
-        .filter(tenancy=OuterRef("pk"))
-        .values("tenancy")
-        .annotate(total=Sum("amount"))
-        .values("total")
-    )
-    
-    payment_sum = (
-        UnitPayment.objects
-        .filter(tenancy=OuterRef("pk"))
-        .values("tenancy")
-        .annotate(total=Sum("amount_paid"))
-        .values("total")
-    )
-
     tenancy_queryset = (
         Tenancy.objects
         .filter(is_active=True)
-        .annotate(
-            ledger_balance=Coalesce(Subquery(charge_sum), Value(0, output_field=DecimalField()))
-            - Coalesce(Subquery(payment_sum), Value(0, output_field=DecimalField()))
-        )
         .prefetch_related(
             Prefetch(
                 "tenancy_members",
                 queryset=TenancyMember.objects.filter(is_active=True).select_related("tenant"),
             ),
             "payments",
+            "charges",
         )
     )
 
@@ -43,7 +23,32 @@ def _prefetch_units(property_obj):
         .prefetch_related(Prefetch("tenancies", queryset=tenancy_queryset))
     )
 
-def _compute_unit_rent_status(unit, tenancy, payments_this_month):
+def _calculate_tenancy_balance(tenancy, as_of):
+    billing_start = tenancy.billing_start_date or tenancy.start_date
+
+    if as_of < billing_start:
+        total_rent_due = Decimal("0.00")
+    else:
+        months_elapsed = ((as_of.year - billing_start.year) * 12
+            + (as_of.month - billing_start.month) + 1)
+        total_rent_due = Decimal(months_elapsed) * tenancy.monthly_rent
+
+    total_charges = sum(
+        (c.amount for c in tenancy.charges.all() if c.status != "waived"),
+        Decimal("0.00"),
+    )
+
+    # Only "rent" category payments count against the rent ledger — deposits
+    # are tracked separately and must never look like a rent payment.
+    total_paid = sum(
+        (p.amount_paid if p.type == "payment" else -p.amount_paid
+         for p in tenancy.payments.all() if p.category == "rent"),
+        Decimal("0.00"),
+    )
+
+    return total_rent_due + total_charges - total_paid
+
+def _compute_unit_rent_status(unit, tenancy, payments_this_month, as_of):
     if not tenancy:
         return {
             "rent": unit.monthly_rent,
@@ -59,7 +64,7 @@ def _compute_unit_rent_status(unit, tenancy, payments_this_month):
         elif p.type == "refund":
             this_month_paid -= p.amount_paid
 
-    total_balance = tenancy.ledger_balance
+    total_balance = _calculate_tenancy_balance(tenancy, as_of)
 
     if total_balance <= 0:
         status = "paid"
@@ -77,6 +82,7 @@ def _compute_unit_rent_status(unit, tenancy, payments_this_month):
 
 
 def _build_units_data(units, year, month):
+    as_of = timezone.now().date()
     expected = Decimal("0.00")
     occupied_expected = Decimal("0.00")
     total_arrears = Decimal("0.00")
@@ -101,10 +107,10 @@ def _build_units_data(units, year, month):
         payments_this_month = []
         if tenancy:
             for p in tenancy.payments.all():
-                if p.paid_on.year == year and p.paid_on.month == month:
+                if p.category == "rent" and p.paid_on.year == year and p.paid_on.month == month:
                     payments_this_month.append(p)
 
-        rent_status = _compute_unit_rent_status(unit, tenancy, payments_this_month)
+        rent_status = _compute_unit_rent_status(unit, tenancy, payments_this_month, as_of)
 
         if tenancy:
             occupied_count += 1

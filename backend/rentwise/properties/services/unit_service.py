@@ -7,6 +7,9 @@ def update_unit(unit, serializer, user):
     tenancy = unit.tenancies.filter(is_active=True).first()
     new_status = serializer.validated_data.get("status")
 
+    if tenancy and serializer.validated_data.get("is_active") is False:
+        raise ValidationError({"detail": "Cannot deactivate a unit with an active tenancy."})
+
     if new_status and new_status != unit.status:
         if unit.status == "occupied":
             raise ValidationError({"detail": "Cannot change status of an occupied unit."})

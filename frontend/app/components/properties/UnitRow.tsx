@@ -6,6 +6,9 @@ import ViewUnitButton from "../navigation/ViewUnitButton";
 import useUnitDetailModal from "@/app/hooks/useUnitDetailModal";
 import { UnitType } from "../modals/UnitModal";
 import { PropertyType } from "@/app/properties/page";
+import { useRouter } from "next/navigation";
+import apiService from "@/app/services/apiService";
+import { useState } from "react";
 
 export type PaymentStatus = "unknown" | "paid" | "partial" | "unpaid" | "vacant";
 
@@ -22,8 +25,28 @@ const statusIcons = {
 
 const UnitRow: React.FC<UnitRowProps> = ({ property, unit }) => {
   const unitDetailModal = useUnitDetailModal();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
-  // Pure data extractor—no internal state or secondary network requests
+  const handleSoftDelete = async () => {
+    if (unit.status === "occupied") {
+      alert("Cannot delete an occupied unit. Please terminate the lease first.");
+      return;
+    }
+    
+    if (!unit?.id || !confirm("Are you sure you want to delete this unit?")) return;
+
+    try {
+        await apiService.patch(`/api/units/${unit.id}/`, { is_active: false });
+        router.refresh();
+        close();
+    } catch (error) {
+        console.error("Delete failed", error);
+    } finally {
+        setLoading(false);
+    }
+};
+
   const getPaymentSummary = () => {
     const status = (unit.rent_status?.status || "unpaid") as PaymentStatus;
     const totalPaid = unit.rent_status?.paid || 0;
@@ -138,7 +161,7 @@ const UnitRow: React.FC<UnitRowProps> = ({ property, unit }) => {
                    <Menu.Item>
                      {({ active }) => (
                        <button
-                         onClick={() => unitDetailModal.open(property, unit as any, false)}
+                         onClick={() => handleSoftDelete()}
                          className={`${active ? 'bg-rose-50 text-rose-700' : 'text-gray-700'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}
                        >
                          <Trash2 className="mr-2 h-4 w-4" /> Delete

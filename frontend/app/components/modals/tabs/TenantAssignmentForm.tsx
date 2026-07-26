@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from "react";
-import { User, Mail, Phone, FileText, UserPlus, UserCheck, CheckCircle, Wrench, AlertTriangle, Clock } from "lucide-react";
+import { User, Mail, Phone, FileText, UserPlus, UserCheck, CheckCircle, Wrench, AlertTriangle, Clock, CircleCheckBig} from "lucide-react";
 import apiService from "@/app/services/apiService";
 
 interface Props {
@@ -81,12 +81,12 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
             }
 
             if (response.success) {
+                setDetailMessage(response.detail);
                 setSuccess(true);
                 setTimeout(() => {
                     onSuccess();
                 }, 1500);
             } else {
-                setDetailMessage(response.detail);
                 setErrors(response || {});
                 console.error("Assignment failed", response);
             }
@@ -106,7 +106,7 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
             {success && (
                 <div className="absolute inset-0 z-20 bg-white/90 flex items-center justify-center rounded-xl animate-in fade-in duration-300">
                     <div className="text-center p-6 bg-emerald-50 border-2 border-emerald-200 rounded-2xl shadow-xl">
-                        <CheckCircle className="w-12 h-12 text-emerald-600 mx-auto mb-3" />
+                        <CircleCheckBig className="w-12 h-12 text-emerald-600 mx-auto mb-3" />
                         <p className="font-bold text-emerald-800">{hasTenant ? 'Roommate Added!' : 'Tenant Assigned!'}</p>
                     </div>
                 </div>
@@ -114,7 +114,7 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
 
             <form onSubmit={handleSubmit} className="space-y-4">
                 {detailMessage && 
-                    <p className="text-gray-800 text-sm w-full bg-gray-200 py-2 px-4 rounded-xl"><strong>Detail:</strong> {detailMessage}</p>
+                    <p className="text-green-800 text-sm w-full bg-green-200 py-2 px-4 rounded-lg"><strong>Detail:</strong> {detailMessage}</p>
                 }
 
                 <div className="text-center mb-6">
@@ -122,7 +122,7 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
                         <UserPlus className="w-7 h-7 text-white" />
                     </div>
                     <h3 className="text-lg font-bold text-gray-900">{hasTenant ? "Add Roommate" : "Assign Tenant"}</h3>
-                    <p className="text-sm text-gray-500">Unit {unit?.name} • {unit?.property?.name}</p>
+                    <p className="text-sm text-gray-500">Unit {unit?.name} • {unit?.property}</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -191,20 +191,23 @@ const TenantAssignmentForm = ({ unit, tenancyId, onSuccess, hasTenant }: Props) 
                     </div>
 
                     {/* Billing Start Date */}
-                    <div className="space-y-1">
-                        <label className="text-xs font-bold text-gray-700 uppercase ml-1">Billing Start Date <span className="text-sm text-red-600">*</span></label>
-                        <div className="relative">
-                            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input
-                                type="date"
-                                className={inputClass('billing_start_date')}
-                                value={formData.billing_start_date}
-                                onChange={(e) => setFormData({ ...formData, billing_start_date: e.target.value })}
-                            />
+                    {!hasTenant && (
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-700 uppercase ml-1">Billing Start Date <span className="text-sm text-red-600">*</span></label>
+                            <div className="relative">
+                                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <input
+                                    type="date"
+                                    className={inputClass('billing_start_date')}
+                                    value={formData.billing_start_date}
+                                    onChange={(e) => setFormData({ ...formData, billing_start_date: e.target.value })}
+                                />
+                            </div>
+                            {errors.billing_start_date && <p className="text-red-600 text-xs mt-1">{errors.billing_start_date[0]}</p>}
                         </div>
-                        {errors.billing_start_date && <p className="text-red-600 text-xs mt-1">{errors.billing_start_date[0]}</p>}
-                    </div>
+                    )}
                 </div>
+                    
 
                 <button
                     type="submit"

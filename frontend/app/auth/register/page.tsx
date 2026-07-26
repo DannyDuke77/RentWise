@@ -44,8 +44,6 @@ const SignUp = () => {
                 formData.append("avatar", avatarFile);
             }
 
-            console.log("SENDING DATA: ", formData);
-
             const response = await apiService.post('/api/auth/register/', formData);
 
             if (response.access) {
@@ -84,301 +82,297 @@ const SignUp = () => {
     };
 
     const inputContainerStyle = "relative";
-    const inputStyle = "w-full px-10 py-3 bg-gray-900 border-2 border-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-gray-800 transition-all duration-300 ease-out hover:border-gray-600 hover:bg-gray-850";
-    const iconStyle = "absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-500 peer-focus:text-blue-500 transition-colors duration-300";
+    const inputStyle = "w-full px-10 py-2.5 bg-white border border-gray-300 rounded-md text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors text-sm";
+    const iconStyle = "absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 peer-focus:text-blue-500 transition-colors duration-200 w-4 h-4";
     
     return (
-        <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 md:p-6 flex items-center justify-center">
-            <div className="w-full max-w-[650px] mt-20 bg-gray-800/95 backdrop-blur-sm rounded-3xl shadow-2xl border border-gray-700/50 p-6 md:p-8">
-                {/* Header - More Compact */}
-                <div className="text-center mb-6">
+        <main className="min-h-screen bg-gray-50 px-4 py-6 md:py-10 flex items-center justify-center">
+            <div className="w-full max-w-[600px] bg-white rounded-lg border border-gray-200 shadow-sm p-6 md:p-8">
+                
+                {/* Header */}
+                <div className="text-center mb-7">
                     <div className="inline-flex items-center justify-center mb-4">
                         <Image
                             src="/rentwise_logo.jpeg"
-                            alt="Logo"
-                            width={80}
+                            alt="RentWise"
+                            width={100}
                             height={80}
-                            className="rounded-xl"
+                            className="rounded-md"
                             unoptimized
                         />
                     </div>
-                    <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-gray-100 to-gray-300 bg-clip-text text-transparent">
-                        Join RentWise
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+                        Create your account
                     </h1>
-                    <p className="text-gray-400 mt-1 text-xs md:text-sm">
-                        Create your account to get started
+                    <p className="text-gray-500 text-sm mt-1">
+                        Start managing rentals with RentWise
                     </p>
                 </div>
 
                 <form className="space-y-4">
-                    {/* Two-column layout for name and email on desktop */}
+                    {/* Two-column layout for name and email */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Name Field */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
+                            <label htmlFor="name" className="text-sm font-medium text-gray-700">
+                                Full Name <span className="text-red-500">*</span>
+                            </label>
                             <div className={inputContainerStyle}>
-                                <User className={`${iconStyle} w-4 h-4`} />
+                                <User className={iconStyle} />
                                 <input 
                                     onChange={(e) => setName(e.target.value)}
                                     type="text" 
-                                    name="name" 
                                     id="name"
-                                    placeholder="Full Name"
-                                    className={`${inputStyle} peer ${errors.name ? '!border-red-500' : ''}`}
+                                    placeholder="John Doe"
+                                    className={`${inputStyle} peer ${errors.name ? '!border-red-500 !ring-1 !ring-red-500' : ''}`}
                                 />
                             </div>
                             {errors.name && (
-                                <p className="text-xs text-red-400 flex items-center gap-1 animate-fadeIn">
-                                    <CircleAlert className="w-4 h-4" />
-                                    <span className=""></span>{errors.name[0]}
+                                <p className="text-xs text-red-600 flex items-center gap-1">
+                                    <CircleAlert className="w-3.5 h-3.5" />
+                                    {errors.name[0]}
                                 </p>
                             )}
                         </div>
 
                         {/* Email Field */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
+                            <label htmlFor="email" className="text-sm font-medium text-gray-700">
+                                Email <span className="text-red-500">*</span>
+                            </label>
                             <div className={inputContainerStyle}>
-                                <Mail className={`${iconStyle} w-4 h-4`} />
+                                <Mail className={iconStyle} />
                                 <input 
                                     onChange={(e) => setEmail(e.target.value)}
                                     type="email" 
-                                    name="email" 
                                     id="email"
-                                    placeholder="Email"
-                                    className={`${inputStyle} peer ${errors.email ? '!border-red-500' : ''}`}
+                                    placeholder="you@example.com"
+                                    className={`${inputStyle} peer ${errors.email ? '!border-red-500 !ring-1 !ring-red-500' : ''}`}
                                 />
                             </div>
                             {errors.email && (
-                                <p className="text-xs text-red-400 flex items-center gap-1 animate-fadeIn">
-                                    <CircleAlert className="w-4 h-4" />
-                                    <span className="mt-0.5"></span>{errors.email[0]}
+                                <p className="text-xs text-red-600 flex items-center gap-1">
+                                    <CircleAlert className="w-3.5 h-3.5" />
+                                    {errors.email[0]}
                                 </p>
                             )}
                         </div>
                     </div>
 
-                    {/* Two-column layout for phone and address */}
-                    <fieldset className="grid grid-cols-1 md:grid-cols-2 gap-4 border border-gray-700 p-4 rounded-xl">
-                        <legend className="text-gray-400 text-xs md:text-sm">Optional</legend>
+                    {/* Phone and Address - optional */}
+                    <fieldset className="border border-gray-200 rounded-md p-4 space-y-4">
+                        <legend className="text-xs text-gray-400 px-1">Optional</legend>
 
-                        {/* Phone Number Field */}
-                        <div className="space-y-1.5">
-                            <div className={inputContainerStyle}>
-                                <Phone className={`${iconStyle} w-4 h-4`} />
-                                <input 
-                                    onChange={(e) => setPhoneNumber(e.target.value)}
-                                    type="tel" 
-                                    name="phone-number" 
-                                    id="phone-number"
-                                    placeholder="Phone"
-                                    className={`${inputStyle} peer ${errors.phone_number ? '!border-red-500' : ''}`}
-                                />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Phone */}
+                            <div className="space-y-1">
+                                <label htmlFor="phone-number" className="text-sm font-medium text-gray-700">
+                                    Phone number
+                                </label>
+                                <div className={inputContainerStyle}>
+                                    <Phone className={iconStyle} />
+                                    <input 
+                                        onChange={(e) => setPhoneNumber(e.target.value)}
+                                        type="tel" 
+                                        id="phone-number"
+                                        placeholder="+254 700 000 000"
+                                        className={`${inputStyle} peer ${errors.phone_number ? '!border-red-500 !ring-1 !ring-red-500' : ''}`}
+                                    />
+                                </div>
+                                {errors.phone_number && (
+                                    <p className="text-xs text-red-600 flex items-center gap-1">
+                                        <CircleAlert className="w-3.5 h-3.5" />
+                                        {errors.phone_number[0]}
+                                    </p>
+                                )}
                             </div>
-                            {errors.phone_number && (
-                                <p className="text-xs text-red-400 flex items-center gap-1 animate-fadeIn">
-                                    <CircleAlert className="w-4 h-4" />
-                                    <span className="mt-0.5"></span>{errors.phone_number[0]}
-                                </p>
-                            )}
-                        </div>
 
-                        {/* Address Field */}
-                        <div className="space-y-1.5">
-                            <div className={inputContainerStyle}>
-                                <MapPin className={`${iconStyle} w-4 h-4`} />
-                                <input 
-                                    onChange={(e) => setAddress(e.target.value)}
-                                    type="text" 
-                                    name="address" 
-                                    id="address"
-                                    placeholder="Address"
-                                    className={`${inputStyle} peer ${errors.address ? '!border-red-500' : ''}`}
-                                />
+                            {/* Address */}
+                            <div className="space-y-1">
+                                <label htmlFor="address" className="text-sm font-medium text-gray-700">
+                                    Address
+                                </label>
+                                <div className={inputContainerStyle}>
+                                    <MapPin className={iconStyle} />
+                                    <input 
+                                        onChange={(e) => setAddress(e.target.value)}
+                                        type="text" 
+                                        id="address"
+                                        placeholder="Nairobi, Kenya"
+                                        className={`${inputStyle} peer ${errors.address ? '!border-red-500 !ring-1 !ring-red-500' : ''}`}
+                                    />
+                                </div>
+                                {errors.address && (
+                                    <p className="text-xs text-red-600 flex items-center gap-1">
+                                        <CircleAlert className="w-3.5 h-3.5" />
+                                        {errors.address[0]}
+                                    </p>
+                                )}
                             </div>
-                            {errors.address && (
-                                <p className="text-xs text-red-400 flex items-center gap-1 animate-fadeIn">
-                                    <CircleAlert className="w-4 h-4" />
-                                    <span className="mt-0.5"></span>{errors.address[0]}
-                                </p>
-                            )}
                         </div>
                     </fieldset>
 
-                    {/* Password Fields */}
+                    {/* Passwords */}
                     <div className="space-y-3">
-                        {/* Password Field 1 */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
+                            <label htmlFor="password1" className="text-sm font-medium text-gray-700">
+                                Password <span className="text-red-500">*</span>
+                            </label>
                             <div className={inputContainerStyle}>
-                                <Lock className={`${iconStyle} w-4 h-4`} />
+                                <Lock className={iconStyle} />
                                 <input 
                                     onChange={(e) => setPassword1(e.target.value)}
                                     type={showPassword1 ? "text" : "password"}
-                                    name="password" 
                                     id="password1"
-                                    placeholder="Create Password"
+                                    placeholder="Min. 8 characters"
                                     minLength={8}
-                                    className={`${inputStyle} peer ${errors.password1 ? '!border-red-500' : ''}`}
+                                    className={`${inputStyle} peer ${errors.password1 ? '!border-red-500 !ring-1 !ring-red-500' : ''}`}
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword1(!showPassword1)}
-                                    className="absolute right-3.5 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                                 >
                                     {showPassword1 ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             </div>
                             {errors.password1 && (
-                                <p className="text-xs text-red-400 flex items-center gap-1 animate-fadeIn">
-                                    <CircleAlert className="w-4 h-4" />
-                                    <span className="mt-0.5"></span>{errors.password1[0]}
+                                <p className="text-xs text-red-600 flex items-center gap-1">
+                                    <CircleAlert className="w-3.5 h-3.5" />
+                                    {errors.password1[0]}
                                 </p>
                             )}
                         </div>
 
-                        {/* Password Field 2 */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
+                            <label htmlFor="password2" className="text-sm font-medium text-gray-700">
+                                Confirm password <span className="text-red-500">*</span>
+                            </label>
                             <div className={inputContainerStyle}>
-                                <Lock className={`${iconStyle} w-4 h-4`} />
+                                <Lock className={iconStyle} />
                                 <input 
                                     onChange={(e) => setPassword2(e.target.value)}
                                     type={showPassword2 ? "text" : "password"}
-                                    name="password" 
                                     id="password2"
-                                    placeholder="Confirm Password"
-                                    className={`${inputStyle} peer ${errors.password2 ? '!border-red-500' : ''}`}
+                                    placeholder="Confirm your password"
+                                    className={`${inputStyle} peer ${errors.password2 ? '!border-red-500 !ring-1 !ring-red-500' : ''}`}
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword2(!showPassword2)}
-                                    className="absolute right-3.5 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                                 >
                                     {showPassword2 ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             </div>
                             {errors.password2 && (
-                                <p className="text-xs text-red-400 flex items-center gap-1 animate-fadeIn">
-                                    <CircleAlert className="w-4 h-4" />
-                                    <span className="mt-0.5"></span>{errors.password2[0]}
+                                <p className="text-xs text-red-600 flex items-center gap-1">
+                                    <CircleAlert className="w-3.5 h-3.5" />
+                                    {errors.password2[0]}
                                 </p>
                             )}
                         </div>
                     </div>
 
-                    {/* Avatar Upload - More Compact */}
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <label htmlFor="avatar" className="text-sm font-medium text-gray-200 flex items-center gap-1.5">
-                                <Upload className="w-3.5 h-3.5" />
-                                Avatar (Optional)
-                            </label>
-                            <span className="text-xs text-gray-500 bg-gray-900/50 px-2 py-1 rounded-lg">Max 2MB</span>
+                    {/* Avatar Upload */}
+                    <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                            <Upload className="w-3.5 h-3.5" />
+                            Avatar (optional)
+                            <span className="text-gray-400 font-normal text-xs ml-1">Max 2MB</span>
+                        </label>
+                        
+                        <div className="flex items-center gap-3">
+                            <input 
+                                type="file"
+                                id="avatar"
+                                accept="image/*"
+                                ref={avatarInputRef}
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0] ?? null;
+                                    setAvatarFile(file);
+                                    if (file) {
+                                        const reader = new FileReader();
+                                        reader.onload = () => setAvatarPreview(reader.result as string);
+                                        reader.readAsDataURL(file);
+                                    } else {
+                                        setAvatarPreview(null);
+                                    }
+                                }}
+                                className={`flex-1 text-sm text-gray-500
+                                    file:mr-3 file:py-1.5 file:px-4 file:rounded-md file:border-0
+                                    file:text-xs file:font-medium file:bg-gray-100 file:text-gray-700
+                                    hover:file:bg-gray-200 cursor-pointer
+                                    ${errors.avatar ? '!border-red-500' : ''}`}
+                            />
+                            
+                            {avatarPreview && (
+                                <div className="relative flex-shrink-0">
+                                    <img
+                                        src={avatarPreview}
+                                        alt="Avatar preview"
+                                        className="w-10 h-10 object-cover rounded-md border border-gray-200"
+                                    />
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setAvatarFile(null);
+                                            setAvatarPreview(null);
+                                            if (avatarInputRef.current) avatarInputRef.current.value = "";
+                                        }}
+                                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-full flex items-center justify-center text-xs transition-colors"
+                                        title="Remove avatar"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         
-                        <div className="space-y-1.5">
-                            <div className="flex items-center gap-3">
-                                <div className="flex-1">
-                                    <input 
-                                        type="file"
-                                        name="avatar"
-                                        id="avatar"
-                                        accept="image/*"
-                                        ref={avatarInputRef}
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0] ?? null;
-                                            setAvatarFile(file);
-                                            if (file) {
-                                                const reader = new FileReader();
-                                                reader.onload = () => setAvatarPreview(reader.result as string);
-                                                reader.readAsDataURL(file);
-                                            } else {
-                                                setAvatarPreview(null);
-                                            }
-                                        }}
-                                        className={`w-full px-3 py-2 bg-gray-900 border-2 border-gray-700 rounded-xl text-gray-100 text-sm
-                                            file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0
-                                            file:text-xs file:font-medium file:bg-blue-600/20 file:text-blue-400
-                                            hover:file:bg-blue-600/30 cursor-pointer
-                                            ${errors.avatar ? '!border-red-500' : ''}`}
-                                    />
-                                </div>
-                                
-                                {avatarPreview && (
-                                    <div className="relative">
-                                        <img
-                                            src={avatarPreview}
-                                            alt="Avatar Preview"
-                                            className="w-10 h-10 object-cover rounded-lg border-2 border-gray-600 shadow-sm"
-                                        />
-                                        <button
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                setAvatarFile(null);
-                                                setAvatarPreview(null);
-                                                if (avatarInputRef.current) avatarInputRef.current.value = "";
-                                            }}
-                                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-700 hover:scale-110 transition-all shadow-md"
-                                            title="Remove avatar"
-                                        >
-                                            <X className="w-2.5 h-2.5" />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            {errors.avatar && (
-                                <p className="text-xs text-red-400 flex items-center gap-1 animate-fadeIn">
-                                    <CircleAlert className="w-4 h-4" />
-                                    <span className="mt-0.5"></span>{errors.avatar[0]}
-                                </p>
-                            )}
-                            
-                            {avatarPreview && !errors.avatar && (
-                                <p className="text-xs text-gray-400 truncate">
-                                    Selected: {avatarFile?.name}
-                                </p>
-                            )}
-                        </div>
+                        {errors.avatar && (
+                            <p className="text-xs text-red-600 flex items-center gap-1">
+                                <CircleAlert className="w-3.5 h-3.5" />
+                                {errors.avatar[0]}
+                            </p>
+                        )}
+                        
+                        {avatarPreview && !errors.avatar && (
+                            <p className="text-xs text-gray-400 truncate">
+                                {avatarFile?.name}
+                            </p>
+                        )}
                     </div>
 
                     {/* Error Display */}
                     {errors.non_field_errors && (
-                        <div className="bg-red-900/30 border border-red-700 text-red-300 rounded-xl p-3 backdrop-blur-sm animate-fadeIn">
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-                                <p className="text-sm font-medium">{errors.non_field_errors[0]}</p>
-                            </div>
+                        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md p-3 text-sm">
+                            <p>{errors.non_field_errors[0]}</p>
                         </div>
                     )}
 
                     {/* Submit Button */}
-                    <div className="pt-1">
-                        <CustomButton 
-                            label={loading ? "Creating Account..." : "Create Account"}
-                            onClick={submitSignup}
-                            loading={loading}
-                            className={`w-full py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold 
-                                rounded-xl hover:from-blue-500 hover:to-blue-600 active:scale-[0.98] 
-                                transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-blue-500/20
-                                disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm md:text-base`}
-                        />
-                    </div>
+                    <button
+                        type="submit"
+                        onClick={submitSignup}
+                        disabled={loading}
+                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        {loading ? "Creating account..." : "Create account"}
+                    </button>
 
-                    {/* Footer Link */}
-                    <div className="pt-4 border-t border-gray-700/50">
-                        <p className="text-center text-xs md:text-sm text-gray-400">
+                    {/* Login link */}
+                    <div className="pt-3 border-t border-gray-200">
+                        <p className="text-center text-sm text-gray-500">
                             Already have an account?{" "}
                             <a 
                                 href="/auth/login" 
-                                className="text-blue-400 hover:text-blue-300 font-medium hover:underline transition-colors"
+                                className="text-blue-600 hover:text-blue-700 font-medium hover:underline transition-colors"
                             >
-                                Sign In
+                                Sign in
                             </a>
                         </p>
                     </div>
                 </form>
-
-                {/* Decorative Elements */}
-                <div className="absolute -z-10 top-0 left-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
-                <div className="absolute -z-10 bottom-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
             </div>
         </main>
     )

@@ -25,6 +25,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     // Data State
     const [payments, setPayments] = useState<any[]>([]);
     const [balance, setBalance] = useState<number>(0);
+    const [depositHeld, setDepositHeld] = useState<number>(0);
     const [charges, setCharges] = useState<any[]>([]);
     const [monthlyRent, setMonthlyRent] = useState<number>(0);
     const [loading, setLoading] = useState(false);
@@ -39,6 +40,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
 
     // Form State (Payment)
     const [amount, setAmount] = useState("");
+    const [paymentCategory, setPaymentCategory] = useState<"rent" | "deposit">("rent");
     const [paymentMethod, setPaymentMethod] = useState("");
     const [reference, setReference] = useState("");
     const [notes, setNotes] = useState("");
@@ -47,6 +49,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     // Form State (Refund)
     const [refundAmount, setRefundAmount] = useState(0);
     const [refundMethod, setRefundMethod] = useState("");
+    const [refundCategory, setRefundCategory] = useState<"rent" | "deposit">("rent");
 
     // Filters
     const [filterMethod, setFilterMethod] = useState("");
@@ -72,6 +75,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
             const data = await apiService.get(`/api/units/${unit.id}/payments/`);
             setPayments(data.payments || []);
             setBalance(Number(data.balance || 0));
+            setDepositHeld(Number(data.deposit_held || 0));
             setCharges(data.charges || []);
             setMonthlyRent(Number(data.monthly_rent || 0));
         } finally {
@@ -117,7 +121,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         let targetMonth = selectedDate.getMonth() + 1;
         let targetYear = selectedDate.getFullYear();
 
-        if (summary.arrears <= 0 && selectedDate.getDate() > 25) {
+        if (paymentCategory === "rent" && summary.arrears <= 0 && selectedDate.getDate() > 25) {
             if (targetMonth === 12) {
                 targetMonth = 1;
                 targetYear += 1;
@@ -130,6 +134,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
             amount_paid: Number(amount),
             payment_method: paymentMethod,
             reference,
+            category: paymentCategory,
             month: targetMonth,
             year: targetYear,
             paid_on: paymentDate,
@@ -140,8 +145,9 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         try {
             const response = await apiService.post(`/api/units/${unit.id}/payments/`, payload);
 
-            if (response.success){
+            if (response.success) {
                 setAmount("");
+                setPaymentCategory("rent");
                 setPaymentMethod("");
                 setReference("");
                 setNotes("");
@@ -149,27 +155,51 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                 setIsFormExpanded(false);
                 fetchPayments();
                 setMessage(response.message);
+            } else {
+                setErrors(
+                    typeof response.amount_paid === 'string' 
+                        ? { amount_paid: [response.amount_paid] } 
+                        : response.errors || { amount_paid: response.amount_paid || ["Failed to record payment"] }
+                );
             }
-            
         } catch (error: any) {
-            setErrors(error.response?.errors || { amount: ["Failed to record payment"] });
+            console.error(error);
+            const backendErrors = error.response?.data?.errors || error.response?.data || {};
+            
+            setErrors({
+                ...backendErrors,
+                amount_paid: Array.isArray(backendErrors.amount_paid) 
+                    ? backendErrors.amount_paid 
+                    : [backendErrors.amount_paid || "Failed to record payment"]
+            });
         }
     };
 
-    const openRefund = () => {
-        setRefundAmount(summary.credit);
+    const refundCap = refundCategory === "deposit" ? depositHeld : summary.credit;
+
+    const openRefund = (category: "rent" | "deposit") => {
+        setRefundCategory(category);
+        setRefundAmount(category === "deposit" ? depositHeld : summary.credit);
         setRefundMethod("");
         setIsRefundModalOpen(true);
     };
 
     const handleRefund = async () => {
-        if (refundAmount <= 0 || refundAmount > summary.credit) return;
+        const hasConfirmed = window.confirm(`You are about to refund KES ${refundAmount.toLocaleString()} via ${refundMethod.toUpperCase()}.\n\nDo you want to continue?`);
+
+        if (!hasConfirmed) return;
+
+        if (refundAmount <= 0 || refundAmount > refundCap) {
+            setErrors({ amount_paid: ["Refund amount exceeds available balance"] });
+            return;
+        }
 
         setProcessingRefund(true);
         try {
             const payload = {
                 amount_paid: refundAmount,
                 payment_method: refundMethod,
+                category: refundCategory,
                 reference: reference || `REFUND-${unit.name}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
                 notes: '',
                 paid_on: today.toISOString().split('T')[0],
@@ -229,18 +259,14 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                     Active Session
                 </div>
             </div>
-            <div className="mb-2">
-                {summary.arrears <= 0 && today.getDate() > 25 ? (
-                    <p className="text-sm font-bold text-rose-600 flex items-center gap-1">
-                        <AlertCircle className="w-5 h-5" /> 
-                        Any payments now will reflect for <span className="uppercase underline">{nextMonth.toLocaleString('default', { month: 'long' })}</span> billing cycle
-                    </p>
-                ) : (
-                    <p className="text-sm font-bold text-gray-500">
-                        {today.toLocaleString('default', { month: 'long' })} billing cycle in progress. Payments will reflect in the current cycle.
-                    </p>
-                )}
-            </div>
+
+            {summary.arrears <= 0 && today.getDate() > 25 && (
+                <div className="mb-3 p-3 bg-amber-50 border border-amber-200/60 rounded-lg text-sm font-medium text-amber-800 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" /> 
+                    <span>Rent payments made now will apply to the <strong>{nextMonth.toLocaleString('default', { month: 'long' })}</strong> billing cycle.</span>
+                </div>
+            )}
+
             {/* NET POSITION HEADER */}
             <div className="flex items-center justify-between p-5 bg-gray-900 text-white rounded-2xl shadow-xl">
                 <div>
@@ -257,7 +283,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
             </div>
 
             {/* QUICK STATS */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="p-4 bg-white border rounded-2xl shadow-sm">
                     <p className="text-[10px] font-bold uppercase text-gray-400">Monthly Rent</p>
                     <div className="text-xl font-black text-gray-800">KES {monthlyRent.toLocaleString()}</div>
@@ -272,17 +298,29 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                     <div className="flex justify-between items-start">
                         <p className="text-[10px] font-bold uppercase text-emerald-600">Credit</p>
                         {summary.credit > 0 && (
-                            <button onClick={openRefund} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[9px] font-black hover:bg-emerald-700">
+                            <button onClick={() => openRefund("rent")} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[9px] font-black hover:bg-emerald-700">
                                 REFUND
                             </button>
                         )}
                     </div>
                     <div className="text-xl font-black text-emerald-700">KES {summary.credit.toLocaleString()}</div>
                 </div>
+
+                <div className={`p-4 border rounded-2xl transition-all ${depositHeld > 0 ? 'bg-purple-50 border-purple-100 shadow-inner' : 'bg-gray-50 border-gray-100 opacity-70'}`}>
+                    <div className="flex justify-between items-start">
+                        <p className="text-[10px] font-bold uppercase text-purple-600">Deposit Held</p>
+                        {depositHeld > 0 && (
+                            <button onClick={() => openRefund("deposit")} className="bg-purple-600 text-white px-2 py-0.5 rounded text-[9px] font-black hover:bg-purple-700">
+                                REFUND
+                            </button>
+                        )}
+                    </div>
+                    <div className="text-xl font-black text-purple-700">KES {depositHeld.toLocaleString()}</div>
+                </div>
             </div>
 
             {/* COLLAPSIBLE FORM */}
-            <div className={`border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm ${message ? 'pb-4' : ''}`}>
+            <div className={`border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm ${message ? 'pb-4' : ''}`}>
                 <button 
                     onClick={() => setIsFormExpanded(!isFormExpanded)}
                     className="w-full flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors"
@@ -305,22 +343,60 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
 
                 {isFormExpanded && (
                     <form onSubmit={handleRecord} className="p-6 border-t border-gray-100 space-y-4 animate-in fade-in slide-in-from-top-2">
-                        
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase text-gray-400 ml-1">This payment is for</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentCategory("rent")}
+                                    className={`p-2.5 rounded-lg text-xs font-black uppercase border-2 transition-all ${
+                                        paymentCategory === "rent"
+                                            ? "bg-blue-600 border-blue-600 text-white"
+                                            : "bg-gray-50 border-gray-200 text-gray-500"
+                                    }`}
+                                >
+                                    Rent / Charges
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentCategory("deposit")}
+                                    className={`p-2.5 rounded-lg text-xs font-black uppercase border-2 transition-all ${
+                                        paymentCategory === "deposit"
+                                            ? "bg-purple-600 border-purple-600 text-white"
+                                            : "bg-gray-50 border-gray-200 text-gray-500"
+                                    }`}
+                                >
+                                    Security Deposit
+                                </button>
+                            </div>
+                            {paymentCategory === "deposit" && (
+                                <p className="text-xs text-purple-600 font-medium ml-1">
+                                    Tracked separately from rent. Will not clear existing rent arrears.
+                                </p>
+                            )}
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold uppercase text-gray-400 ml-1">Amount Paid <span className="text-base text-rose-500">*</span></label>
                                 <input 
                                     type="number" 
                                     placeholder="0.00"
-                                    className={`w-full p-2.5 bg-gray-50 border-2 rounded-xl outline-none focus:border-blue-500 transition-all ${errors.amount ? 'border-rose-500' : ''}`} 
+                                    className={`w-full p-2.5 bg-gray-50 border-2 rounded-lg outline-none focus:border-blue-500 transition-all ${errors.amount_paid ? 'border-rose-500' : ''}`} 
                                     value={amount} 
                                     onChange={e => setAmount(e.target.value)} 
                                 />
+                                {errors.amount_paid && errors.amount_paid.length > 0 && (
+                                    <p className="text-xs font-bold text-rose-500 ml-1 animate-in fade-in slide-in-from-top-1">
+                                        <AlertCircle className="w-4 h-4 inline mr-1" />{errors.amount_paid[0]}
+                                    </p>
+                                )}
                             </div>
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold uppercase text-gray-400 ml-1">Method <span className="text-base text-rose-500">*</span></label>
                                 <select 
-                                    className="w-full p-2.5 bg-gray-50 border-2 rounded-xl outline-none focus:border-blue-500 text-sm transition-all" 
+                                    className="w-full p-2.5 bg-gray-50 border-2 rounded-lg outline-none focus:border-blue-500 text-sm transition-all" 
                                     value={paymentMethod} 
                                     onChange={e => setPaymentMethod(e.target.value)}
                                 >
@@ -345,7 +421,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                                         type="text"
                                         placeholder={paymentMethod === 'mpesa' ? "e.g. RQB7TX890Z" : "Bank Ref Number"}
                                         maxLength={10}
-                                        className={`w-full p-2.5 border-2 rounded-xl outline-none transition-all ${
+                                        className={`w-full p-2.5 border-2 rounded-lg outline-none transition-all ${
                                             paymentMethod === 'mpesa' && reference 
                                             ? (isValidMpesa(reference) ? 'border-emerald-500 bg-emerald-50/20' : 'border-rose-500 bg-rose-50/20')
                                             : 'focus:border-blue-500'
@@ -358,21 +434,21 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
 
                             <div className="md:col-span-2 space-y-1">
                                 <label className="text-[10px] font-bold uppercase text-gray-400 ml-1">Payment Date</label>
-                                <input type="date" className="w-full p-2.5 bg-gray-50 border-2 rounded-xl text-sm outline-none focus:border-blue-500 transition-all" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} />
+                                <input type="date" className="w-full p-2.5 bg-gray-50 border-2 rounded-lg text-sm outline-none focus:border-blue-500 transition-all" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} />
                             </div>
 
                             <div className="md:col-span-2 space-y-1">
                                 <label className="text-[10px] font-bold uppercase text-gray-400 ml-1">Payment Notes</label>
                                 <textarea 
                                     rows={4}
-                                    className="w-full p-2.5 bg-gray-50 border-2 rounded-xl text-sm outline-none focus:border-blue-500 transition-all" 
+                                    className="w-full p-2.5 bg-gray-50 border-2 rounded-lg text-sm outline-none resize-none focus:border-blue-500 transition-all" 
                                     value={notes} 
                                     onChange={e => setNotes(e.target.value)}
                                 />
                             </div>
                         </div>
                         <button 
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-black text-sm transition-all shadow-lg active:scale-[0.99] disabled:opacity-50"
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-black text-sm transition-all shadow-lg active:scale-[0.99] disabled:opacity-50"
                             disabled={!amount || !paymentMethod || (paymentMethod === 'mpesa' && !isValidMpesa(reference))}
                         >
                             CONFIRM PAYMENT
@@ -449,6 +525,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                                                 {p.type === "refund" ? "− " : "+ "} KES {Number(p.amount_paid).toLocaleString()}
                                             </span>
                                             {p.type === "refund" && <span className="text-[8px] bg-orange-100 px-1 rounded">REFUND</span>}
+                                            {p.category === "deposit" && <span className="text-[8px] bg-purple-100 text-purple-700 px-1 rounded">DEPOSIT</span>}
                                         </div>
                                     </td>
 
@@ -485,11 +562,15 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                 <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
                         <div className="text-center space-y-1">
-                            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2 ${refundCategory === "deposit" ? "bg-purple-100 text-purple-600" : "bg-emerald-100 text-emerald-600"}`}>
                                 <RefreshCcw className="w-6 h-6" />
                             </div>
-                            <h3 className="text-lg font-black text-gray-900">Process Refund</h3>
-                            <p className="text-xs text-gray-500">Returning credit balance to tenant</p>
+                            <h3 className="text-lg font-black text-gray-900">
+                                {refundCategory === "deposit" ? "Refund Security Deposit" : "Process Refund"}
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                                {refundCategory === "deposit" ? "Returning held deposit to tenant" : "Returning credit balance to tenant"}
+                            </p>
                         </div>
 
                         <div className="space-y-3">
@@ -497,9 +578,9 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                                 <label className="text-[10px] font-black text-gray-400 uppercase">Refund Amount <span className="text-base text-rose-500">*</span></label>
                                 <input 
                                     type="number" 
-                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-black text-emerald-700 outline-none focus:ring-2 ring-emerald-500/20"
+                                    className={`w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-black outline-none focus:ring-2 ${refundCategory === "deposit" ? "text-purple-700 ring-purple-500/20" : "text-emerald-700 ring-emerald-500/20"}`}
                                     value={refundAmount}
-                                    onChange={(e) => setRefundAmount(Math.min(Number(e.target.value), summary.credit))}
+                                    onChange={(e) => setRefundAmount(Math.min(Number(e.target.value), refundCap))}
                                 />
                             </div>
                             <div>
@@ -545,8 +626,8 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                             <button onClick={() => setIsRefundModalOpen(false)} className="flex-1 py-3 text-xs font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
                             <button 
                                 onClick={handleRefund} 
-                                disabled={processingRefund || !refundMethod || refundAmount <= 0 || !isValidMpesa(reference) && refundMethod === 'mpesa'}
-                                className="flex-1 py-3 text-xs font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+                                disabled={processingRefund || !refundMethod || refundAmount <= 0 || refundAmount > refundCap || !isValidMpesa(reference) && refundMethod === 'mpesa'}
+                                className={`flex-1 py-3 text-xs font-bold text-white rounded-xl disabled:opacity-50 ${refundCategory === "deposit" ? "bg-purple-600 hover:bg-purple-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
                             >
                                 {processingRefund ? "Processing..." : "Confirm Refund"}
                             </button>

@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from "react";
+import { Menu, MenuItem, MenuItems, Transition } from "@headlessui/react";
 import apiService from "@/app/services/apiService";
 import { 
     Plus, Trash2, CheckCircle2, XCircle, 
-    Receipt, Info, AlertCircle, Loader2 
+    Receipt, Info, AlertCircle, Loader2,
+    MoreVertical,
+    AlertTriangle, 
 } from "lucide-react";
 import ConfirmModal from "../ConfirmModal";
 
@@ -36,7 +39,7 @@ const ChargesTab = ({ unit, tenancyId, chargeTypes, onPendingStatusChange }: Cha
     const [submitting, setSubmitting] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedChargeId, setSelectedChargeId] = useState<string | null>(null);
-    
+    const [deleteError, setDeleteError] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         charge_type: "",
         amount: "",
@@ -49,7 +52,7 @@ const ChargesTab = ({ unit, tenancyId, chargeTypes, onPendingStatusChange }: Cha
         setLoading(true);
         try {
             const data = await apiService.get(`/api/charges/?tenancy=${tenancyId}`);
-            const list = Array.isArray(data) ? data : [];
+            const list = Array.isArray(data.results) ? data.results : [];
             setCharges(list);
 
             const hasPending = list.some((c: Charge) => c.status === "pending");
@@ -112,12 +115,12 @@ const ChargesTab = ({ unit, tenancyId, chargeTypes, onPendingStatusChange }: Cha
         if (!selectedChargeId) return;
         
         setSubmitting(true);
-
-        // Block deleting paid charges
+        setDeleteError(null);
+ 
         const charge = charges.find(c => c.id === selectedChargeId);
         if (charge?.status === "paid") {
+            setDeleteError("This charge has already been marked as paid and can't be deleted.");
             setSubmitting(false);
-            setSelectedChargeId(null);
             return;
         }
         
@@ -125,11 +128,16 @@ const ChargesTab = ({ unit, tenancyId, chargeTypes, onPendingStatusChange }: Cha
             await apiService.delete(`/api/charges/${selectedChargeId}/`);
             fetchCharges();
             setIsDeleteModalOpen(false);
-        } catch (error) {
+            setSelectedChargeId(null);
+        } catch (error: any) {
             console.error("Delete failed", error);
+            const backendMessage = error?.response?.data?.detail
+                || (Array.isArray(error?.response?.data) ? error.response.data[0] : null)
+                || error?.message
+                || "Something went wrong while deleting this charge. Please try again.";
+            setDeleteError(backendMessage);
         } finally {
             setSubmitting(false);
-            setSelectedChargeId(null);
         }
     };
 
@@ -242,16 +250,49 @@ const ChargesTab = ({ unit, tenancyId, chargeTypes, onPendingStatusChange }: Cha
                                     <div className="text-right">
                                         <p className="text-sm font-bold text-gray-900">KES {Number(charge.amount).toLocaleString()}</p>
                                     </div>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-2">
                                         {charge.status === 'pending' && (
-                                            <>
-                                                <button onClick={() => updateStatus(charge.id, 'paid')} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Mark as Paid">
-                                                    <CheckCircle2 size={18} />
-                                                </button>
-                                                <button onClick={() => updateStatus(charge.id, 'waived')} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Waive Charge">
-                                                    <XCircle size={18} />
-                                                </button>
-                                            </>
+                                            <Menu as="div" className="relative">
+                                                <Menu.Button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                                                    <MoreVertical className="w-5 h-5 text-gray-500" />
+                                                </Menu.Button>
+                                                    
+                                                <Transition
+                                                    enter="transition duration-100 ease-out"
+                                                    enterFrom="transform scale-95 opacity-0"
+                                                    enterTo="transform scale-100 opacity-100"
+                                                    leave="transition duration-75 ease-in"
+                                                    leaveFrom="transform scale-100 opacity-100"
+                                                    leaveTo="transform scale-95 opacity-0"
+                                                >
+                                                    <MenuItems className="absolute right-0 bottom-full mb-2 w-42 origin-bottom-right bg-white border border-gray-200 divide-y divide-gray-100 rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+                                                        <div className="px-1 py-1">
+                                                            <MenuItem>
+                                                                {({ active }) => (
+                                                                    <button 
+                                                                        onClick={() => updateStatus(charge.id, 'paid')} 
+                                                                        className={`${active ? 'bg-green-200' : 'text-gray-700'} group gap-2 flex w-full items-center rounded-md px-2 py-2 text-sm`} 
+                                                                        title="Mark as Paid"
+                                                                    >
+                                                                        <CheckCircle2 size={18} /> Mark as Paid
+                                                                    </button>
+                                                                )}
+                                                            </MenuItem>
+                                                            <MenuItem>
+                                                                {({ active }) => (
+                                                                    <button 
+                                                                        onClick={() => updateStatus(charge.id, 'waived')} 
+                                                                        className={`${active ? 'bg-amber-200' : 'text-gray-700'} group gap-2 flex w-full items-center rounded-md px-2 py-2 text-sm`} 
+                                                                        title="Waive Charge"
+                                                                    >
+                                                                        <XCircle size={18} /> Waive Charge
+                                                                    </button> 
+                                                                )}
+                                                            </MenuItem>
+                                                        </div>
+                                                    </MenuItems>
+                                                </Transition>
+                                            </Menu>
                                         )}
                                         <button 
                                             onClick={() => handleDeleteClick(charge.id)} 
@@ -268,11 +309,14 @@ const ChargesTab = ({ unit, tenancyId, chargeTypes, onPendingStatusChange }: Cha
 
                                         <ConfirmModal 
                                             isOpen={isDeleteModalOpen}
+                                            icon={<AlertTriangle size={24} className="text-red-500" />}
                                             onClose={() => setIsDeleteModalOpen(false)}
                                             onConfirm={handleConfirmDelete}
                                             isLoading={submitting}
                                             title="Permanently delete charge?"
-                                            message="This action cannot be undone. All historical records of this charge will be removed from the system. If you want to cancel the debt but keep a record, consider using 'Waive' instead."
+                                            detail={deleteError && <p className="text-sm text-red-700 mt-1 bg-red-100 rounded-lg p-2">{deleteError}</p>}
+                                            message="This action cannot be undone. All historical records of this charge will be removed from the system."
+                                            message2="If you want to cancel the debt but keep a record, consider using 'WAIVE' instead."
                                             confirmText="Delete Permanently"
                                         />
                                     </div>

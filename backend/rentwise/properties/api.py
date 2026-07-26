@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import ValidationError
 from django.db.models import Q, Prefetch
 from django.shortcuts import get_object_or_404
 from datetime import datetime
@@ -19,6 +20,7 @@ from .models import Property, Unit, Tenant, UnitPayment, Tenancy, Charge, Charge
 # Services
 from .services.reports import get_property_audit_data, generate_property_audit_pdf
 from .services.payment_service import process_payment
+from .services.charge_service import update_charge_status
 from .services.tenancy_service import add_tenant_to_unit, vacate_unit, add_roommate_to_unit, remove_roommate_from_unit
 from .services.unit_service import update_unit
 from .services.rent import get_property_dashboard, get_property_units
@@ -205,6 +207,7 @@ class UnitViewSet(ModelViewSet):
             return Response({
                 "payments": [],
                 "balance": 0.0,
+                "deposit_held": 0.0,
                 "monthly_rent": 0.0,
                 "status": unit.status,
                 "charges": 0.0,
@@ -213,12 +216,14 @@ class UnitViewSet(ModelViewSet):
 
         if request.method == 'GET':
             current_balance = tenancy.calculate_balance()
+            deposit_held = tenancy.get_deposit_held()
             charges = tenancy.charges.filter(status="pending").order_by("-created_at")
             payments = tenancy.payments.all().order_by("-created_at")
             
             return Response({
                 "payments": UnitPaymentSerializer(payments, many=True).data,
                 "balance": float(current_balance),
+                "deposit_held": float(deposit_held),
                 "monthly_rent": float(tenancy.monthly_rent),
                 "status": "arrears" if current_balance > 0 else "credit" if current_balance < 0 else "settled",
                 "charges": float(sum([c.amount for c in charges])),
@@ -251,13 +256,13 @@ class UnitViewSet(ModelViewSet):
     def add_roommate(self, request, id=None):
         unit = self.get_object()
         tenant = add_roommate_to_unit(unit, request.data)
-        return Response({"detail": "Roommate added", "tenant_id": tenant.id}, status=201)
+        return Response({"success": True, "detail": "Roommate added", "tenant_id": tenant.id}, status=201)
 
     @action(detail=True, methods=['post'], url_path='remove-roommate/(?P<tenant_id>[^/.]+)')
     def remove_roommate(self, request, id=None, tenant_id=None):
         unit = self.get_object()
         remove_roommate_from_unit(unit, tenant_id)
-        return Response({"detail": "Roommate removed successfully"}, status=status.HTTP_200_OK)
+        return Response({"success": True, "detail": "Roommate removed successfully"}, status=status.HTTP_200_OK)
     
 class TenantViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -386,13 +391,13 @@ class ChargeViewSet(ModelViewSet):
     def update_status(self, request, id=None):
         charge = self.get_object()
         serializer = ChargeStatusUpdateSerializer(charge, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+ 
+        update_charge_status(charge, serializer.validated_data['status'])
+ 
+        return Response(ChargeSerializer(charge).data)
     
     def perform_destroy(self, instance):
         if instance.status == 'paid':
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError("Cannot delete a charge that has already been paid.")
+            return Response({"detail": "Cannot delete a charge that has already been paid."}, status=status.HTTP_400_BAD_REQUEST)
         instance.delete()

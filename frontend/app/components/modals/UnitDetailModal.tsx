@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import useUnitDetailModal from "@/app/hooks/useUnitDetailModal";
 import Modal from "./Modal";
-import { Building2, Home, Save, UserPlus, History, UserCircle, ArrowRight } from "lucide-react";
+import { Building2, Home, Save, UserPlus, History, UserCircle, ArrowRight, AlertTriangle } from "lucide-react";
 import apiService from "@/app/services/apiService";
 import { useRouter } from "next/navigation";
 
@@ -15,6 +15,7 @@ import LogsTab from "./tabs/LogsTab";
 import TabHeader from "./TabHeader";
 import ChargesTab from "./tabs/ChargesTab";
 import { ChargeType } from "./tabs/ChargesTab";
+import ConfirmModal from "./ConfirmModal";
 
 const UnitDetailModal = () => {
     const { property, unit, isOpen, close, isEditing: initialIsEditing } = useUnitDetailModal();
@@ -110,15 +111,16 @@ const UnitDetailModal = () => {
         }
     };
 
-    const handleRemoveTenancy = async () => {
-        if (!confirm(
-            "This will end the lease and clear all tenants from this unit. " +
-            "Want to remove just one tenant? Use the 'Remove Tenant' button on their card instead. Continue?"
-        )) return;
+    const [isVacateModalOpen, setIsVacateModalOpen] = useState(false);
+    const handleRemoveTenancy = () => {
+        setIsVacateModalOpen(true);
+    };
 
+    const confirmRemoveTenancy = async () => {
         setLoading(true);
         try {
             await apiService.post(`/api/units/${unit?.id}/vacate/`, {});
+            setIsVacateModalOpen(false);
         } finally {
             setLoading(false);
         }
@@ -142,7 +144,7 @@ const UnitDetailModal = () => {
     const handleUpdate = async () => {
         if (!unit?.id) return;
         setLoading(true);
-        setDetailError(null); // Clear previous errors immediately
+        setDetailError(null);
 
         try {
             const response = await apiService.patch(`/api/units/${unit.id}/`, formData);
@@ -165,22 +167,20 @@ const UnitDetailModal = () => {
         }
     };
 
-    const handleSoftDelete = async () => {
-        if (!unit?.id || !confirm("Are you sure you want to delete this unit?")) return;
-        setLoading(true);
-        try {
-            await apiService.patch(`/api/units/${unit.id}/`, { is_active: false });
-            router.refresh();
-            close();
-        } catch (error) {
-            console.error("Delete failed", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const content = (
         <div className="">
+            <ConfirmModal
+                isOpen={isVacateModalOpen}
+                icon={<AlertTriangle size={24} className="text-red-500" />}
+                title="Terminate Lease?"
+                message="This will end the lease and remove all tenants from this unit."
+                message2="If you only want to remove one tenant, use the 'Remove Tenant' button on their card instead."
+                confirmText="Terminate Lease"
+                isLoading={loading}
+                onConfirm={confirmRemoveTenancy}
+                onClose={() => setIsVacateModalOpen(false)}
+            />
+
             <TabHeader 
                 currentTab={currentTab} 
                 setCurrentTab={setCurrentTab} 

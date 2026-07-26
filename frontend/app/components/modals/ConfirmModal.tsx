@@ -5,8 +5,11 @@ import { AlertTriangle, X } from 'lucide-react';
 
 interface ConfirmModalProps {
     isOpen: boolean;
+    icon: React.ReactNode;
     title: string;
+    detail?: string | null | React.ReactNode;
     message: string;
+    message2?: string;
     onConfirm: () => void;
     onClose: () => void;
     confirmText?: string;
@@ -14,7 +17,7 @@ interface ConfirmModalProps {
 }
 
 const ConfirmModal = ({ 
-    isOpen, title, message, onConfirm, onClose, confirmText = "Delete", isLoading 
+    isOpen, icon, title, detail, message, message2, onConfirm, onClose, confirmText, isLoading 
 }: ConfirmModalProps) => {
     if (!isOpen) return null;
 
@@ -23,16 +26,20 @@ const ConfirmModal = ({
             <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-2 bg-red-50 rounded-lg text-red-600">
-                            <AlertTriangle size={24} />
+                        <div className="p-2 rounded-lg flex items-center gap-2">
+                            {icon} <h3 className="text-xl font-bold text-gray-900">{title}</h3>
                         </div>
                         <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors">
                             <X size={20} />
                         </button>
                     </div>
 
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
-                    <p className="text-gray-500 text-sm leading-relaxed">{message}</p>
+                    <div className="mb-4">
+                        {detail}
+                    </div>
+                    
+                    <p className="text-gray-500 leading-relaxed">{message}</p>
+                    <p className="text-gray-500 leading-relaxed mt-2">{message2}</p>
                 </div>
 
                 <div className="bg-gray-50 p-4 flex flex-col sm:flex-row-reverse gap-3">
