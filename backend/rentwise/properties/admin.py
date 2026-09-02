@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Property, Unit, Tenant, UnitPayment, Tenancy, TenancyMember, ChangeLog, Charge, ChargeType
+from .models import Property, Unit, Tenant, TenantInvitation, UnitPayment, Tenancy, TenancyMember, ChangeLog, Charge, ChargeType
 
 # Register your models here.
 admin.site.register(Property)
@@ -25,6 +25,18 @@ class TenantAdmin(admin.ModelAdmin):
     )
     list_filter = ("is_active",)
     list_per_page = 25
+
+@admin.register(TenantInvitation)
+class TenantInvitationAdmin(admin.ModelAdmin):
+    search_fields = ("tenant__full_name", "email", "token")
+    list_display = (
+        "tenant",
+        "email",
+        "token",
+        "is_accepted",
+        "created_at",
+    )
+
 @admin.register(Tenancy)
 class TenancyAdmin(admin.ModelAdmin):
     search_fields = ("unit__name", "tenants__full_name")
@@ -46,7 +58,17 @@ class TenancyAdmin(admin.ModelAdmin):
 
     get_tenants.short_description = "Tenants"
 
-admin.site.register(TenancyMember)
+@admin.register(TenancyMember)
+class TenancyMemberAdmin(admin.ModelAdmin):
+    search_fields = ("tenancy__unit__name", "tenant__full_name")
+    list_display = (
+        "tenancy",
+        "tenant",
+        "is_active",
+    )
+    list_filter = ("is_active",)
+    list_per_page = 25
+
 admin.site.register(ChangeLog)
 admin.site.register(Charge)
 admin.site.register(ChargeType)
@@ -58,6 +80,7 @@ class UnitPaymentAdmin(admin.ModelAdmin):
         "year",
         "amount_paid",
         "type",
+        "payment_method",
         "paid_on",
     )
     list_filter = ("year", "month", "type")

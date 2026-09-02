@@ -1,8 +1,6 @@
 'use client'
 
-import { useRouter } from "next/navigation"
-
-import { resetAuthCookies } from '../lib/actions';
+import { resetAuthCookies } from '../src/lib/actions';
 import CustomButton from "./ui/CustomButton";
 
 interface LogoutButtonProps {
@@ -10,12 +8,11 @@ interface LogoutButtonProps {
 }
 
 const LogoutButton: React.FC<LogoutButtonProps> = ({ className }) => {
-    const router = useRouter();
 
     const submitLogout = async() => {
         resetAuthCookies();
 
-        router.push('/')
+        window.location.href = `${process.env.NEXT_PUBLIC_MAIN_SITE_URL}`;
     }
 
     return(

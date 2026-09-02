@@ -1,4 +1,4 @@
-import { getAccessToken } from "../lib/actions";
+import { getAccessToken } from "../src/lib/actions";
 
 const API_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL;
 
@@ -30,6 +30,7 @@ const apiService = {
         method: "GET",
         headers,
         cache: "no-store",
+        next: { revalidate: 600 }
       });
 
       // console.log("📡 Response status:", response.status);

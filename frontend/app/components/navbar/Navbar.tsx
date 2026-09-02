@@ -1,6 +1,6 @@
-import { getAuthUser } from "@/app/lib/auth";
+import { getAuthUser } from "@/app/src/lib/auth";
 import PublicNavbar from "./PublicNavbar";
-import AppSidebar from "./AppSidebar";
+import Sidebar from "./Sidebar";
 
 const Navbar = async () => {
     const user = await getAuthUser();
@@ -9,7 +9,7 @@ const Navbar = async () => {
         return <PublicNavbar />
     }
 
-    return <AppSidebar appUser={user} />
+    return <Sidebar appUser={user} />
     
 }
 

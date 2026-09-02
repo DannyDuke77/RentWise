@@ -116,6 +116,8 @@ class UserSettingsSerializer(serializers.ModelSerializer):
         return instance
     
 class BusinessProfileSerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = BusinessProfile
         fields = [
@@ -127,3 +129,22 @@ class BusinessProfileSerializer(serializers.ModelSerializer):
             "logo_url",
             "currency",
         ]
+
+    def get_logo_url(self, obj):
+        return obj.logo_url()
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+
+        if user.user_type != "landlord":
+            raise serializers.ValidationError(
+                "Only landlords can have a business profile."
+            )
+
+        # Block currency changes
+        if "currency" in attrs and attrs["currency"] != user.business_profile.currency:
+            raise serializers.ValidationError(
+                "Currency cannot be changed for now."
+            )
+
+        return attrs

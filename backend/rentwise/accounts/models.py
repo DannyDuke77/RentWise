@@ -25,7 +25,7 @@ class CustomUserManager(UserManager):
     def create_superuser(self, name=None, email=None, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('user_type', 'admin')
+        extra_fields.setdefault('user_type', 'landlord')
 
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
@@ -33,21 +33,22 @@ class CustomUserManager(UserManager):
             raise ValueError('Superuser must have is_superuser=True.')
 
         return self._create_user(name, email, password, **extra_fields)
-    
+
 class User(AbstractBaseUser, PermissionsMixin):
     USER_TYPES = (
         ('admin', 'Admin'),
-        ('user', 'User'),
+        ('landlord', 'Landlord'),
+        ('tenant', 'Tenant'),
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=150, unique=True)
+    name = models.CharField(max_length=150)
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     address = models.CharField(max_length=255, blank=True, null=True)
     avatar = models.ImageField(upload_to='uploads/avatars/', null=True, blank=True)
 
-    user_type = models.CharField(max_length=10, choices=USER_TYPES, default='user')
+    user_type = models.CharField(max_length=10, choices=USER_TYPES, default='landlord')
 
     is_verified = models.BooleanField(default=False)
 

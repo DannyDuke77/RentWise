@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import apiService from "@/app/services/apiService";
 import CustomButton from "@/app/components/ui/CustomButton";
 import { CircleAlert, Eye, EyeOff, User, Mail, Phone, MapPin, Lock, Upload, X } from "lucide-react";
+import Link from "next/link";
 
 const SignUp = () => {
     const router = useRouter();
@@ -364,12 +365,12 @@ const SignUp = () => {
                     <div className="pt-3 border-t border-gray-200">
                         <p className="text-center text-sm text-gray-500">
                             Already have an account?{" "}
-                            <a 
+                            <Link 
                                 href="/auth/login" 
                                 className="text-blue-600 hover:text-blue-700 font-medium hover:underline transition-colors"
                             >
                                 Sign in
-                            </a>
+                            </Link>
                         </p>
                     </div>
                 </form>

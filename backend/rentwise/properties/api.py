@@ -3,9 +3,9 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import AllowAny
 from django.db.models import Q, Prefetch
 from django.shortcuts import get_object_or_404
 from datetime import datetime
@@ -15,13 +15,15 @@ from .serializers import (
     UnitPaymentCreateSerializer, UnitPaymentSerializer, ChargeStatusUpdateSerializer, 
     TenancyDropdownSerializer, ChargeSerializer, ChargeTypeSerializer, ChargeCreateSerializer
 )
-from .models import Property, Unit, Tenant, UnitPayment, Tenancy, Charge, ChargeType, TenancyMember
+from .models import Property, TenantInvitation, Unit, Tenant, UnitPayment, Tenancy, Charge, ChargeType, TenancyMember
+
+from accounts.permissions import IsLandlordOrAdmin
 
 # Services
 from .services.reports import get_property_audit_data, generate_property_audit_pdf
-from .services.payment_service import process_payment
+from .services.payment_service import process_payment, get_payment_analytics
 from .services.charge_service import update_charge_status
-from .services.tenancy_service import add_tenant_to_unit, vacate_unit, add_roommate_to_unit, remove_roommate_from_unit
+from .services.tenancy_service import accept_tenant_invitation, vacate_unit, add_tenant_or_roommate_to_unit, remove_roommate_from_unit
 from .services.unit_service import update_unit
 from .services.rent import get_property_dashboard, get_property_units
 
@@ -41,13 +43,13 @@ class Pagination(PageNumberPagination):
         })
     
 class PropertyViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsLandlordOrAdmin]
     serializer_class = PropertyDetailSerializer
     pagination_class = Pagination
     lookup_field = "id"
 
     def get_queryset(self):
-        queryset = Property.objects.filter(owner=self.request.user)
+        queryset = Property.objects.filter(owner=self.request.user, is_active=True).order_by("created_at")
 
         query = self.request.query_params.get("q")
         if query:
@@ -132,7 +134,7 @@ class PropertyViewSet(ModelViewSet):
         return response
     
 class UnitViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsLandlordOrAdmin]
     serializer_class = UnitDetailSerializer
     pagination_class = Pagination
     lookup_field = "id"
@@ -170,10 +172,6 @@ class UnitViewSet(ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='rent-status')
     def rent_status(self, request):
-        """
-        Leverages the core dashboard payload to collect all unit statuses 
-        safely if property context is provided, protecting the DB from N+1.
-        """
         property_id = request.query_params.get("property")
         if property_id:
             get_object_or_404(Property, id=property_id, owner=request.user)
@@ -215,13 +213,19 @@ class UnitViewSet(ModelViewSet):
             }, status=200)
 
         if request.method == 'GET':
+            payments = tenancy.payments.all().order_by("-created_at")
+            
+            paginator = Pagination()
+            paginated_payments = paginator.paginate_queryset(payments, request)
+
+            serialized_payments = UnitPaymentSerializer(paginated_payments, many=True).data
+
             current_balance = tenancy.calculate_balance()
             deposit_held = tenancy.get_deposit_held()
             charges = tenancy.charges.filter(status="pending").order_by("-created_at")
-            payments = tenancy.payments.all().order_by("-created_at")
             
-            return Response({
-                "payments": UnitPaymentSerializer(payments, many=True).data,
+            response_data = ({
+                "payments": serialized_payments,
                 "balance": float(current_balance),
                 "deposit_held": float(deposit_held),
                 "monthly_rent": float(tenancy.monthly_rent),
@@ -229,6 +233,8 @@ class UnitViewSet(ModelViewSet):
                 "charges": float(sum([c.amount for c in charges])),
                 "charge_details": ChargeSerializer(charges, many=True).data
             })
+
+            return paginator.get_paginated_response(response_data)
 
         if request.method == 'POST':
             serializer = UnitPaymentCreateSerializer(data=request.data)
@@ -243,33 +249,17 @@ class UnitViewSet(ModelViewSet):
                 "errors": serializer.errors
             }, status=201)
         
-    @action(detail=True, methods=['post'], url_path='vacate')
-    def vacate_unit(self, request, id=None):
-        unit = self.get_object()
-        vacate_unit(unit)
-        return Response(
-            {"detail": "Tenant moved out successfully"}, 
-            status=status.HTTP_200_OK
-        )
-        
-    @action(detail=True, methods=['post'], url_path='add-roommate')
-    def add_roommate(self, request, id=None):
-        unit = self.get_object()
-        tenant = add_roommate_to_unit(unit, request.data)
-        return Response({"success": True, "detail": "Roommate added", "tenant_id": tenant.id}, status=201)
-
-    @action(detail=True, methods=['post'], url_path='remove-roommate/(?P<tenant_id>[^/.]+)')
-    def remove_roommate(self, request, id=None, tenant_id=None):
-        unit = self.get_object()
-        remove_roommate_from_unit(unit, tenant_id)
-        return Response({"success": True, "detail": "Roommate removed successfully"}, status=status.HTTP_200_OK)
-    
 class TenantViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsLandlordOrAdmin]
     serializer_class = TenantSerializer
     pagination_class = Pagination
     queryset = Tenant.objects.all()
     lookup_field = "id"
+
+    def get_permissions(self):
+        if self.action in ['invitation', 'accept_invitation']:
+            return [AllowAny()]
+        return super().get_permissions()
 
     def get_queryset(self):
         queryset = Tenant.objects.filter(
@@ -280,7 +270,7 @@ class TenantViewSet(ModelViewSet):
             queryset = queryset.prefetch_related(
                 Prefetch(
                     'tenancy_members',
-                    queryset=TenancyMember.objects.filter(is_active=True).select_related(
+                    queryset=TenancyMember.objects.select_related(
                         'tenancy__unit', 
                         'tenancy__unit__property'
                     )
@@ -291,7 +281,7 @@ class TenantViewSet(ModelViewSet):
         if query:
             queryset = queryset.filter(full_name__icontains=query)
         return queryset
-    
+
     @action(detail=False, methods=['get', 'post'], url_path='unit/(?P<unit_id>[^/.]+)')
     def unit_tenants(self, request, unit_id=None):
         unit = get_object_or_404(Unit, id=unit_id)
@@ -301,7 +291,7 @@ class TenantViewSet(ModelViewSet):
             if not tenancy:
                 return Response({"tenancy_id": None, "tenants": []})
             
-            serializer = TenantSerializer(tenancy.tenants.all(), many=True)
+            serializer = TenantSerializer(tenancy.tenants.filter(is_active=True).all(), many=True)
             return Response({
                 "tenancy_id": tenancy.id,
                 "tenants": serializer.data
@@ -309,33 +299,86 @@ class TenantViewSet(ModelViewSet):
 
         if request.method == 'POST':
             billing_start_date = request.data.get('billing_start_date')
-            tenancy, tenant = add_tenant_to_unit(
-                unit, 
-                request.data, 
+            tenancy, tenant, is_roommate = add_tenant_or_roommate_to_unit(
+                unit=unit, 
+                data=request.data, 
                 billing_start_date=billing_start_date
             )
+            
+            message = "Roommate added successfully" if is_roommate else "Tenant added successfully"
+            
             return Response({
                 "success": True,
-                "message": "Tenant added successfully",
+                "message": message,
+                "is_roommate": is_roommate,
                 "tenancy_id": tenancy.id,
                 "tenant_id": tenant.id
             }, status=201)
+
+    @action(detail=False, methods=['get'], url_path='invitation/(?P<token>[^/.]+)')
+    def invitation(self, request, token=None):
+        invitation = get_object_or_404(TenantInvitation.objects.select_related('tenant'), token=token)
+
+        if invitation.is_accepted:
+            return Response({"detail": "This invitation has already been accepted."}, status=status.HTTP_400_BAD_REQUEST)
         
-    @action(detail=False, methods=['get'], url_path='active-tenancies')
-    def active_tenancies(self, request):
-        queryset = Tenancy.objects.filter(
-            is_active=True, 
-            unit__property__owner=self.request.user
-        ).select_related('unit', 'unit__property').order_by('-start_date')
-        
-        serializer = TenancyDropdownSerializer(queryset, many=True)
+        if invitation.is_expired:
+            return Response({"detail": "This invitation has expired."}, status=status.HTTP_400_BAD_REQUEST)
+
+        tenant = invitation.tenant
+
+        if tenant.user:
+            return Response({"detail": "This tenant already has an account."}, status=status.HTTP_400_BAD_REQUEST)
+
         return Response({
-            "success": True,
-            "tenancies": serializer.data
+            "valid": True,
+            "email": invitation.email,
+            "full_name": tenant.full_name,
         })
 
+    @action(detail=False, methods=['post'], url_path='invitation/(?P<token>[^/.]+)/accept')
+    def accept_invitation(self, request, token=None):
+        password = request.data.get("password")
+        password_confirm = request.data.get("password_confirm")
+
+        if not password:
+            return Response({"detail": "Password is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if password != password_confirm:
+            return Response({"detail": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user, tenant = accept_tenant_invitation(token=token, password=password)
+        except ValidationError as e:
+            return Response({"detail": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "success": True,
+            "message": "Invitation accepted successfully. You can now log in.",
+            "user_id": user.id,
+            "tenant_id": tenant.id
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='unit/(?P<unit_id>[^/.]+)/vacate')
+    def vacate_unit(self, request, unit_id=None):
+        unit = get_object_or_404(Unit, id=unit_id, property__owner=request.user)
+        vacate_unit(unit)
+        return Response(
+            {"success": True, "message": "Unit vacated successfully"}, 
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=False, methods=['post'], url_path='unit/(?P<unit_id>[^/.]+)/remove-roommate/(?P<tenant_id>[^/.]+)')
+    def remove_roommate(self, request, unit_id=None, tenant_id=None):
+        unit = get_object_or_404(Unit, id=unit_id, property__owner=request.user)
+        remove_roommate_from_unit(unit, tenant_id)
+        return Response(
+            {"success": True, "message": "Roommate removed successfully"}, 
+            status=status.HTTP_200_OK
+        )
+
 class PaymentViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsLandlordOrAdmin]
     pagination_class = Pagination
     lookup_field = 'id'
     serializer_class = UnitPaymentSerializer
@@ -354,10 +397,31 @@ class PaymentViewSet(ModelViewSet):
             queryset = queryset.filter(tenancy__unit_id=unit_id)
 
         return queryset.order_by("-paid_on")
+
+    @action(detail=False, methods=["get"], url_path="analytics")
+    def analytics(self, request):
+        return Response(
+            get_payment_analytics(request.user)
+        )
+
+    @action(detail=False,methods=["get"],url_path="property/(?P<property_id>[^/.]+)/analytics")
+    def property_analytics(self, request, property_id=None):
+        get_object_or_404(
+            Property,
+            id=property_id,
+            owner=request.user
+        )
+
+        return Response(
+            get_payment_analytics(
+                request.user,
+                property_id=property_id
+            )
+        )
     
 class ChargeTypeViewSet(ModelViewSet):
     serializer_class = ChargeTypeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsLandlordOrAdmin]
     pagination_class = Pagination
     lookup_field = 'id'
 
@@ -368,7 +432,7 @@ class ChargeTypeViewSet(ModelViewSet):
         serializer.save(landlord=self.request.user)
 
 class ChargeViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsLandlordOrAdmin]
     pagination_class = Pagination
     lookup_field = 'id'
 

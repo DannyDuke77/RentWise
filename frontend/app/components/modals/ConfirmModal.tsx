@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface ConfirmModalProps {
     isOpen: boolean;
@@ -13,11 +13,12 @@ interface ConfirmModalProps {
     onConfirm: () => void;
     onClose: () => void;
     confirmText?: string;
+    disableConfirm?: boolean;
     isLoading?: boolean;
 }
 
 const ConfirmModal = ({ 
-    isOpen, icon, title, detail, message, message2, onConfirm, onClose, confirmText, isLoading 
+    isOpen, icon, title, detail, message, message2, onConfirm, onClose, confirmText, disableConfirm, isLoading 
 }: ConfirmModalProps) => {
     if (!isOpen) return null;
 
@@ -45,8 +46,8 @@ const ConfirmModal = ({
                 <div className="bg-gray-50 p-4 flex flex-col sm:flex-row-reverse gap-3">
                     <button
                         onClick={onConfirm}
-                        disabled={isLoading}
-                        className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50"
+                        disabled={isLoading || disableConfirm}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-300"
                     >
                         {isLoading ? "Processing..." : confirmText}
                     </button>

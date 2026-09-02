@@ -1,9 +1,9 @@
 from rest_framework.permissions import BasePermission
 
-class IsAdmin(BasePermission):
-    def has_permission(self, request, view):
-        return bool(request.user and request.user.user_type == "admin")
 
-class IsUser(BasePermission):
+class IsLandlordOrAdmin(BasePermission):
     def has_permission(self, request, view):
-        return bool(request.user and request.user.user_type == "user")
+        return (
+            request.user.is_authenticated
+            and request.user.user_type in ['landlord', 'admin']
+        )

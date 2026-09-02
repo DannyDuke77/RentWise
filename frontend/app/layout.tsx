@@ -3,9 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import Navbar from "./components/navbar/Navbar";
-import Footer from "./components/ui/Footer";
 import UnitModal from "./components/modals/UnitModal";
-import UnitDetailModal from "./components/modals/UnitDetailModal";
+import QueryProvider from "./providers/QueryProvider";
+import PropertyModal from "./components/modals/PropertyModal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,19 +32,19 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <QueryProvider>
         <div className="flex min-h-screen">
           <Navbar />
-
           {/* Main content */}
-          <main className="flex-1 md:mt-0">
-            {children}
-            
+          <main className="flex-1 md:mt-0 overflow-x-hidden lg:overflow-visible">
+              {children} 
           </main>
           
           {/* Modals */}
           <UnitModal /> 
-          <UnitDetailModal />
+          <PropertyModal />
         </div>
+        </QueryProvider>
       </body>
     </html>
   );

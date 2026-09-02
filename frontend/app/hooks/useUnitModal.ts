@@ -1,19 +1,24 @@
 import { create } from "zustand";
+import { Property, Unit } from "@/app/src/types/Types";
 
 interface UnitModalStore {
-    propertyId: string | null;
-    propertyName: string | null;
+    property: Property | null;
+    unit?: Unit | null;
+    isEditing: boolean;
+
     isOpen: boolean;
-    open: (propertyId: string, propertyName: string) => void;
+    open: (property: Property, unit?: Unit | null, isEditing?: boolean) => void;
     close: () => void;
 }
 
 const useUnitModal = create<UnitModalStore>((set) => ({
-    propertyId: null,
-    propertyName: null,
+    property: null,
+    unit: null,
+    isEditing: false,
+
     isOpen: false,
-    open: (propertyId: string, propertyName: string) => set({ isOpen: true, propertyId, propertyName }),
-    close: () => set({ isOpen: false, propertyId: null, propertyName: null }),
+    open: (property, unit, isEditing) => set({ isOpen: true, property, unit, isEditing }),
+    close: () => set({ isOpen: false, property: null, unit: null, isEditing: false }),
 }));
 
 export default useUnitModal;

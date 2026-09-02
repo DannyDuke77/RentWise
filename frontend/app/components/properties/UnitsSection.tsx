@@ -3,58 +3,55 @@
 import { useState, useMemo, useEffect } from "react";
 import UnitRow from "./UnitRow";
 import { Building, ChevronLeft, ChevronRight, Search, CircleX } from "lucide-react";
-import { UnitType } from "../modals/UnitModal";
-import { PropertyType } from "@/app/properties/page";
+import { Property, Unit } from "@/app/src/types/Types";
+import Pagination from "../ui/Pagination";
+import { usePropertyUnits } from "@/app/hooks/queries/usePropertyQueries";
+import LoadingSpinner from "../ui/LoadingSpinner";
 
 type Props = {
-  property: PropertyType;
-  units: UnitType[];
+  property: Property;
 };
 
-const UnitsSection = ({ property, units }: Props) => {
-  const [query, setQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+const UnitsSection = ({ property }: Props) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const { data, isFetching } = usePropertyUnits(property.id, page, pageSize);
+
+  const rawUnits: Unit[] = data?.results ?? [];
+  const totalCount = data?.count ?? 0;
+
+  const [searchTerm, setSearchTerm] = useState("");
 
   const filteredUnits = useMemo(() => {
-    if (!query.trim()) return units;
-
-    const q = query.toLowerCase();
-
-    return units.filter((unit: UnitType) => {
-      const unitName = unit.name?.toLowerCase() || "";
-      const status = unit.status?.toLowerCase() || "";
-      const tenantNames = unit.tenant_names?.join(", ").toLowerCase() || "";
-      
-      return (
-        unitName.includes(q) ||
-        status.includes(q) ||
-        tenantNames.includes(q)
-      );
+    return rawUnits.filter((unit) => {
+      const search = searchTerm.toLowerCase();
+      const matchesSearch =
+        !search ||
+        unit.name.toLowerCase().includes(search) ||
+        unit.tenant_names?.toLowerCase().includes(search)
+      return matchesSearch;
     });
-  }, [query, units]);
-
-  const PAGE_SIZE = 10;
-  const totalPages = Math.ceil(filteredUnits.length / PAGE_SIZE);
-
-  const paginatedUnits = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredUnits.slice(start, start + PAGE_SIZE);
-  }, [filteredUnits, currentPage]);
+  }, [searchTerm, rawUnits]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [query]);
+    setPage(1);
+  }, [searchTerm, pageSize]);
+
+  const clearSearch = () => {
+    setSearchTerm("");
+  };
 
   // Status counts
   const statusCounts = useMemo(() => {
     const counts = { occupied: 0, vacant: 0, maintenance: 0 };
-    units.forEach(unit => {
+    rawUnits.forEach((unit) => {
       if (unit.status in counts) {
         counts[unit.status]++;
       }
     });
     return counts;
-  }, [units]);
+  }, [rawUnits]);
 
   return (
     <div className="px-2 overflow-y-auto border border-gray-100 shadow-sm overflow-hidden">
@@ -64,7 +61,7 @@ const UnitsSection = ({ property, units }: Props) => {
           <div>
             <h2 className="text-xl font-bold text-gray-900">Units</h2>
             <p className="text-sm text-gray-500 mt-1">
-              {units.length} units [ {statusCounts.occupied} occupied • {statusCounts.vacant} vacant • {statusCounts.maintenance} maintenance ]
+              {rawUnits.length} units [ {statusCounts.occupied} occupied • {statusCounts.vacant} vacant • {statusCounts.maintenance} maintenance ]
             </p>
           </div>
 
@@ -93,12 +90,12 @@ const UnitsSection = ({ property, units }: Props) => {
           <input
             type="text"
             placeholder="Search by unit name, tenant, or status..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-gray-500 text-gray-900"
           />
-          {query && (
-            <CircleX className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400 cursor-pointer hover:text-gray-500" onClick={() => setQuery("")} />
+          {searchTerm && (
+            <CircleX className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400 cursor-pointer hover:text-gray-500" onClick={clearSearch} />
           )}
         </div>
 
@@ -106,34 +103,44 @@ const UnitsSection = ({ property, units }: Props) => {
         <div className="flex items-center gap-4 mt-4 text-sm text-gray-600">
           <span className="flex items-center gap-1.5">
             <div className="w-3 h-3 bg-blue-500 rounded-full" />
-            Showing {paginatedUnits.length} of {filteredUnits.length} units
+            Showing {filteredUnits.length} of {filteredUnits.length} units
           </span>
-          {query && (
+          {searchTerm && (
             <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-              Search: "{query}"
+              Search: "{searchTerm}"
             </span>
           )}
-        </div>
+        </div> 
+        
       </div>
 
-      {/* Empty State */}
-      {filteredUnits.length === 0 ? (
+      {/* Units */}
+      {isFetching ? (
+        <div className="p-12 text-center">
+          <LoadingSpinner
+            size="lg"
+            color="blue-600"
+            label="Fetching units..."
+            showTimer={true}
+          />
+        </div>
+      ) : filteredUnits.length === 0 ? (
         <div className="p-12 text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Building className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            {query ? "No matching units" : "No units yet"}
+            {searchTerm ? "No matching units" : "No units yet"}
           </h3>
           <p className="text-gray-500 max-w-sm mx-auto">
-            {query 
+            {searchTerm 
               ? "Try adjusting your search or filter to find what you're looking for."
               : "Start by adding your first unit to manage tenants and rent collection."
             }
           </p>
-          {query && (
+          {searchTerm && (
             <button
-              onClick={() => setQuery("")}
+              onClick={clearSearch}
               className="mt-4 px-4 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
             >
               Clear search
@@ -144,7 +151,7 @@ const UnitsSection = ({ property, units }: Props) => {
         <>
           {/* Units Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-            {paginatedUnits.map((unit) => (
+            {filteredUnits.map((unit) => (
               <UnitRow
                 key={unit.id}
                 property={property}
@@ -154,72 +161,13 @@ const UnitsSection = ({ property, units }: Props) => {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="text-sm text-gray-600">
-                  Showing <span className="font-semibold text-gray-900">
-                    {(currentPage - 1) * PAGE_SIZE + 1}
-                  </span> to{" "}
-                  <span className="font-semibold text-gray-900">
-                    {Math.min(currentPage * PAGE_SIZE, filteredUnits.length)}
-                  </span> of{" "}
-                  <span className="font-semibold text-gray-900">
-                    {filteredUnits.length}
-                  </span> units
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((p) => p - 1)}
-                    className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    Previous
-                  </button>
-
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`w-10 h-10 flex items-center justify-center text-sm font-medium rounded-lg transition-colors ${
-                            currentPage === pageNum
-                              ? "bg-gray-900 text-white"
-                              : "text-gray-700 hover:bg-gray-100"
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <button
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((p) => p - 1)}
-                    className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Next
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </>
       )}
     </div>

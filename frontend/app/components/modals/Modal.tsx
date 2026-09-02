@@ -8,9 +8,11 @@ interface ModalProps {
     close: () => void;
     content: React.ReactElement;
     isOpen: boolean;
+    maxWidth?: string;
+    maxHeight?: string;
 }
 
-const Modal: React.FC<ModalProps> = ({ label, close, content, isOpen }) => {
+const Modal: React.FC<ModalProps> = ({ label, close, content, isOpen, maxWidth, maxHeight }) => {
     const [showModal, setShowModal] = useState(isOpen);
 
     useEffect(() => {
@@ -39,16 +41,16 @@ const Modal: React.FC<ModalProps> = ({ label, close, content, isOpen }) => {
     }
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[50] flex items-center justify-center p-4">
             {/* Backdrop */}
             <div 
-                className={`absolute inset-0 bg-black/50 backdrop-blur-[2px] transition-opacity duration-500 ${
+                className={`absolute inset-0 bg-black/50 backdrop-blur-[4px] transition-opacity duration-500 ${
                     showModal ? 'opacity-100' : 'opacity-0'
                 }`}
             />
             
             {/* Modal */}
-            <div className={`relative w-full max-w-3xl transition-all duration-300 ${
+            <div className={`relative w-full max-w-${maxWidth} transition-all duration-300 ${
                 showModal 
                 ? 'opacity-100 translate-y-0' 
                 : 'opacity-0 translate-y-4'
@@ -70,7 +72,7 @@ const Modal: React.FC<ModalProps> = ({ label, close, content, isOpen }) => {
                     </div>
                     
                     {/* Content */}
-                    <div className="max-h-[70vh] overflow-y-auto">
+                    <div className="max-h-[90vh] overflow-y-auto">
                         {content}
                     </div>
                 </div>

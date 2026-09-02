@@ -1,36 +1,14 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useUnitModal from "@/app/hooks/useUnitModal";
-import Modal from "./Modal"
-import apiService from "@/app/services/apiService";
-import { useRouter } from "next/navigation";
-import { Building2, DollarSign, Layers, Home, Loader2, CheckCircle, Check } from "lucide-react";
-import { PropertyType } from "@/app/properties/page";
-
-export type UnitType = {
-    property: PropertyType,
-    id: string;
-    unit: string;
-    name: string;
-    tenant_names?: any[];
-    monthly_rent: number;
-    status: 'occupied' | 'vacant' | 'maintenance';
-    floor: string;
-    is_active: 'active' | 'inactive';
-    payments: any[];
-    rent_status: {
-        balance: number;
-        status: 'paid' | 'partial' | 'unpaid';
-        paid: number;
-        rent: number;
-    };
-}
+import Modal from "./Modal";
+import { Building2, DollarSign, Layers, Home, Loader2, CheckCircle } from "lucide-react";
+import { useCreateUnit, useUpdateUnit } from "@/app/hooks/mutations/useUnitMutations";
 
 const UnitModal = () => {
-    const { propertyId, propertyName } = useUnitModal();
+    const { property, unit, isEditing, isOpen } = useUnitModal();
     const [errors, setErrors] = useState<Record<string, string[]>>({});
-    const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
     const [name, setName] = useState('');
@@ -38,56 +16,100 @@ const UnitModal = () => {
     const [status, setStatus] = useState('vacant');
     const [floor, setFloor] = useState('');
 
-    const router = useRouter();
     const unitModal = useUnitModal();
+    const createUnitMutation = useCreateUnit();
+    const updateUnitMutation = useUpdateUnit();
+
+    useEffect(() => {
+        if (isOpen) {
+            if (isEditing && unit) {
+                setName(unit.name || '');
+                setRent(String(unit.monthly_rent) || '');
+                setStatus(unit.status || 'vacant');
+                setFloor(String(unit.floor) || '');
+            } else {
+                setName('');
+                setRent('');
+                setStatus('vacant');
+                setFloor('');
+            }
+            setErrors({});
+            setSuccess(false);
+        }
+    }, [isOpen, isEditing, unit]);
+
+    const hasChanges = () => {
+        if (!isEditing || !unit) {
+            return name.trim() !== "" && rent.trim() !== "";
+        }
+
+        return (
+            name !== (unit.name ?? "") ||
+            rent !== String(unit.monthly_rent ?? "") ||
+            status !== (unit.status ?? "vacant") ||
+            floor !== String(unit.floor ?? "")
+        );
+    };
 
     const submitUnit = async (e: React.MouseEvent) => {
         e.preventDefault();
-        setLoading(true);
         setErrors({});
         setSuccess(false);
 
+        const payload = {
+            name,
+            monthly_rent: rent,
+            status,
+            floor,
+            is_active: true,
+            ...(property?.id ? { property: property.id } : {}),
+        };
+
         try {
-            const formData = new FormData();
-            formData.append('name', name);
-            formData.append('monthly_rent', rent);
-            formData.append('status', status);
-            formData.append('floor', floor);
-            formData.append('is_active', 'true');
+            if (isEditing && unit?.id) {
+                if (!property?.id) {
+                    setErrors({
+                        general: ['Property information is missing. Please close and reopen the unit.']
+                    });
+                    return;
+                }
 
-            if (propertyId) {
-                formData.append('property', propertyId);
-            }
-
-            const response = await apiService.post(`/api/units/`, formData);
-
-            if (response.id) {
-                console.log('Unit added successfully');
-                setSuccess(true);
-                
-                // Reset form after a brief delay
-                setTimeout(() => {
-                    unitModal.close();
-                    router.refresh();
-                    
-                    // Reset form fields
-                    setName('');
-                    setRent('');
-                    setStatus('vacant');
-                    setFloor('');
-                    setSuccess(false);
-                }, 1500);
+                const response = await updateUnitMutation.mutateAsync({
+                    unitId: unit.id,
+                    propertyId: property.id,
+                    formData: payload
+                });
+                if (response?.id || response?.status === 200) {
+                    setSuccess(true);
+                    setTimeout(() => {
+                        unitModal.close();
+                    }, 1500);
+                } else {
+                    setErrors(response);
+                }
             } else {
-                console.log('Error adding unit:', response);
-                setErrors(response);
+                const formData = new FormData();
+                Object.entries(payload).forEach(([key, val]) => {
+                    formData.append(key, String(val));
+                });
+
+                const response = await createUnitMutation.mutateAsync(formData);
+
+                if (response?.id) {
+                    setSuccess(true);
+                    setTimeout(() => {
+                        unitModal.close();
+                    }, 1500);
+                } else {
+                    setErrors(response);
+                }
             }
-        } catch (error) {
-            console.error('Error adding unit:', error);
-            setErrors({ general: ['An unexpected error occurred while adding the unit. Please try again.'] });
-        } finally {
-            setLoading(false);
+        } catch (error: any) {
+            console.error('Error submitting unit:', error);
+            const serverErrors = error.response?.data || { general: ['An unexpected error occurred. Please try again.'] };
+            setErrors(serverErrors);
         }
-    }
+    };
 
     const errorStyle = 'border-2 border-red-500';
 
@@ -114,31 +136,27 @@ const UnitModal = () => {
 
     const content = (
         <div className="p-4 space-y-6">
-            {/* Property Info */}
-            {propertyName && (
+            {property?.name && (
                 <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
                     <Building2 className="w-5 h-5 text-blue-600" />
                     <div>
-                        <p className="text-sm text-blue-800 font-medium">{propertyName}</p>
-                        <p className="text-xs text-blue-600">Adding new unit to this property</p>
+                        <p className="text-sm text-blue-800 font-medium">{property.name}</p>
+                        <p className="text-xs text-blue-600">{isEditing ? `Editing ${unit?.name || ''}` : 'Adding New Unit'}</p>
                     </div>
                 </div>
             )}
 
-            {/* Success Message */}
             {success && (
                 <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-200 animate-in slide-in-from-bottom-4">
                     <CheckCircle className="w-6 h-6 text-emerald-600" />
                     <div>
-                        <p className="font-medium text-emerald-800">Unit added successfully!</p>
+                        <p className="font-medium text-emerald-800">Unit {isEditing ? 'updated' : 'added'} successfully!</p>
                         <p className="text-sm text-emerald-600">Redirecting back to units list...</p>
                     </div>
                 </div>
             )}
 
-            {/* Form */}
             <form className="space-y-6">
-                {/* Unit Name */}
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
                         <Home className="w-4 h-4 text-gray-500" />
@@ -152,18 +170,13 @@ const UnitModal = () => {
                         value={name}
                         onChange={(e) => setName(e.target.value.toUpperCase())}
                         placeholder="e.g., A101, Suite 202"
-                        
                     />
                     {errors.name && (
-                        <p className="text-sm text-red-600 -mt-1">
-                            {errors.name[0]}
-                        </p>
+                        <p className="text-sm text-red-600 -mt-1">{errors.name[0]}</p>
                     )}
                 </div>
 
-                {/* Rent and Floor Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Monthly Rent */}
                     <div className="space-y-2">
                         <div className="flex items-center gap-2">
                             <DollarSign className="w-4 h-4 text-gray-500" />
@@ -184,19 +197,14 @@ const UnitModal = () => {
                             />
                         </div>
                         {errors.monthly_rent && (
-                            <p className="text-sm text-red-600 -mt-1">
-                                {errors.monthly_rent[0]}
-                            </p>
+                            <p className="text-sm text-red-600 -mt-1">{errors.monthly_rent[0]}</p>
                         )}
                     </div>
 
-                    {/* Floor */}
                     <div className="space-y-2">
                         <div className="flex items-center gap-2">
                             <Layers className="w-4 h-4 text-gray-500" />
-                            <label className="block text-sm font-semibold text-gray-900">
-                                Floor
-                            </label>
+                            <label className="block text-sm font-semibold text-gray-900">Floor</label>
                         </div>
                         <input
                             type="number"
@@ -207,18 +215,13 @@ const UnitModal = () => {
                             min="0"
                         />
                         {errors.floor && (
-                            <p className="text-sm text-red-600 bg-red-50 px-3 py-1.5 rounded-md">
-                                {errors.floor[0]}
-                            </p>
+                            <p className="text-sm text-red-600 bg-red-50 px-3 py-1.5 rounded-md">{errors.floor[0]}</p>
                         )}
                     </div>
                 </div>
 
-                {/* Status */}
                 <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-900">
-                        Unit Status
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-900">Unit Status</label>
                     <div className="grid grid-cols-3 gap-3">
                         {statusOptions.map((option) => (
                             <button
@@ -238,59 +241,57 @@ const UnitModal = () => {
                         ))}
                     </div>
                     {errors.status && (
-                        <p className="text-sm text-red-600 bg-red-50 px-3 py-1.5 rounded-md">
-                            {errors.status[0]}
-                        </p>
+                        <p className="text-sm text-red-600 bg-red-50 px-3 py-1.5 rounded-md">{errors.status[0]}</p>
                     )}
                 </div>
 
-                {/* General Errors */}
                 {errors.general && (
                     <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
                         <p className="text-red-700 font-medium">{errors.general[0]}</p>
                     </div>
                 )}
 
-                {/* Submit Button */}
                 <button
                     onClick={submitUnit}
                     type="submit"
-                    disabled={loading || success}
-                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    disabled={!hasChanges() || updateUnitMutation.isPending}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                    {loading ? (
+                    {(updateUnitMutation.isPending) ? (
                         <>
                             <Loader2 className="w-5 h-5 animate-spin" />
-                            Adding Unit...
+                            {isEditing ? 'Updating Unit...' : 'Adding Unit...'}
                         </>
-                    ) : success ? (
+                    ) : (updateUnitMutation.isSuccess) ? (
                         <>
                             <CheckCircle className="w-5 h-5" />
-                            Unit Added!
+                            {isEditing ? 'Unit Updated!' : 'Unit Added!'}
                         </>
                     ) : (
-                        'Add New Unit'
+                        isEditing ? 'Save Changes' : 'Add New Unit'
                     )}
                 </button>
             </form>
 
-            {/* Help Text */}
             <div className="text-center">
-                <p className="text-sm text-gray-500">
-                    This unit will be added to <span className="font-semibold text-gray-900 border-b-3 border-gray-900">{propertyName}</span>
-                </p>
+                {isEditing ? 
+                    <p className="text-sm text-gray-500">Changes will be applied to <span className="font-semibold text-gray-900 border-b-3 border-gray-900">{unit?.name}</span></p>
+                :
+                    <p className="text-sm text-gray-500">This unit will be added to <span className="font-semibold text-gray-900 border-b-3 border-gray-900">{property?.name}</span></p>
+                }
             </div>
         </div>
     );
 
     return (
         <Modal 
-            label="Add New Unit"
+            label={isEditing ? `Editing Unit ${unit?.name || ''}`.trim() : 'Add New Unit'}
             isOpen={unitModal.isOpen}
             close={unitModal.close}
             content={content}
+            maxWidth="3xl"
         />
-    )
-}
+    );
+};
 
 export default UnitModal;

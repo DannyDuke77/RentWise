@@ -91,6 +91,7 @@ class TenantSerializer(serializers.ModelSerializer):
         memberships = tenant.tenancy_members.all().select_related(
             'tenancy__unit', 'tenancy__unit__property'
         )
+
         return [
             {
                 "id": m.tenancy.id,

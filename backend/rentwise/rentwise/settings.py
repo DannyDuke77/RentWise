@@ -13,6 +13,9 @@ import os
 from pathlib import Path
 from datetime import timedelta
 
+import sys
+print("Starting", sys.executable)
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -34,12 +37,17 @@ SITE_ID = 1
 
 WEBSITE_URL = os.environ.get("WEBSITE_URL")
 
+ACCESS_TOKEN_LIFETIME = timedelta(days=1) if DEBUG else timedelta(hours=1)
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': ACCESS_TOKEN_LIFETIME,
+
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': False, # Change to True in production
-    'BLACKLIST_AFTER_ROTATION': False, # Change to True in production
+
+    'ROTATE_REFRESH_TOKENS': DEBUG,
+    'BLACKLIST_AFTER_ROTATION': DEBUG,
+
     'UPDATE_LAST_LOGIN': True,
+
     'SIGNING_KEY': os.environ.get("SECRET_KEY"),
     'ALGORITHM': 'HS512',
 }
@@ -73,7 +81,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 REST_AUTH = {
     'USE_JWT': True,
-    'JWT_AUTH_HTTPONLY': False, # Change to True in production
+    'JWT_AUTH_HTTPONLY': DEBUG,
 }
 
 AUTHENTICATION_BACKENDS = (
@@ -85,8 +93,14 @@ REST_AUTH_REGISTER_SERIALIZERS = {
     'REGISTER_SERIALIZER': 'accounts.serializers.CustomRegisterSerializer',
 }
 
-PDF_SIGNING_KEY = BASE_DIR / 'rentwise_key.pem'
-PDF_SIGNING_CERT = BASE_DIR / 'rentwise_cert.pem'
+# Email configuration
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+
+# Portal configuration
+TENANT_PORTAL_URL = os.environ.get("TENANT_PORTAL_URL")
+LANDLORD_PORTAL_URL = os.environ.get("LANDLORD_PORTAL_URL")
+ADMIN_PORTAL_URL = os.environ.get("ADMIN_PORTAL_URL")
 
 # Application definition
 
@@ -199,6 +213,8 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
+
+LOGO_URL = os.environ.get("LOGO_URL")
 
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')

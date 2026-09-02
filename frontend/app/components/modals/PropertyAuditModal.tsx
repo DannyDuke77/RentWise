@@ -23,7 +23,6 @@ const PropertyAuditModal: React.FC<PropertyAuditModalProps> = ({
 
     const handleDownload = async () => {
         setLoading(true);
-        // URL updated to include /api prefix
         const url = `/api/properties/${propertyId}/audit-report/?start_date=${range.start}&end_date=${range.end}`;
         
         try {
@@ -38,7 +37,7 @@ const PropertyAuditModal: React.FC<PropertyAuditModalProps> = ({
             window.URL.revokeObjectURL(blobUrl);
             onClose();
         } catch (error) {
-            alert("Download failed. Check backend logs.");
+            alert("Failed to generate report. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -51,8 +50,8 @@ const PropertyAuditModal: React.FC<PropertyAuditModalProps> = ({
             <div className="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
                 <div className="bg-gray-900 px-6 py-4 flex justify-between items-center text-white">
                     <div>
-                        <h3 className="text-lg font-bold">Generate Transaction Ledger</h3>
-                        <p className="text-xs text-gray-400">{propertyName}</p>
+                        <h3 className="text-lg font-bold">Generate Master Ledger</h3>
+                        <p className="text-sm text-gray-400">{propertyName}</p>
                     </div>
                     <button onClick={onClose} className="hover:text-red-400 transition-colors">
                         <X className="w-5 h-5" />

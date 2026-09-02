@@ -1,25 +1,20 @@
 import { useSyncExternalStore } from 'react';
 
-// 1. Internal state
 let globalDate = new Date(); 
 
-// 2. The CACHED snapshot. 
-// We return THIS variable to ensure the reference stays the same between renders.
 let dateSnapshot = globalDate;
 
 const listeners = new Set<() => void>();
 
 export const timeStore = {
-    // This is the function passed to getServerSnapshot/getSnapshot
     getDate() {
         return dateSnapshot;
     },
     
     setDate(newDate: Date) {
-        // Only update and notify if the time actually changed
         if (newDate.getTime() !== globalDate.getTime()) {
             globalDate = newDate;
-            dateSnapshot = new Date(newDate); // Create a new stable reference
+            dateSnapshot = new Date(newDate);
             listeners.forEach((listener) => listener());
         }
     },
@@ -33,18 +28,16 @@ export const timeStore = {
 export function useToday() {
     return useSyncExternalStore(
         timeStore.subscribe,
-        timeStore.getDate, // Client snapshot
-        timeStore.getDate  // Server snapshot (now stable and cached)
+        timeStore.getDate,
+        timeStore.getDate
     );
 }
 
 export const formatDate = (dateValue: string | Date | null | undefined, includeTime: boolean = true) => {
     if (!dateValue) return "N/A";
 
-    // If it's already a Date object, use it; otherwise, try to parse the string
     const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
     
-    // Check if date is valid
     if (isNaN(date.getTime())) return "Invalid Date";
 
     const options: Intl.DateTimeFormatOptions = {

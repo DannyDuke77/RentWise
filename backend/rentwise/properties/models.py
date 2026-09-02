@@ -3,9 +3,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.utils import timezone
 import uuid
-from datetime import date
 from decimal import Decimal
-from django.db.models import Sum
 
 from .services.dates import first_day_of_month, next_month
 
@@ -44,6 +42,15 @@ class Property(models.Model):
     
 class Tenant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='tenant_profile',
+        null=True,
+        blank=True,
+    )
+
     full_name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True, null=True)
@@ -58,6 +65,32 @@ class Tenant(models.Model):
 
     def __str__(self):
         return self.full_name
+
+class TenantInvitation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="invitations")
+
+    email = models.EmailField()
+
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+
+    expires_at = models.DateTimeField()
+
+    accepted_at = models.DateTimeField( null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def is_accepted(self):
+        return self.accepted_at is not None
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    def __str__(self):
+        return f"Invitation for {self.tenant.full_name}"
     
 class Unit(models.Model):
     UNIT_STATUS = (
@@ -99,7 +132,7 @@ class Unit(models.Model):
 
 class Tenancy(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenants = models.ManyToManyField(Tenant, related_name="tenancies", through='TenancyMember')
+    tenants = models.ManyToManyField(Tenant,  related_name="tenancies", through='TenancyMember')
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name='tenancies')
 
     start_date = models.DateField()
