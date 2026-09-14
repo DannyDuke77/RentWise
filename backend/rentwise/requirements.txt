@@ -3,6 +3,10 @@ Django>=4.2,<6.0             # Main web framework (restricted for dj-rest-auth c
 asgiref==3.11.0              # ASGI reference implementation (async support)
 sqlparse==0.5.5              # SQL parsing (used by Django)
 tzdata==2025.3               # Timezone database (required on some systems)
+django-extensions==4.1
+
+# Security
+cryptography==50.0.1         # Cryptographic library
 
 # Environment & utilities
 python-dotenv==1.2.1         # Load environment variables from .env files
@@ -13,7 +17,7 @@ psycopg2-binary==2.9.11      # PostgreSQL database adapter
 
 # Django REST & Authentication
 djangorestframework==3.16.1  # Django REST API framework
-dj-rest-auth==7.0.1          # Authentication endpoints (login, logout, password reset)
+dj-rest-auth>=7.1.0,<8.0.0   # Authentication endpoints (login, logout, password reset)
 django-allauth==65.13.1      # User registration, social auth, email verification
 djangorestframework-simplejwt==5.5.1  # JWT authentication support
 
@@ -23,7 +27,6 @@ django-cors-headers==4.9.0   # Cross-Origin Resource Sharing (CORS) handling
 # Media & files
 Pillow==12.0.0 
 
-pyHanko[image-support,opentype]==0.32.0    # PDF generation and manipulation with image and font support
 ReportLab==4.4.9         # PDF generation library
 
 # Resend

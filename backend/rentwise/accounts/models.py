@@ -1,7 +1,12 @@
-from django.db import models
 import uuid
+import io
+
+from django.db import models
 from django.conf import settings
+from django.utils import timezone
 from django.contrib.auth.models import AbstractBaseUser, UserManager, PermissionsMixin
+from PIL import Image
+from django.core.files.base import ContentFile
 
 from .validators import normalize_kenyan_phone
 
@@ -78,15 +83,8 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.phone_number = normalize_kenyan_phone(self.phone_number)
 
 
-class BusinessProfile(models.Model):
+class Business(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="business_profile"
-    )
-
     company_name = models.CharField(max_length=255)
     email = models.EmailField(null=True, blank=True)
     phone = models.CharField(max_length=20, null=True, blank=True)
@@ -97,10 +95,88 @@ class BusinessProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f'{self.user.name} - {self.company_name}'
-    
+        return self.company_name
+
     def logo_url(self):
         if self.logo:
             return f'{settings.WEBSITE_URL}{self.logo.url}'
-        return f'{settings.WEBSITE_URL}/media/branding/no-logo.png'
+        return None
+
+    def save(self, *args, **kwargs):
+        if self.logo and hasattr(self.logo.file, 'content_type'):
+            self.logo.file.seek(0)
+            img = Image.open(self.logo)
+
+            # Preserve format (PNG, JPEG, WEBP), fallback to JPEG
+            img_format = img.format if img.format else 'JPEG'
+
+            # Convert RGBA/P to RGB if saving as JPEG (JPEG doesn't support transparency)
+            if img.mode in ('RGBA', 'P') and img_format.upper() in ('JPEG', 'JPG'):
+                img = img.convert('RGB')
+
+            # Max dimensions for a high-res logo header (e.g., 800x800)
+            max_size = (800, 800)
+            img.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+            # Compress image buffer
+            buffer = io.BytesIO()
+            save_kwargs = {'format': img_format, 'optimize': True}
+            if img_format.upper() in ('JPEG', 'JPG', 'WEBP'):
+                save_kwargs['quality'] = 80  # Ideal balance between size and quality
+
+            img.save(buffer, **save_kwargs)
+            buffer.seek(0)
+
+            # Replace the original uploaded file with the compressed file stream
+            self.logo.save(
+                self.logo.name,
+                ContentFile(buffer.getvalue()),
+                save=False  # Avoid recursive save call loops
+            )
+
+        super().save(*args, **kwargs)
     
+class BusinessMembership(models.Model):
+    ROLE_CHOICES = (
+        ('owner', 'Owner'),
+        ('manager', 'Manager'),
+        ('staff', 'Staff'),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='business_memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff')
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['business', 'user'], name='unique_business_membership')
+        ]
+
+    def __str__(self):
+        return f"{self.user.name} - {self.business.company_name} ({self.role})"
+
+class BusinessInvitation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="invitations")
+    email = models.EmailField()
+    role = models.CharField(max_length=20, choices=BusinessMembership.ROLE_CHOICES, default="staff")
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def is_accepted(self):
+        return self.accepted_at is not None
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_cancelled(self):
+        return self.cancelled_at is not None

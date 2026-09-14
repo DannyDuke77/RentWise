@@ -5,7 +5,9 @@ import "./globals.css";
 import Navbar from "./components/navbar/Navbar";
 import UnitModal from "./components/modals/UnitModal";
 import QueryProvider from "./providers/QueryProvider";
-import PropertyModal from "./components/modals/PropertyModal";
+import PropertyModal from "./components/modals/PropertyFormModal";
+import { ToastProvider } from "@/app/providers/ToastProvider";
+import { BusinessProvider } from "@/app/providers/BusinessProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,21 +31,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <QueryProvider>
-        <div className="flex min-h-screen">
-          <Navbar />
-          {/* Main content */}
-          <main className="flex-1 md:mt-0 overflow-x-hidden lg:overflow-visible">
-              {children} 
-          </main>
-          
-          {/* Modals */}
-          <UnitModal /> 
-          <PropertyModal />
-        </div>
+          <BusinessProvider>
+            <ToastProvider>
+              <div className="flex min-h-screen">
+                <Navbar />
+                {/* Main content */}
+                <main className="flex-1 overflow-x-hidden mt-16 md:mt-0">
+                  {children} 
+                </main>
+                
+                {/* Modals */}
+                <UnitModal /> 
+                <PropertyModal />
+              </div>
+            </ToastProvider>
+          </BusinessProvider>
         </QueryProvider>
       </body>
     </html>

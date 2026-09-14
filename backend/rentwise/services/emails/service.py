@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from django.conf import settings
 from .config import resend, DEFAULT_FROM_EMAIL
 from .templates import EmailTemplate, EmailTemplates
 
@@ -35,8 +36,6 @@ class EmailService:
     @staticmethod
     def send_tenant_invitation(invitation) -> bool:
         """Send tenant invitation email"""
-        from django.conf import settings
-        
         invitation_url = (
             f"{settings.TENANT_PORTAL_URL}"
             f"/accept-invitation/{invitation.token}"
@@ -48,4 +47,21 @@ class EmailService:
             expires_in_days=7
         )
         
+        return EmailService.send(invitation.email, template)
+
+    @staticmethod
+    def send_business_invitation(invitation) -> bool:
+        """Send business invitation email"""
+        invitation_url = (
+            f"{settings.LANDLORD_PORTAL_URL}"
+            f"/accept-invitation/{invitation.token}"
+        )
+
+        template = EmailTemplates.business_invitation(
+            business_name=invitation.business.company_name,
+            role=invitation.role,
+            invitation_url=invitation_url,
+            expires_in_days=7,
+        )
+
         return EmailService.send(invitation.email, template)

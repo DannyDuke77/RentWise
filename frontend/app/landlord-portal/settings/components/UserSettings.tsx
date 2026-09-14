@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { User, Mail, Phone, MapPin, Save, Loader2, Camera } from "lucide-react";
-import apiService from "@/app/services/apiService";
+import { User, Mail, Phone, MapPin, Save, Loader2, Camera, CheckCircle } from "lucide-react";
 import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import { useUserProfile } from "@/app/hooks/queries/useSettingsQueries";
 import { useUpdateUserProfile } from "@/app/hooks/mutations/useSettingsMutations";
+import CustomTooltip from "@/app/components/ui/CustomTooltip";
 
 const emptyForm = { name: "", email: "", phone_number: "", address: "" };
 
@@ -142,15 +142,49 @@ const UserSettings = () => {
         </div>
       </div>
 
-      <div className="pt-4">
-        <button
-          type="submit"
-          disabled={!hasChanges() || updateProfile.isPending}
-          className="flex items-center justify-center gap-2 w-full md:w-auto px-10 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-200 active:scale-95"
-        >
-          {updateProfile.isPending ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-          {updateProfile.isPending ? "Updating..." : "Save Settings"}
-        </button>
+      <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-xl -mx-6 px-6 py-4 mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+        <div>
+          {hasChanges() ? (
+            <div className="flex items-center gap-3">
+              <span className="w-3 h-3 bg-amber-500 rounded-full animate-ping" />
+              <div>
+                <p className="text-sm font-semibold text-amber-700">Unsaved Changes</p>
+                <p className="text-xs text-gray-500">Click "Save Changes" to update your profile</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-6 h-6 text-emerald-600" />
+              <p className="text-sm font-semibold text-emerald-500">All changes saved</p>
+            </div>
+          )}
+        </div>
+
+        <div className="relative group">
+          <button
+            type="submit"
+            disabled={updateProfile.isPending || !hasChanges()}
+            className={`
+              flex items-center justify-center gap-3 px-10 py-3.5 text-white font-semibold rounded-xl transition-all bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300 active:scale-95 
+              disabled:opacity-50 disabled:shadow-none disabled:bg-gray-400 disabled:cursor-not-allowed min-w-[200px] text-base
+            `}
+          >
+            {updateProfile.isPending ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-5 h-5" />
+                Save Changes
+              </>
+            )}
+          </button>
+          {!hasChanges() && (
+            <CustomTooltip message="You have no unsaved changes" />
+          )}
+        </div>
       </div>
     </form>
   );

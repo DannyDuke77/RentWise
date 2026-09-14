@@ -6,6 +6,7 @@ import usePropertyModal from "@/app/hooks/usePropertyModal";
 import { Property } from "@/app/src/types/Types";
 import { useUpdateProperty } from "@/app/hooks/mutations/usePropertyMutations";
 import ConfirmModal from "../modals/ConfirmModal";
+import { useToast } from "@/app/providers/ToastProvider";
 
 interface PropertyCardProps {
   property: Property;
@@ -21,9 +22,9 @@ const statusMap = {
     className: 'bg-amber-50 text-amber-700 border-amber-200'
   },
   low: {
-    label: 'Mostly Vacant',
+    label: 'Fully Vacant',
     className: 'bg-rose-50 text-rose-700 border-rose-200'
-  }
+  },
 };
 
 const getStatus = (units: number, occupied_units: number) => {
@@ -37,25 +38,34 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property }) => {
   const propertyModal = usePropertyModal();
   const updateProperty = useUpdateProperty();
 
+  const { showToast } = useToast();
+
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const isPropertyOccupied = property.occupied_units_count > 0;
 
   const handleDeleteClick = () => {
+    if (isPropertyOccupied) {
+      showToast('Property Occupied!', 'Please vacate all tenants first before deleting the property.', 'warning', 10000);
+      return;
+    }
+
     setDeleteError(null);
     setIsDeleteModalOpen(true);
   };
 
   const handleConfirmDelete = async () => {
-    if (!property || isPropertyOccupied) return;
+    if (!property) return;
 
     try {
       await updateProperty.mutateAsync({ 
         propertyId: property.id,
         payload: { is_active: false } 
       });
+
       setIsDeleteModalOpen(false);
+      showToast('Property Deleted!', 'Your property has been deleted successfully.', 'success');
     } catch (error: any) {
       console.error("Error deleting property:", error);
       const backendMessage = error?.response?.data?.detail
@@ -172,43 +182,15 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property }) => {
       {/* Confirm Delete Modal */}
       <ConfirmModal
         isOpen={isDeleteModalOpen}
-        icon={<AlertTriangle size={28} className={isPropertyOccupied ? 'text-amber-600' : 'text-red-600'} />}
+        icon={<AlertTriangle size={28} className="text-rose-600" />}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleConfirmDelete}
         isLoading={updateProperty.isPending}
-        title={isPropertyOccupied ? 'Property Has Active Tenancies' : 'Remove Property'}
-        detail={
-          isPropertyOccupied ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <p className="font-semibold text-amber-900 text-sm">
-                    Property can't be removed
-                  </p>
-                  <p className="mt-1 text-sm text-amber-800">
-                    This property currently has active tenancies. Terminate any active tenancies before removing the property.
-                  </p>
-                  <Link
-                    href={`/properties/${property.id}`}
-                    className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700"
-                  >
-                    View Property <span>→</span>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ) : deleteError ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-red-800">{deleteError}</p>
-              </div>
-            </div>
-          ) : null
-        }
-        message={deleteError || isPropertyOccupied ? "" : "Remove this property from your portfolio?"}
-        message2={deleteError || isPropertyOccupied ? "" : "The property will no longer appear in your active properties."}
-        disableConfirm={updateProperty.isPending || deleteError !== null || isPropertyOccupied}
+        title="Delete Property"
+        detail={deleteError}
+        message="Remove this property from your portfolio?"
+        message2="The property will no longer appear in your active properties."
+        disableConfirm={updateProperty.isPending || deleteError !== null}
         confirmText="Remove Property"
       />
     </>

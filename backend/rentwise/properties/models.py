@@ -5,25 +5,22 @@ from django.utils import timezone
 import uuid
 from decimal import Decimal
 
+from accounts.models import Business
 from .services.dates import first_day_of_month, next_month
 
 # Create your models here.
 class Property(models.Model):
     PROPERTY_TYPES = (
         ('apartment', 'Apartment'),
-        ('bedsitter', 'Bedsitter'),
         ('house', 'House'),
-        ('commercial', 'Commercial'),
         ('other', 'Other'),
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='properties')
-
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name='properties')
     name = models.CharField(max_length=255)
-    property_type = models.CharField(max_length=20, choices=PROPERTY_TYPES)
-    location = models.CharField(max_length=255, help_text='e.g. Kilimani, Nairobi')
+    property_type = models.CharField(max_length=20, choices=PROPERTY_TYPES, default='apartment')
+    location = models.CharField(max_length=255)
     description = models.TextField(blank=True)
 
     is_active = models.BooleanField(default=True)
@@ -33,7 +30,7 @@ class Property(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        unique_together = ('owner', 'name')
+        unique_together = ('business', 'name')
         verbose_name_plural = 'Properties'
 
 
@@ -68,15 +65,10 @@ class Tenant(models.Model):
 
 class TenantInvitation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="invitations")
-
     email = models.EmailField()
-
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-
     expires_at = models.DateTimeField()
-
     accepted_at = models.DateTimeField( null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -132,7 +124,7 @@ class Unit(models.Model):
 
 class Tenancy(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenants = models.ManyToManyField(Tenant,  related_name="tenancies", through='TenancyMember')
+    tenants = models.ManyToManyField(Tenant, related_name="tenancies", through='TenancyMember')
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name='tenancies')
 
     start_date = models.DateField()
@@ -239,25 +231,22 @@ class UnitPayment(models.Model):
         ('deposit', 'Security Deposit'),
     ]
 
+    SOURCE_CHOICES = [
+        ('manual', 'Manually Recorded'),
+        ('stk', 'M-Pesa STK Push'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenancy = models.ForeignKey(Tenancy, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
-
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='rent')
-
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
-
     year = models.IntegerField()
     month = models.IntegerField()
-
     paid_on = models.DateTimeField(default=timezone.now)
-    paid_for = models.DateTimeField(default=timezone.now)
-
     payment_method = models.CharField(max_length=30, choices=PAYMENT_CHOICES)
-
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='payment')
-
     reference = models.CharField(max_length=100, blank=True, null=True)
-
     notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -276,19 +265,19 @@ class UnitPayment(models.Model):
 
 class ChargeType(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    landlord = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="charge_types")
-    name = models.CharField(max_length=100)  # e.g., Late Fee
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="charge_types")
+    name = models.CharField(max_length=100)
     default_amount = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.name} - {self.landlord.name}"
+        return self.name
 
 
 class Charge(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenancy = models.ForeignKey("Tenancy", on_delete=models.CASCADE, related_name="charges")
+    tenancy = models.ForeignKey(Tenancy, on_delete=models.CASCADE, related_name="charges")
     charge_type = models.ForeignKey(ChargeType, on_delete=models.SET_NULL, null=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.CharField(max_length=255, blank=True)
@@ -309,10 +298,7 @@ class Charge(models.Model):
     def __str__(self):
         return f"{self.charge_type.name if self.charge_type else 'Charge'} - {self.tenancy}"
 
-
-
 class ChangeLog(models.Model):
-
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     unit = models.ForeignKey('Unit', on_delete=models.CASCADE, related_name='change_logs')
     changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
@@ -324,5 +310,3 @@ class ChangeLog(models.Model):
     class Meta:
         ordering = ['-created_at']
 
-    def __str__(self):
-        return f"{self.unit} - {self.field_name} changed by {self.changed_by} on {self.created_at}"

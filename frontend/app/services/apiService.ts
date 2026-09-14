@@ -8,8 +8,12 @@ if (!API_URL) {
   );
 };
 
+type RequestOptions = {
+  businessId?: string | null;
+};
+
 const apiService = {
-  get: async (url: string) => {
+  get: async (url: string, options?: RequestOptions) => {
     try {
       const fullUrl = `${API_URL}${url}`;
 
@@ -21,6 +25,10 @@ const apiService = {
 
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      if (options?.businessId) {
+        headers["X-Business-ID"] = options.businessId;
       }
 
       console.log("🌐 Fetching from:", fullUrl);
@@ -58,7 +66,7 @@ const apiService = {
     }
   },
 
-  post: async function (url: string, data: any): Promise<any> {
+  post: async function (url: string, data: any, options?: RequestOptions): Promise<any> {
     const headers: Record<string, string> = {};
 
     // Only attach token if NOT logging in
@@ -71,6 +79,10 @@ const apiService = {
         } else {
             console.log('NO TOKEN');
         }
+    }
+
+    if (options?.businessId) {
+      headers["X-Business-ID"] = options.businessId;
     }
 
     if (!(data instanceof FormData)) {
@@ -86,10 +98,21 @@ const apiService = {
         body: data,
     });
 
-    return response.json();
-  },
+    const responseData = await response.json();
 
-  patch: async function (url: string, data: any): Promise<any> {
+  if (!response.ok) {
+      const error = new Error(`HTTP error! status: ${response.status}`);
+      (error as any).response = {
+          status: response.status,
+          data: responseData,
+      };
+      throw error;
+  }
+
+  return responseData;
+},
+
+  patch: async function (url: string, data: any, options?: RequestOptions): Promise<any> {
     const token = await getAccessToken();
     const headers: Record<string, string> = {};
 
@@ -97,7 +120,10 @@ const apiService = {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    // If data is not FormData, treat it as JSON
+    if (options?.businessId) {
+      headers["X-Business-ID"] = options.businessId;
+    }
+
     if (!(data instanceof FormData)) {
       headers["Content-Type"] = "application/json";
       data = JSON.stringify(data);
@@ -111,56 +137,68 @@ const apiService = {
       body: data,
     });
 
+    if (response.status === 200) {
+      return { success: true };
+    }
+
     return response.json();
   },
 
-  delete: async function (url: string): Promise<any> {
-    try {
-      const token = await getAccessToken();
-      const headers: Record<string, string> = {};
-
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      console.log("🗑️ Deleting:", `${API_URL}${url}`);
-
-      const response = await fetch(`${API_URL}${url}`, {
-        method: "DELETE",
-        headers,
-      });
-
-      if (response.status === 204) {
-        return true;
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("❌ DELETE error:", errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return true;
-    } catch (error) {
-      console.error("❌ DELETE failed:", error);
-      throw error;
-    }
-  },
-
-  getBlob: async (url: string): Promise<Blob> => {
+  delete: async function (url: string, options?: RequestOptions): Promise<any> {
     const token = await getAccessToken();
+    const headers: Record<string, string> = {};
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    if (options?.businessId) {
+      headers["X-Business-ID"] = options.businessId;
+    }
+
+    console.log("🗑️ Deleting:", `${API_URL}${url}`);
 
     const response = await fetch(`${API_URL}${url}`, {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-        },
+      method: "DELETE",
+      headers,
+    });
+
+    if (response.status === 204) {
+      return { success: true };
+    }
+
+    return response.json();
+  },
+
+  getBlob: async (url: string, options?: RequestOptions): Promise<Blob> => {
+    const token = await getAccessToken();
+    const headers: Record<string, string> = {};
+    
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    if (options?.businessId) {
+      headers["X-Business-ID"] = options.businessId;
+    }
+
+    console.log("📥 Downloading:", `${API_URL}${url}`);
+
+    const response = await fetch(`${API_URL}${url}`, {
+      method: "GET",
+      headers,
+      cache: "no-store",
     });
 
     if (!response.ok) {
-        if (response.status === 401) throw new Error("Unauthorized - Session expired");
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error("❌ Blob fetch error:", errorText);
+
+      if (response.status === 401) {
+        throw new Error("Unauthorized - Session expired");
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+
     return await response.blob();
   },
 };

@@ -14,24 +14,31 @@ class PropertyShortSerializer(serializers.ModelSerializer):
 
 class ChangeLogSerializer(serializers.ModelSerializer):
     changed_by_name = serializers.SerializerMethodField()
+    changed_by_user_type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChangeLog
+        fields = ['id', 'unit', 'field_name', 'old_value', 'new_value', 'created_at', 'changed_by_name', 'changed_by_user_type']
+
 
     def get_changed_by_name(self, obj):
         return obj.changed_by.name if obj.changed_by else "System"
 
-    class Meta:
-        model = ChangeLog
-        fields = ['id', 'field_name', 'old_value', 'new_value', 'created_at', 'changed_by_name']
+    def get_changed_by_user_type(self, obj):
+        if not obj.changed_by:
+            return "System"
+        return obj.changed_by.user_type
 
 class UnitDetailSerializer(serializers.ModelSerializer):
     property = PropertyShortSerializer(read_only=True)
     tenant_names = serializers.SerializerMethodField()
-    change_logs = ChangeLogSerializer(many=True, read_only=True)
+    tenancy_id = serializers.SerializerMethodField()
    
     class Meta:
         model = Unit
         fields = [
             'id', 'property', 'name', 'monthly_rent', 'status', 
-            'floor', 'is_active', 'tenant_names', 'change_logs'
+            'floor', 'is_active', 'tenant_names', 'tenancy_id'
         ]
         read_only_fields = ['property']
 
@@ -48,6 +55,10 @@ class UnitDetailSerializer(serializers.ModelSerializer):
                 if member.is_active
             ])
         return ""
+
+    def get_tenancy_id(self, obj):
+        tenancy = obj.tenancies.filter(is_active=True).first()
+        return str(tenancy.id) if tenancy else None
 
 class TenantSerializer(serializers.ModelSerializer):
     units = serializers.SerializerMethodField()
@@ -95,8 +106,8 @@ class TenantSerializer(serializers.ModelSerializer):
         return [
             {
                 "id": m.tenancy.id,
-                "unit_name": m.tenancy.unit.name,
-                "property_name": m.tenancy.unit.property.name,
+                "unit": UnitListSerializer(m.tenancy.unit).data,
+                "property": PropertyShortSerializer(m.tenancy.unit.property).data,
                 "is_active": m.is_active,
                 "start_date": m.tenancy.start_date,
                 "end_date": m.left_at.date() if m.left_at else None
@@ -107,8 +118,8 @@ class TenantSerializer(serializers.ModelSerializer):
     def validate_phone(self, value):
         return normalize_kenyan_phone(value)
 
-class PropertyDetailSerializer(serializers.ModelSerializer):
-    units_count = serializers.IntegerField(source='units.count', read_only=True)
+class PropertySerializer(serializers.ModelSerializer):
+    units_count = serializers.SerializerMethodField()
     occupied_units_count = serializers.SerializerMethodField()
     vacant_units_count = serializers.SerializerMethodField()
     maintenance_units_count = serializers.SerializerMethodField()
@@ -120,6 +131,22 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
             'description', 'is_active',
             'units_count', 'occupied_units_count', 'vacant_units_count', 'maintenance_units_count'
         ]
+        extra_kwargs = {
+            'id': {'read_only': True},
+            'property_type': {
+                'required': True,
+                'error_messages': {
+                    'invalid_choice': 'Please select a valid property type.',
+                }
+
+            }
+        }
+
+    def get_units_count(self, obj):
+        if hasattr(obj, '_prefetched_objects_cache') and 'units' in obj._prefetched_objects_cache:
+            # print("MEMORY CACHE HIT: Units counted without a DB trip!")
+            return len(obj.units.all())
+        return obj.units.count()
 
     def get_occupied_units_count(self, obj):
         if hasattr(obj, '_prefetched_objects_cache') and 'units' in obj._prefetched_objects_cache:
@@ -142,21 +169,40 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
         return obj.units.filter(status="maintenance").count()
 
 class UnitPaymentSerializer(serializers.ModelSerializer):
-    tenancy_start = serializers.DateField(source="tenancy.start_date", read_only=True)
-    unit_name = serializers.CharField(source="tenancy.unit.name", read_only=True)
+    tenancy_start = serializers.SerializerMethodField()
+    unit = serializers.SerializerMethodField()
+    property = serializers.SerializerMethodField()
 
     class Meta:
         model = UnitPayment
         fields = [
-            "id", "tenancy", "tenancy_start", "unit_name", "amount_paid",
-            "payment_method", "type", "category", "paid_on", "month", "year", "paid_for", "reference", "notes"
+            "id", "tenancy", "tenancy_start", "unit", "property", "amount_paid",
+            "payment_method", "type", "category", "source", "paid_on", "month", "year", "reference", "notes", "created_at",
         ]
+        read_only_fields = ["id", "source", "created_at"]
+
+    def get_tenancy_start(self, obj):
+        return obj.tenancy.start_date
+    
+    def get_unit(self, obj):
+        return UnitListSerializer(obj.tenancy.unit).data
+
+    def get_property(self, obj):
+        return PropertyShortSerializer(obj.tenancy.unit.property).data
 
 class UnitPaymentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = UnitPayment
-        fields = ["id", "amount_paid", "payment_method", "type", "category", "paid_on", "month", "year", "reference", "notes"]
+        fields = ["id", "amount_paid", "payment_method", "type", "category", "source", "paid_on", "month", "year", "reference", "notes"]
+        read_only_fields = ["id", "source"]
         extra_kwargs = {
+            'amount_paid': {
+                'min_value': 1.00,
+                'error_messages': {
+                    'min_value': 'Payment amount must be at least 1.',
+                    'required': 'Payment amount is required.',
+                }
+            },
             'payment_method': {
                 'error_messages': {
                     'invalid_choice': 'Please select a valid payment method.',
@@ -165,13 +211,32 @@ class UnitPaymentCreateSerializer(serializers.ModelSerializer):
             },
             'category': {'required': False},
             'month': {'required': False},
-            'year': {'required': False}
+            'year': {'required': False},
+            'reference': {'required': True},
+            'notes': {'required': False},
         }
 
-    def validate_amount_paid(self, value):
-        if value <= 0:
-            raise serializers.ValidationError("Amount must be greater than zero.")
-        return value
+    def validate(self, data):
+        payment_method = data.get('payment_method')
+        reference = data.get('reference')
+
+        if payment_method == 'mpesa':
+            if not reference:
+                raise serializers.ValidationError({
+                    'reference': 'M-Pesa reference is required.'
+                })
+            if len(reference) != 10:
+                raise serializers.ValidationError({
+                    'reference': 'M-Pesa reference must be exactly 10 characters.'
+                })
+        # Optional: Validate bank references if needed
+        elif payment_method == 'bank' and not reference:
+            raise serializers.ValidationError({
+                'reference': 'Bank reference is required.'
+            })
+        
+        return data
+            
     
     def validate_month(self, value):
         if value < 1 or value > 12:
@@ -194,15 +259,6 @@ class TenancySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id"]
 
-class TenancyDropdownSerializer(serializers.ModelSerializer):
-    unit_name = serializers.CharField(source="unit.name", read_only=True)
-    property_name = serializers.CharField(source="unit.property.name", read_only=True)
-    billing_start_date = serializers.DateField(source="unit.billing_start_date", read_only=True)
-    
-    class Meta:
-        model = Tenancy
-        fields = ['id', 'unit_name', 'property_name', 'start_date', 'end_date', 'billing_start_date']
-
 class ChargeTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChargeType
@@ -219,28 +275,55 @@ class ChargeTypeCreateUpdateSerializer(serializers.ModelSerializer):
         return value
 
 class ChargeSerializer(serializers.ModelSerializer):
-    charge_type_name = serializers.CharField(source="charge_type.name", read_only=True)
-    unit_name = serializers.CharField(source="tenancy.unit.name", read_only=True)
-    property_name = serializers.CharField(source="tenancy.unit.property.name", read_only=True)
+    charge_type_name = serializers.SerializerMethodField()
+    unit = serializers.SerializerMethodField()
+    property = serializers.SerializerMethodField()
 
     class Meta:
         model = Charge
         fields = [
-            'id', 'tenancy', 'unit_name', 'property_name', 'charge_type',
+            'id', 'unit', 'property', 'charge_type',
             'charge_type_name', 'amount', 'description', 'status', 'created_at'
         ]
+        read_only_fields = ['status']
+
+    def get_charge_type_name(self, obj):
+        return obj.charge_type.name
+
+    def get_unit(self, obj):
+        return UnitListSerializer(obj.tenancy.unit).data
+
+    def get_property(self, obj):
+        return PropertyShortSerializer(obj.tenancy.unit.property).data
+
+class ChargeListSerializer(ChargeSerializer):
+    charge_type_name = serializers.CharField(source="charge_type.name", read_only=True)
+
+    class Meta:
+        model = Charge
+        fields = ['id', 'charge_type_name', 'amount', 'description', 'status', 'created_at']
 
 class ChargeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Charge
         fields = ['tenancy', 'charge_type', 'amount', 'description']
 
+    def validate(self, data):
+        tenancy = data.get('tenancy')
+        
+        if not tenancy or not tenancy.is_active:
+            raise serializers.ValidationError("Cannot create charges for inactive tenancy.")
+        
+        if not tenancy.unit.is_active:
+            raise serializers.ValidationError("Cannot create charges for inactive unit.")
+        
+        amount = data.get('amount')
+        if amount and amount <= 0:
+            raise serializers.ValidationError({"amount": "Amount must be greater than zero."})
+        
+        return data
+
 class ChargeStatusUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Charge
         fields = ['status']
-
-    def validate_status(self, value):
-        if value not in ['paid', 'waived']:
-            raise serializers.ValidationError("Status must be either 'paid' or 'waived'.")
-        return value

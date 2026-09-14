@@ -4,6 +4,7 @@ export interface Unit {
     unit: string;
     name: string;
     tenant_names?: string;
+    tenancy_id?: string;
     monthly_rent: number;
     status: 'occupied' | 'vacant' | 'maintenance';
     floor: string;
@@ -40,15 +41,24 @@ export interface Payment {
   id: string;
   tenancy: string;
   tenancy_start: string;
-  unit_name: string;
+  unit: {
+    id: string;
+    name: string;
+  };
+  property: {
+    id: string;
+    name: string;
+  }
   amount_paid: string;
-  payment_method: string;
-  type: string;
+  payment_method: "mpesa" | "cash" | "bank";
+  type: "payment" | "refund";
   paid_on: string;
   paid_for: string;
   reference: string | null;
   notes: string | null;
-  category: string | null;
+  category: "rent" | "deposit";
+  source: "manual" | "stk";
+  created_at: string;
 }
 export interface PaginatedPayments {
   results: Payment[];
@@ -103,10 +113,57 @@ export interface Tenant {
   created_at: string;
   tenancies: {
     id: string;
-    property_name: string;
-    unit_name: string;
+    property:{
+      id: string;
+      name: string;
+    };
+    unit: {
+      id: string;
+      name: string;
+    };
     is_active: boolean;
     start_date: string;
     end_date: string | null;
+    created_at: string;
   }[];
 };
+
+export interface Charge {
+    id: string;
+    unit: {
+        id: string;
+        name: string;
+    };
+    property: {
+        id: string;
+        name: string;
+    }
+    charge_type: string;
+    charge_type_name: string;
+    amount: number;
+    description: string;
+    status: 'pending' | 'paid' | 'waived';
+    created_at: string;
+}
+
+export interface ChargeType {
+    id: string;
+    name: string;
+    default_amount: string;
+}
+
+export interface ChargeStats {
+    total_charges: number;
+    total_amount: number;
+    pending: number;
+    paid: number;
+    waived: number;
+}
+
+export interface Business {
+    id: string;
+    company_name: string;
+    email: string;
+    phone: string;
+    address: string;
+}

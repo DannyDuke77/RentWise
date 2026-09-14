@@ -7,23 +7,12 @@ from django.db.models.functions import TruncMonth
 from ..models import UnitPayment, Tenancy
 
 @transaction.atomic
-def process_payment(tenancy, validated_data):
+def process_payment(tenancy, validated_data, source="manual"):
     if not tenancy:
         raise ValidationError("No active tenancy found.")
-
-    # Lock the tenancy row for the duration of this transaction so two
-    # concurrent refund requests can't both read the same available balance
-    # and both go through before either one's write lands.
     tenancy = Tenancy.objects.select_for_update().get(pk=tenancy.pk)
 
-    print(validated_data)
-    print("Amount received:", validated_data["amount_paid"])
-
-    amount = Decimal(validated_data["amount_paid"])
-
-    if amount <= 0:
-        raise ValidationError("Payment amount must be positive.")
-
+    amount = validated_data["amount_paid"]
     payment_type = validated_data["type"]
     category = validated_data.get("category", "rent")
 
@@ -42,7 +31,7 @@ def process_payment(tenancy, validated_data):
     payment_month = validated_data.get("month", validated_data["paid_on"].month)
     payment_year = validated_data.get("year", validated_data["paid_on"].year)
 
-    UnitPayment.objects.create(
+    payment = UnitPayment.objects.create(
         tenancy=tenancy,
         amount_paid=amount,
         payment_method=validated_data["payment_method"],
@@ -52,16 +41,17 @@ def process_payment(tenancy, validated_data):
         month=payment_month,
         type=payment_type,
         category=category,
+        source=source,
         notes=validated_data.get("notes", ""),
     )
 
     tenancy.balance = tenancy.calculate_balance()
     tenancy.save(update_fields=["balance"])
 
-    return tenancy.balance
+    return payment, tenancy.balance
 
 def get_payment_analytics(user, property_id=None):
-    payments = UnitPayment.objects.filter(tenancy__unit__property__owner=user)
+    payments = UnitPayment.objects.filter(tenancy__unit__property__business__memberships__user=user)
 
     if property_id:
         payments = payments.filter(tenancy__unit__property_id=property_id)
@@ -132,11 +122,11 @@ def get_payment_analytics(user, property_id=None):
         .annotate(
             payments=Sum(
                 "amount_paid",
-                filter=Q(type="payment") and Q(category="rent")
+                filter=Q(type="payment" , category="rent")
             ),
             deposits=Sum(
                 "amount_paid",
-                filter=Q(type="payment") and Q(category="deposit")
+                filter=Q(type="payment", category="deposit")
             ),
             refunds=Sum(
                 "amount_paid",

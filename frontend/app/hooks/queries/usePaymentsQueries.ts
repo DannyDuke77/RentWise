@@ -2,22 +2,32 @@ import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import apiService from '@/app/services/apiService';
 import { queryKeys } from '../queryKeys';
 import { PaginatedPayments, PaymentAnalytics } from '@/app/src/types/Types';
+import { useBusiness } from "@/app/providers/BusinessProvider";
 
 export function usePayments(
   page: number = 1,
   pageSize: number = 2,
+  search: string = "",
+  paymentMethod: string = "",
+  filterDate: string = "",
+  filterType: string = "",
   enabled: boolean = true
 ) {
+  const { activeBusinessId } = useBusiness();
+
   return useQuery({
-    queryKey: queryKeys.payments(page, pageSize),
+    queryKey: queryKeys.payments(activeBusinessId, page, pageSize, search, paymentMethod, filterDate, filterType),
     queryFn: async () => {
       const data: PaginatedPayments = await apiService.get(
-        `/api/payments/?page=${page}&page_size=${pageSize}`
+        `/api/payments/?page=${page}&page_size=${pageSize}&search=${search}&payment_method=${paymentMethod}&filter_date=${filterDate}&filter_type=${filterType}`,
+        {
+          businessId: activeBusinessId,
+        }
       );
 
       return data;
     },
-    enabled,
+    enabled: enabled && !!activeBusinessId,
     staleTime: 10 * 60 * 1000,
   });
 }

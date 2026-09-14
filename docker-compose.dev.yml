@@ -27,8 +27,13 @@ services:
       - django_static:/usr/src/rentwise/static
     env_file:
       - .env.dev
+    ports:
+      - "8000:8000"
     expose:
       - "8000"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       db:
         condition: service_healthy

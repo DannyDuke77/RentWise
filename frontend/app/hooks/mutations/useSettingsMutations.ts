@@ -1,17 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiService from '@/app/services/apiService';
 import { queryKeys } from '../queryKeys';
-
-export function useUpdateBusinessProfile() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (payload: FormData | Record<string, any>) =>
-            apiService.patch('/api/auth/settings/business-profile/', payload),
-        onSuccess: (data) => {
-            queryClient.setQueryData(queryKeys.businessProfile(), data);
-        },
-    });
-}
+import { useBusiness } from '@/app/providers/BusinessProvider';
 
 export function useUpdateUserProfile() {
     const queryClient = useQueryClient();
@@ -26,10 +16,15 @@ export function useUpdateUserProfile() {
 
 export function useCreateChargeType() {
     const queryClient = useQueryClient();
+    const { activeBusinessId } = useBusiness();
+
     return useMutation({
-        mutationFn: (payload: FormData | Record<string, any>) => apiService.post('/api/charge-types/', payload),
+        mutationFn: (payload: FormData | Record<string, any>) => apiService.post('/api/charge-types/', payload, {businessId: activeBusinessId}),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.chargeTypes() });
+            queryClient.invalidateQueries({
+                queryKey: ['charge-types', activeBusinessId],
+                exact: false
+            });
         },
     });
 }
@@ -37,10 +32,15 @@ export function useCreateChargeType() {
 
 export function useUpdateChargeType() {
     const queryClient = useQueryClient();
+    const { activeBusinessId } = useBusiness();
+
     return useMutation({
-        mutationFn: (payload: any) => apiService.patch(`/api/charge-types/${payload.id}/`, payload),
+        mutationFn: (payload: any) => apiService.patch(`/api/charge-types/${payload.id}/`, payload, {businessId: activeBusinessId}),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.chargeTypes() });
+            queryClient.invalidateQueries({ 
+                queryKey: ['charge-types', activeBusinessId],
+                exact: false
+             });
         },
     });
 }

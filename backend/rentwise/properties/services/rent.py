@@ -188,12 +188,37 @@ def get_property_dashboard(property_id):
         "summary": summary,
     }
 
-def get_property_units(property_id):
+def get_property_units(property_id, search=None, status=None, rent_status=None):
     now = timezone.now()
     
     property_obj = Property.objects.get(id=property_id)
     
     units = _prefetch_units(property_obj)
+    
+    if search:
+        units = [
+            unit for unit in units 
+            if search.lower() in unit.name.lower() or
+               search.lower() in _get_tenant_names(unit).lower()
+        ]
+
+    if status:
+        units = [unit for unit in units if unit.status == status]
+    
     units_payload, _ = _build_units_data(units, now.year, now.month)
 
+    if rent_status:
+        units_payload = [unit for unit in units_payload if unit["rent_status"]["status"] == rent_status]
+    
     return units_payload
+
+def _get_tenant_names(unit):
+    all_tenancies = list(unit.tenancies.all())
+    active_tenancy = all_tenancies[0] if all_tenancies else None
+    if active_tenancy:
+        return ", ".join([
+            member.tenant.full_name 
+            for member in active_tenancy.tenancy_members.all() 
+            if member.is_active
+        ])
+    return ""

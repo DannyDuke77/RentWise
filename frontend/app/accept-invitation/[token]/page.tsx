@@ -6,18 +6,35 @@ import apiService from "@/app/services/apiService";
 import Image from "next/image";
 import { Mail, Lock, AlertCircle, UserRound, CheckCircle, CircleCheckBig, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
+import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 
-interface InvitationData {
+interface TenantInvitationData {
     valid: boolean;
     email: string;
     full_name: string;
 }
 
+interface BusinessInvitationData {
+    valid: boolean;
+    email: string;
+    role: string;
+    business: {
+        id: string;
+        company_name: string;
+    };
+}
+
+const NEXT_PUBLIC_URL = process.env.NEXT_PUBLIC_MAIN_SITE_URL || '/';
+
 export default function AcceptInvitationPage() {
     const params = useParams();
     const token = params.token as string;
 
-    const [invitation, setInvitation] = useState<InvitationData | null>(null);
+    const isLandlordPortal =
+        typeof window !== "undefined" &&
+        window.location.hostname === process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST;
+
+    const [invitation, setInvitation] = useState<TenantInvitationData | BusinessInvitationData | null>(null);
     const [password, setPassword] = useState("");
     const [passwordConfirm, setPasswordConfirm] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -32,9 +49,11 @@ export default function AcceptInvitationPage() {
     useEffect(() => {
         const validateInvitation = async () => {
             try {
-                const data = await apiService.get(
-                    `/api/tenants/invitation/${token}/`
-                );
+                const isLandlordPortal = window.location.hostname === process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST;
+                
+                const endpoint = isLandlordPortal ? `/api/business-invitations/${token}` : `/api/tenants/invitation/${token}`;
+
+                const data = await apiService.get(endpoint);
                 setInvitation(data);
             } catch (err) {
                 console.error("Failed to validate invitation:", err);
@@ -61,13 +80,13 @@ export default function AcceptInvitationPage() {
         setSubmitting(true);
 
         try {
-            const data = await apiService.post(
-                `/api/tenants/invitation/${token}/accept/`,
-                {
-                    password,
-                    password_confirm: passwordConfirm,
-                }
-            );
+            const isLandlordPortal = window.location.hostname === process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST;
+
+            const endpoint = isLandlordPortal ? `/api/business-invitations/${token}/` : `/api/tenants/invitation/${token}/accept/`;
+            const data = await apiService.post(endpoint, {
+                password,
+                password_confirm: passwordConfirm,
+            });
             
             if (!data.success) {
                 const message =
@@ -93,40 +112,73 @@ export default function AcceptInvitationPage() {
     // Loading State
     if (loading) {
         return (
-            <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
-                <div className="w-full max-w-md border border-gray-200 rounded-lg shadow-lg p-6 text-center">
-                    <div className="flex justify-center mb-4">
-                        <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                    <p className="text-gray-600">Checking your invitation...</p>
-                </div>
-            </main>
+            <LoadingSpinner
+                label="Loading..."
+                size="lg"
+                showTimer={true}
+                fullPage={true}
+            />
         );
     }
 
     // Error State (Invalid/Expired Invitation)
     if (error && !invitation) {
         return (
-            <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
-                <div className="w-full max-w-md border border-gray-200 rounded-lg shadow-lg p-6">
-                    <div className="text-center">
-                        <div className="flex justify-center mb-4">
-                            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                                <AlertCircle className="w-8 h-8 text-red-600" />
+            <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-8">
+                <div className="w-full max-w-md">
+                    <div className="bg-white rounded-2xl shadow-xl p-8 transform transition-all duration-500 hover:shadow-2xl border border-gray-100">
+                        <div className="text-center">
+                            <div className="relative flex justify-center mb-6">
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-20 h-20 bg-red-100 rounded-full animate-ping" />
+                                </div>
+                                <div className="relative w-20 h-20 bg-red-50 rounded-full flex items-center justify-center border-4 border-red-100">
+                                    <AlertCircle className="w-10 h-10 text-red-500" />
+                                </div>
                             </div>
+                            
+                            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gray-800 to-gray-600 mb-2">
+                                Invitation Unavailable
+                            </h1>
+                            
+                            <div className="w-16 h-1 bg-gradient-to-r from-red-400 to-red-600 mx-auto rounded-full mb-4" />
+                            
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                                <p className="text-sm text-red-700 font-medium">
+                                    {error}
+                                </p>
+                            </div>
+                            
+                            <div className="space-y-3">
+                                <Link
+                                    href={NEXT_PUBLIC_URL}
+                                    className="block w-full px-6 py-3 bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white text-sm font-semibold rounded-lg transition-all duration-300 transform hover:scale-[1.02] shadow-md hover:shadow-lg"
+                                >
+                                    Return to Home
+                                </Link>
+                                
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    className="block w-full px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-all duration-300"
+                                >
+                                    Try Again
+                                </button>
+                            </div>
+                            
+                            {/* Help text */}
+                            <p className="mt-4 text-xs text-gray-400">
+                                If this issue persists, please contact support
+                            </p>
                         </div>
-                        <h1 className="text-2xl font-semibold text-gray-900">
-                            Invitation Unavailable
-                        </h1>
-                        <p className="mt-2 text-sm text-gray-600">
-                            {error}
-                        </p>
-                        <button
-                            onClick={() => window.location.href = '/'}
-                            className="mt-6 px-6 py-2.5 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-md transition"
-                        >
-                            Go Home
-                        </button>
+                    </div>
+                    
+                    {/* Decorative bottom element */}
+                    <div className="mt-6 text-center">
+                        <div className="inline-flex items-center gap-2 text-xs text-gray-400">
+                            <span className="w-8 h-px bg-gray-300" />
+                            <span>Need help?</span>
+                            <span className="w-8 h-px bg-gray-300" />
+                        </div>
                     </div>
                 </div>
             </main>
@@ -151,7 +203,9 @@ export default function AcceptInvitationPage() {
                             Your account has been created successfully.
                         </p>
                         <p className="mt-1 text-sm text-gray-500">
-                            You can now log in to your tenant portal.
+                            {isLandlordPortal
+                                ? "You can now log in to your RentWise account."
+                                : "You can now log in to your tenant portal."}
                         </p>
                         <Link
                             href="/auth/login"
@@ -181,16 +235,34 @@ export default function AcceptInvitationPage() {
                         />
                     </div>
 
-                    <div className="flex items-center justify-center gap-2 mb-1">
+                    <div className="flex items-center justify-center gap-2">
                         <UserRound className="w-5 h-5 text-emerald-600" />
                         <h1 className="text-2xl font-semibold text-gray-900">
                             Create Your Account
                         </h1>
                     </div>
 
-                    <p className="text-sm text-gray-500">
-                        Welcome, {invitation?.full_name}
-                    </p>
+                    {isLandlordPortal ? (
+                        <>
+                            <p className="text-sm text-gray-500 mt-1">
+                                You've been invited to join{" "}
+                                <span className="font-medium text-gray-700">
+                                    {(invitation as BusinessInvitationData)?.business.company_name}
+                                </span>
+                            </p>
+
+                            <p className="text-sm text-gray-500 mt-1">
+                                Role:{" "}
+                                <span className="font-medium text-gray-700 capitalize">
+                                    {(invitation as BusinessInvitationData)?.role}
+                                </span>
+                            </p>
+                        </>
+                    ) : (
+                        <p className="text-sm text-gray-500">
+                            Welcome, {(invitation as TenantInvitationData)?.full_name}
+                        </p>
+                    )}
                 </div>
 
                 {/* Error Message */}

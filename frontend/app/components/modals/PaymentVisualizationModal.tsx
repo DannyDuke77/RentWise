@@ -1,7 +1,7 @@
 'use client';
 
 import usePaymentVisualizationModal from "@/app/hooks/usePaymentMetricsModal";
-import Modal from "./Modal";
+import Modal from "../ui/Modal";
 import {
   PieChart as RechartsPieChart,
   Pie,
@@ -210,7 +210,7 @@ const PaymentVisualizationModal = ({
       isOpen={isOpen}
       close={close}
       content={modalContent}
-      maxWidth="7xl"
+      maxWidth="max-w-7xl"
     />
   );
 };

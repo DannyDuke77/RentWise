@@ -3,18 +3,7 @@ import type { NextRequest } from 'next/server';
 
 const authRoutes = ['/auth/login', '/auth/register'];
 
-const publicTenantRoutes = ['/accept-invitation'];
-
-function getUserType(token: string): string | null {
-    try {
-        const payload = JSON.parse(
-            Buffer.from(token.split('.')[1], 'base64url').toString()
-        );
-        return payload.user_type ?? null;
-    } catch {
-        return null;
-    }
-}
+const publicInvitationRoutes = ['/accept-invitation'];
 
 export function proxy(request: NextRequest) {
     const token = request.cookies.get('session_access_token')?.value;
@@ -26,15 +15,6 @@ export function proxy(request: NextRequest) {
     const isLandlordPortal = hostname === process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST;
     const isMainSite = hostname === process.env.NEXT_PUBLIC_MAIN_SITE_HOST;
     const isAdminPortal = hostname === process.env.NEXT_PUBLIC_ADMIN_PORTAL_HOST;
-
-    const userType = token ? getUserType(token) : null;
-
-    /*
-    console.log("PROXY HOST:", hostname); 
-    console.log("PROXY PATH:", pathname); 
-    console.log("HAS TOKEN:", !!token); 
-    console.log("USER TYPE:", userType);
-    */
 
     // PUBLIC WEBSITE
     if (isMainSite) {
@@ -48,7 +28,7 @@ export function proxy(request: NextRequest) {
 
     // TENANT PORTAL
     if (isTenantPortal) {
-        const isPublicTenantRoute = publicTenantRoutes.some(route => pathname.startsWith(route));
+        const isPublicTenantRoute = publicInvitationRoutes.some(route => pathname.startsWith(route));
 
         if (isPublicTenantRoute) {
             return NextResponse.next();
@@ -62,10 +42,6 @@ export function proxy(request: NextRequest) {
             return NextResponse.redirect(loginUrl);
         }
 
-        if (userType !== 'tenant') {
-            return new NextResponse('Wrong account type. Please use the correct portal.', { status: 403 });
-        }
-
         if (!pathname.startsWith('/tenant-portal')) {
             const url = request.nextUrl.clone();
             url.pathname = `/tenant-portal${pathname === '/' ? '' : pathname}`;
@@ -77,16 +53,17 @@ export function proxy(request: NextRequest) {
 
     // LANDLORD PORTAL
     if (isLandlordPortal) {
+        const isPublicInvitationRoute = publicInvitationRoutes.some(route => pathname.startsWith(route));
+
+        if (isPublicInvitationRoute) {
+            return NextResponse.next();
+        }
         if (!token) {
             const loginUrl = request.nextUrl.clone();
             loginUrl.pathname = '/auth/login';
             loginUrl.search = '';
             loginUrl.searchParams.set('next', `${pathname}${search}`);
             return NextResponse.redirect(loginUrl);
-        }
-
-        if (userType !== 'landlord' && userType !== 'admin') {
-            return new NextResponse('Wrong account type. Please use the correct portal.', { status: 403 });
         }
 
         if (!pathname.startsWith('/landlord-portal')) {
@@ -106,10 +83,6 @@ export function proxy(request: NextRequest) {
             loginUrl.search = '';
             loginUrl.searchParams.set('next', `${pathname}${search}`);
             return NextResponse.redirect(loginUrl);
-        }
-
-        if (userType !== 'admin') {
-            return new NextResponse('Wrong account type. Please use the correct portal.', { status: 403 });
         }
 
         if (!pathname.startsWith('/admin')) {

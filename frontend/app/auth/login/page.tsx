@@ -103,14 +103,11 @@ const Login = () => {
 
             const decoded: any = jwtDecode(response.access);
             const userId = decoded.user_id ?? decoded.sub;
-            const userType = decoded.user_type;
 
-            // Check that the account belongs to the portal
-            // the user is currently trying to access.
             const portalAllowsUser = {
-                tenant: userType === 'tenant',
-                landlord: userType === 'landlord' || userType === 'admin',
-                admin: userType === 'admin',
+                tenant: response.portal_access?.tenant === true,
+                landlord: response.portal_access?.landlord === true,
+                admin: response.portal_access?.admin === true,
                 public: true,
             };
 
@@ -128,13 +125,13 @@ const Login = () => {
 
             if (next) {
                 router.push(next);
-            } else if (userType === 'tenant') {
+            } else if (portalType === 'tenant') {
                 window.location.href =
                     `${process.env.NEXT_PUBLIC_TENANT_PORTAL_URL}/tenant-portal`;
-            } else if (userType === 'landlord') {
+            } else if (portalType === 'landlord') {
                 window.location.href =
                     `${process.env.NEXT_PUBLIC_LANDLORD_PORTAL_URL}/landlord-portal`;
-            } else if (userType === 'admin') {
+            } else if (portalType === 'admin') {
                 window.location.href =
                     `${process.env.NEXT_PUBLIC_ADMIN_PORTAL_URL}/admin`;
             }

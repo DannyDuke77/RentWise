@@ -12,13 +12,16 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 
 import sys
-print("Starting", sys.executable)
+# print("Starting", sys.executable)
+from corsheaders.defaults import default_headers
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+SILENCED_SYSTEM_CHECKS = ['account.W001']
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -54,14 +57,10 @@ SIMPLE_JWT = {
 
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_LOGIN_METHODS = {'email'}
-ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_SIGNUP_FIELDS = {
     'email': {'required': True},
-    'password1': {'required': True},
-    'password2': {'required': True},
 }
 ACCOUNT_EMAIL_VERIFICATION = 'none'
-ACCOUNT_EMAIL_REQUIRED = False
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -75,6 +74,11 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://127.0.0.1:3000",
+]
+
+CORS_ALLOW_HEADERS = [
+    *default_headers,
+    "x-business-id",
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
@@ -102,8 +106,13 @@ TENANT_PORTAL_URL = os.environ.get("TENANT_PORTAL_URL")
 LANDLORD_PORTAL_URL = os.environ.get("LANDLORD_PORTAL_URL")
 ADMIN_PORTAL_URL = os.environ.get("ADMIN_PORTAL_URL")
 
-# Application definition
+# Mpesa configuration
+MPESA_ENCRYPTION_KEY = os.environ.get("MPESA_ENCRYPTION_KEY")
+if not MPESA_ENCRYPTION_KEY:
+    raise ImproperlyConfigured("MPESA_ENCRYPTION_KEY environment variable is not set.")
+MPESA_CALLBACK_BASE_URL = os.environ.get("MPESA_CALLBACK_BASE_URL")
 
+# Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -111,6 +120,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions',
 
     'rest_framework',
     'rest_framework.authtoken',
@@ -128,6 +138,7 @@ INSTALLED_APPS = [
 
     'accounts',
     'properties',
+    'payments',
 ]
 
 MIDDLEWARE = [

@@ -1,18 +1,24 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import TabHeader from "../modals/TabHeader";
-import DetailsTab from "@/app/landlord-portal/properties/[propertyId]/units/[unitId]/tabs/DetailsTab";
-import TenantAssignmentForm from "@/app/landlord-portal/properties/[propertyId]/units/[unitId]/tabs/TenantAssignmentForm";
-import PaymentTab from "@/app/landlord-portal/properties/[propertyId]/units/[unitId]/tabs/PaymentTab";
-import ChargesTab from "@/app/landlord-portal/properties/[propertyId]/units/[unitId]/tabs/ChargesTab";
-import LogsTab from "@/app/landlord-portal/properties/[propertyId]/units/[unitId]/tabs/LogsTab";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import TabHeader from "./TabHeader";
+import DetailsTab from "@/app/components/units/tabs/DetailsTab";
+import PaymentTab from "@/app/components/units/tabs/PaymentTab";
+import ChargesTab from "@/app/components/units/tabs/ChargesTab";
+import LogsTab from "@/app/components/units/tabs/LogsTab";
 import ConfirmModal from "@/app/components/modals/ConfirmModal";
 import { AlertTriangle, Save } from "lucide-react";
 import { useUnitTenants } from "@/app/hooks/queries/useUnitDetailQueries";
-import { useRemoveRoommate, useVacateUnit, useUpdateUnit } from "@/app/hooks/mutations/useUnitMutations";
+import { useUpdateUnit } from "@/app/hooks/mutations/useUnitMutations";
+import { useRemoveRoommate, useVacateUnit } from "@/app/hooks/mutations/useTenantMutations";
 import BackButton from "@/app/components/navigation/BackButton";
 import { Property } from "@/app/src/types/Types";
+import { useToast } from "@/app/providers/ToastProvider";
+
+type TabKey = 'details' | 'payments' | 'charges' | 'logs';
+
+const VALID_TABS: TabKey[] = ['details', 'payments', 'charges', 'logs'];
 
 interface UnitTabsSectionProps {
   unitId: string;
@@ -21,22 +27,50 @@ interface UnitTabsSectionProps {
 }
 
 const UnitTabsSection = ({ unitId, initialUnit, property }: UnitTabsSectionProps) => {
-  const [currentTab, setCurrentTab] = useState<'details' | 'tenant-form' | 'payment' | 'charges' | 'logs'>('details');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tabFromUrl = searchParams.get('tab') as TabKey | null;
+  const initialTab: TabKey = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'details';
+
+  const [currentTab, setCurrentTabState] = useState<TabKey>(initialTab);
   const [hasPendingCharges, setHasPendingCharges] = useState(false);
   const [isVacateModalOpen, setIsVacateModalOpen] = useState(false);
   const [isRemoveRoommateModalOpen, setIsRemoveRoommateModalOpen] = useState(false);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
 
+  useEffect(() => {
+    const urlTab = searchParams.get('tab') as TabKey | null;
+    const nextTab: TabKey = urlTab && VALID_TABS.includes(urlTab) ? urlTab : 'details';
+    setCurrentTabState(nextTab);
+  }, [searchParams]);
+
+  const setCurrentTab = (tab: TabKey) => {
+    setCurrentTabState(tab);
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === 'details') {
+      params.delete('tab');
+    } else {
+      params.set('tab', tab);
+    }
+    const query = params.toString();
+    router.replace(`${pathname}${query ? `?${query}` : ''}`, { scroll: false });
+  };
+
   const { 
     data: tenantData, 
     refetch: refetchTenants,
-    isLoading: loadingTenants 
+    isFetching 
   } = useUnitTenants(unitId);
   const tenants = tenantData?.tenants ?? [];
   const tenancyId = tenantData?.tenancyId ?? null;
 
-  const removeRoommate = useRemoveRoommate(unitId);
-  const vacateUnit = useVacateUnit(unitId);
+  const removeRoommate = useRemoveRoommate();
+  const vacateUnit = useVacateUnit();
+
+  const { showToast } = useToast();
 
   const handleOpenRemoveRoommateModal = (tenantId: string) => {
     setSelectedTenantId(tenantId);
@@ -44,33 +78,49 @@ const UnitTabsSection = ({ unitId, initialUnit, property }: UnitTabsSectionProps
   };
 
   const handleRemoveRoommate = async () => {
-    if (!selectedTenantId) return;
-    await removeRoommate.mutateAsync(selectedTenantId);
-    setIsRemoveRoommateModalOpen(false);
-    setSelectedTenantId(null);
-    refetchTenants();
+    if (!selectedTenantId || !unitId || !property) return;
+    try {
+      await removeRoommate.mutateAsync({
+        unitId,
+        tenantId: selectedTenantId,
+        propertyId: property.id,
+      });
+      showToast('Roommate Removed!', 'Roommate removed successfully', 'success');
+      setIsRemoveRoommateModalOpen(false);
+      setSelectedTenantId(null);
+    } catch (error) {
+      console.error('Failed to remove roommate:', error);
+    }
   };
 
   const confirmRemoveTenancy = async () => {
-    await vacateUnit.mutateAsync();
-    setIsVacateModalOpen(false);
-    refetchTenants();
+    if (!unitId || !property) return;
+    try {
+      await vacateUnit.mutateAsync({
+        unitId,
+        propertyId: property.id,
+      });
+      showToast('Lease Terminated!', 'Lease terminated successfully', 'success');
+      setIsVacateModalOpen(false);
+    } catch (error) {
+      console.error('Failed to vacate unit:', error);
+    }
   };
 
   return (
     <div className="space-y-6">
       <BackButton property={property as Property} label="Back to all units" />
-      
-      <div className="">
-          <TabHeader
-              currentTab={currentTab}
-              setCurrentTab={setCurrentTab}
-              hasTenant={tenants.length > 0}
-              hasPendingCharges={hasPendingCharges}
-          />
+
+      <div>
+        <TabHeader
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+          hasTenant={tenants.length > 0}
+          hasPendingCharges={hasPendingCharges}
+        />
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         {/* Modals */}
         <ConfirmModal
           isOpen={isVacateModalOpen}
@@ -99,33 +149,19 @@ const UnitTabsSection = ({ unitId, initialUnit, property }: UnitTabsSectionProps
           }}
         />
 
-        {/* Main Tab Content Card */}
         {currentTab === 'details' && (
-            <DetailsTab
-              property={property}
-              unit={initialUnit}
-              tenants={tenants}
-              refetchTenants={refetchTenants}
-              loading={loadingTenants}
-              onRemoveRoommate={handleOpenRemoveRoommateModal}
-              onRemoveTenancy={() => setIsVacateModalOpen(true)}
-              onAssignClick={() => setCurrentTab('tenant-form')}
-            />
-        )}
-
-        {currentTab === 'tenant-form' && (
-          <TenantAssignmentForm
+          <DetailsTab
+            property={property}
             unit={initialUnit}
-            tenancyId={tenancyId || undefined}
-            onSuccess={() => {
-              setCurrentTab('details');
-              refetchTenants();
-            }}
-            hasTenant={tenants && tenants.length > 0}
+            tenants={tenants}
+            refetchTenants={refetchTenants}
+            isFetching={isFetching}
+            onRemoveRoommate={handleOpenRemoveRoommateModal}
+            onRemoveTenancy={() => setIsVacateModalOpen(true)}
           />
         )}
 
-        {currentTab === 'payment' && <PaymentTab property={property} unit={initialUnit} />}
+        {currentTab === 'payments' && <PaymentTab property={property} unit={initialUnit} />}
 
         {currentTab === 'charges' && (
           <ChargesTab
@@ -135,7 +171,7 @@ const UnitTabsSection = ({ unitId, initialUnit, property }: UnitTabsSectionProps
           />
         )}
 
-        {currentTab === 'logs' && <LogsTab unit={initialUnit} loading={loadingTenants} />}
+        {currentTab === 'logs' && <LogsTab unitId={unitId} />}
       </div>
     </div>
   );

@@ -134,7 +134,6 @@ class EmailTemplates:
     
     @staticmethod
     def tenant_invitation(full_name: str, invitation_url: str, expires_in_days: int = 7) -> EmailTemplate:
-        """Template for tenant invitation emails"""
         content = f"""
             <h2 style="margin-top:0;">Welcome to RentWise, {full_name}! 👋</h2>
             
@@ -166,5 +165,42 @@ class EmailTemplates:
         
         return EmailTemplate(
             subject=f"You're invited to RentWise",
+            html=EmailTemplates._render_base(content)
+        )
+
+    @staticmethod
+    def business_invitation(business_name: str, role: str, invitation_url: str, expires_in_days: int = 7,) -> EmailTemplate:
+        content = f"""
+            <h2 style="margin-top:0;">You're invited to join {business_name}! 👋</h2>
+
+            <p>
+                You have been invited to join <strong>{business_name}</strong>
+                on RentWise as a <strong>{role}</strong>.
+            </p>
+
+            <p>
+                RentWise helps property management teams manage properties,
+                tenants, payments, charges, and more from one place.
+            </p>
+
+            <div style="text-align:center; margin:35px 0;">
+                <a href="{invitation_url}" class="button">
+                    Join {business_name} →
+                </a>
+            </div>
+
+            <div class="warning-box">
+                <p style="margin:0;">
+                    This invitation expires in <strong>{expires_in_days} days</strong>.
+                </p>
+            </div>
+
+            <p style="color:#6B7280;font-size:14px;margin-top:20px;">
+                If you didn't expect this invitation, you can safely ignore this email.
+            </p>
+        """
+
+        return EmailTemplate(
+            subject=f"You're invited to join {business_name} on RentWise",
             html=EmailTemplates._render_base(content)
         )

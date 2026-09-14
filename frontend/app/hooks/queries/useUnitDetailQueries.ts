@@ -26,11 +26,19 @@ export function useUnitTenants(unitId?: string | null) {
     });
 }
 
-export function useUnitPayments(page: number, pageSize: number, unitId?: string | null, isOccupied?: boolean) {
+export function useUnitPayments(
+    unitId: string, 
+    page: number, 
+    pageSize: number, 
+    enabled: boolean = true,
+    search: string = "",
+    filterMethod: string = "",
+    filterDate: string = "",
+) {
     return useQuery({
-        queryKey: queryKeys.unitPayments(page, pageSize, unitId),
+        queryKey: queryKeys.unitPayments(unitId, page, pageSize, search, filterMethod, filterDate),
         queryFn: async () => {
-            const res = await apiService.get(`/api/units/${unitId}/payments/?page=${page}&page_size=${pageSize}`);
+            const res = await apiService.get(`/api/units/${unitId}/payments/?page=${page}&page_size=${pageSize}&search=${search}&payment_method=${filterMethod}&filter_date=${filterDate}`);
             const data = res?.results || [];
             return {
                 count: res.count || 0,
@@ -41,17 +49,7 @@ export function useUnitPayments(page: number, pageSize: number, unitId?: string 
                 monthlyRent: Number(data.monthly_rent || 0),
             };
         },
-        enabled: !!unitId && !!isOccupied,
-    });
-}
-
-export function useCharges(tenancyId?: string | null) {
-    return useQuery({
-        queryKey: queryKeys.charges(tenancyId),
-        queryFn: async () => {
-            const data = await apiService.get(`/api/charges/?tenancy=${tenancyId}`);
-            return Array.isArray(data.results) ? data.results : [];
-        },
-        enabled: !!tenancyId,
+        enabled: enabled && !!unitId,
+        staleTime: 5 * 60 * 1000,
     });
 }

@@ -24,10 +24,10 @@ interface LoadingSpinnerProps {
 }
 
 const DEFAULT_MESSAGES: LoadingMessage[] = [
-    { time: 5, message: "This is taking longer than expected..." },
-    { time: 10, message: "Still working on it... Thanks for your patience" },
-    { time: 20, message: "We're experiencing some delays, please hang on..." },
-    { time: 30, message: "This is taking unusually long. Please check your connection." },
+    { time: 10, message: "This is taking longer than expected..." },
+    { time: 20, message: "Still working on it... Thanks for your patience" },
+    { time: 30, message: "We're experiencing some delays, please hang on..." },
+    { time: 35, message: "This is taking unusually long. Please check your connection." },
 ];
 
 const LoadingSpinner = ({ 

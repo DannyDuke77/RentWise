@@ -9,6 +9,7 @@ import { Property, Unit } from "@/app/src/types/Types";
 import { useUpdateUnit } from "@/app/hooks/mutations/useUnitMutations";
 import ConfirmModal from "@/app/components/modals/ConfirmModal";
 import Link from "next/link";
+import { useToast } from "@/app/providers/ToastProvider";
 
 export type PaymentStatus = "unknown" | "paid" | "partial" | "unpaid" | "vacant";
 
@@ -27,11 +28,18 @@ const UnitRow: React.FC<UnitRowProps> = ({ property, unit }) => {
   const unitModal = useUnitModal();
   const updateUnit = useUpdateUnit();
 
+  const { showToast } = useToast();
+
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   
 
   const handleDeleteClick = () => {
+    if (unit.status === "occupied") {
+      showToast('Unit Occupied!', 'Please vacate the tenant first before deleting the unit.', 'warning', 10000);
+      return;
+    }
+
     setDeleteError(null);
     setIsDeleteModalOpen(true);
   };
@@ -43,9 +51,11 @@ const UnitRow: React.FC<UnitRowProps> = ({ property, unit }) => {
       await updateUnit.mutateAsync({ 
         unitId: unit.id, 
         propertyId: property.id,
-        formData: { is_active: false } 
+        payload: { is_active: false } 
       });
+
       setIsDeleteModalOpen(false);
+      showToast(`Unit ${unit.name} Deleted!`, 'Your unit has been deleted successfully.', 'success');
     } catch (error: any) {
       console.error("Error deleting unit:", error);
       const backendMessage = error?.response?.data?.detail
@@ -195,39 +205,10 @@ const UnitRow: React.FC<UnitRowProps> = ({ property, unit }) => {
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleConfirmDelete}
         isLoading={updateUnit.isPending}
-        title={isUnitOccupied ? 'Unit Has Active Tenancy' : 'Remove Unit'}
-        detail={
-          isUnitOccupied ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <div className="flex gap-3">
-                <div>
-                  <p className="font-semibold text-amber-900">
-                    Unit can't be removed
-                  </p>
-
-                  <p className="mt-1 text-sm leading-relaxed text-amber-800">
-                    This unit currently has an active tenancy. Terminate the tenancy
-                    before removing the unit.
-                  </p>
-
-                  <Link
-                    href={`/properties/${property.id}/${unit.id}`}
-                    className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700"
-                  >
-                    View tenancy <span>→</span>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ) : deleteError ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-              <p className="text-sm font-medium text-red-800">{deleteError}</p>
-            </div>
-          ) : null
-        }
-        message={deleteError || isUnitOccupied ? "" : "Remove this unit from your property?"}
-        message2={deleteError || isUnitOccupied ? "" : "The unit will no longer appear in your active units."}
-        disableConfirm={updateUnit.isPending || deleteError !== null || isUnitOccupied}
+        title="Delete Unit"
+        message="Remove this unit from your property?"
+        message2="The unit will no longer appear in your active units."
+        disableConfirm={updateUnit.isPending || deleteError !== null}
         confirmText="Remove Unit"
       />
     </div>

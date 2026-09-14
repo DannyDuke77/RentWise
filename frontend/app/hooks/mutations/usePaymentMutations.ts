@@ -1,32 +1,115 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiService from '@/app/services/apiService';
 import { queryKeys } from '../queryKeys';
+import { useBusiness } from '@/app/providers/BusinessProvider';
 
-export function useRecordPayment(unitId?: string | null) {
+interface PaymentMutationVariables {
+    unitId: string;
+    propertyId: string;
+    payload?: Record<string, any>;
+    targetMonth: number;
+    targetYear: number;
+    paymentId?: string;
+}
+
+export function usePaymentMutation() {
     const queryClient = useQueryClient();
+    const { activeBusinessId } = useBusiness();
+
     return useMutation({
-        mutationFn: ({propertyId, today, payload} : {propertyId: string, today: Date, payload: any}) => apiService.post(`/api/units/${unitId}/payments/`, payload),
-        onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.unitPayments(1, 10, unitId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.propertyUnits(variables.propertyId, 1, 10) });
+        mutationFn: ({ payload }: PaymentMutationVariables) => 
+            apiService.post(`/api/payments/`, payload),
+        onSuccess: (_, variables) => {  
+            queryClient.invalidateQueries({
+                queryKey: ['payments', activeBusinessId],
+                exact: false
+            })
+            queryClient.invalidateQueries({ 
+                queryKey: ['unit-payments', variables.unitId],
+                exact: false
+            });
+            queryClient.invalidateQueries({ 
+                queryKey: ['property-units', activeBusinessId],
+                exact: false 
+            });
             queryClient.invalidateQueries({ queryKey: queryKeys.paymentAnalytics() });
             queryClient.invalidateQueries({ queryKey: queryKeys.propertyPaymentAnalytics(variables.propertyId) });
-            console.log("month", variables.today.getMonth());
-            queryClient.invalidateQueries({ queryKey: queryKeys.propertyRentSummary(variables.propertyId, variables.today.getMonth() + 1, variables.today.getFullYear()) });
+            queryClient.invalidateQueries({ 
+                queryKey: ['property-rent-summary', activeBusinessId],
+                exact: false 
+            });
         },
     });
 }
 
-export function useRecordRefund(unitId?: string | null) {
+export function useUpdatePayment() {
     const queryClient = useQueryClient();
+    const { activeBusinessId } = useBusiness();
+    
     return useMutation({
-        mutationFn: ({propertyId, today, payload} : {propertyId: string, today: Date, payload: any}) => apiService.post(`/api/units/${unitId}/payments/`, payload),
-        onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.unitPayments(1, 10, unitId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.propertyUnits(variables.propertyId, 1, 10) });
+        mutationFn: ({ paymentId, payload }: PaymentMutationVariables) => 
+            apiService.patch(`/api/payments/${paymentId}/`, payload, 
+                {
+                    businessId: activeBusinessId
+                }
+            ),
+        onSuccess: (_, variables) => {  
+            queryClient.invalidateQueries({
+                queryKey: ['payments', activeBusinessId],
+                exact: false
+            })
+            queryClient.invalidateQueries({ 
+                queryKey: ['unit-payments', variables.unitId],
+                exact: false
+            });
+            queryClient.invalidateQueries({ 
+                queryKey: ['property-units', activeBusinessId],
+                exact: false 
+            });
             queryClient.invalidateQueries({ queryKey: queryKeys.paymentAnalytics() });
             queryClient.invalidateQueries({ queryKey: queryKeys.propertyPaymentAnalytics(variables.propertyId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.propertyRentSummary(variables.propertyId, variables.today.getMonth() + 1, variables.today.getFullYear()) });
+            if (variables.targetMonth && variables.targetYear) {
+                queryClient.invalidateQueries({ 
+                    queryKey: ['property-rent-summary', activeBusinessId],
+                    exact: false 
+                });
+            }
+        },
+    });
+}
+
+export function useDeletePayment() {
+    const queryClient = useQueryClient();
+    const { activeBusinessId } = useBusiness();
+
+    return useMutation({
+        mutationFn: ({ paymentId }: PaymentMutationVariables) => 
+            apiService.delete(`/api/payments/${paymentId}/`, 
+                {
+                    businessId: activeBusinessId
+                }
+            ),
+        onSuccess: (_, variables) => {  
+            queryClient.invalidateQueries({
+                queryKey: ['payments', activeBusinessId],
+                exact: false
+            })
+            queryClient.invalidateQueries({ 
+                queryKey: ['unit-payments', variables.unitId],
+                exact: false
+            });
+            queryClient.invalidateQueries({ 
+                queryKey: ['property-units', activeBusinessId],
+                exact: false 
+            });
+            queryClient.invalidateQueries({ queryKey: queryKeys.paymentAnalytics() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.propertyPaymentAnalytics(variables.propertyId) });
+            if (variables.targetMonth && variables.targetYear) {
+                queryClient.invalidateQueries({ 
+                    queryKey: ['property-rent-summary', activeBusinessId],
+                    exact: false 
+                });
+            }
         },
     });
 }

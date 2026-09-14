@@ -32,7 +32,9 @@ def add_tenant_or_roommate_to_unit(unit, data, billing_start_date=None):
             errors[field] = ["This field is required."]
 
     if errors:
-        raise ValidationError({"errors": errors})
+        raise ValidationError({
+            "errors": errors
+        })
 
     try:
         normalized_phone = normalize_kenyan_phone(data["phone"])
@@ -129,7 +131,6 @@ def accept_tenant_invitation(token, password):
         name=tenant.full_name,
         email=invitation.email,
         password=password,
-        user_type="tenant",
         is_verified=True,
     )
 
@@ -175,14 +176,12 @@ def remove_roommate_from_unit(unit, tenant_id):
         is_active=True
     )
 
-    # Prevent removing the last occupant via roommate removal
     active_members_count = TenancyMember.objects.filter(tenancy=tenancy, is_active=True).count()
     if active_members_count <= 1:
         raise ValidationError({
             "errors": {"tenant": ["At least one tenant must remain. To remove everyone, use Vacate Unit."]}
         })
 
-    # ONLY deactivate the membership link, NOT the global Tenant record!
     membership.is_active = False
     membership.left_at = timezone.now()
     membership.save(update_fields=['is_active', 'left_at'])

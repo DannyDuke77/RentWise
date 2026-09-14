@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from "react";
 import useUnitModal from "@/app/hooks/useUnitModal";
-import Modal from "./Modal";
-import { Building2, DollarSign, Layers, Home, Loader2, CheckCircle } from "lucide-react";
+import Modal from "../ui/Modal";
+import { Building2, DollarSign, Layers, Home, Loader2, CheckCircle, Check, Ban, Info } from "lucide-react";
 import { useCreateUnit, useUpdateUnit } from "@/app/hooks/mutations/useUnitMutations";
+import { useToast } from "@/app/providers/ToastProvider";
 
 const UnitModal = () => {
     const { property, unit, isEditing, isOpen } = useUnitModal();
     const [errors, setErrors] = useState<Record<string, string[]>>({});
-    const [success, setSuccess] = useState(false);
+    const { showToast } = useToast();
 
     const [name, setName] = useState('');
     const [rent, setRent] = useState('');
@@ -34,9 +35,50 @@ const UnitModal = () => {
                 setFloor('');
             }
             setErrors({});
-            setSuccess(false);
         }
     }, [isOpen, isEditing, unit]);
+
+    // ✅ Get allowed status transitions with reasons
+    const getAllowedStatuses = () => {
+        if (!isEditing || !unit) {
+            // Creating new unit - only vacant and maintenance allowed
+            return {
+                vacant: { allowed: true, reason: '' },
+                occupied: { allowed: false, reason: 'Use "Assign Tenant" action to mark as occupied' },
+                maintenance: { allowed: true, reason: '' },
+            };
+        }
+
+        const currentStatus = unit.status;
+        const statuses: Record<string, { allowed: boolean; reason: string }> = {};
+
+        switch (currentStatus) {
+            case 'vacant':
+                statuses.vacant = { allowed: true, reason: '' };
+                statuses.occupied = { allowed: false, reason: 'Use "Assign Tenant" action to process move-in' };
+                statuses.maintenance = { allowed: true, reason: '' };
+                break;
+
+            case 'occupied':
+                statuses.vacant = { allowed: false, reason: 'Use "Vacate Unit" action to process move-out' };
+                statuses.occupied = { allowed: true, reason: '' };
+                statuses.maintenance = { allowed: false, reason: 'Cannot place occupied unit under maintenance' };
+                break;
+
+            case 'maintenance':
+                statuses.vacant = { allowed: true, reason: '' };
+                statuses.occupied = { allowed: false, reason: 'Use "Assign Tenant" action to process move-in' };
+                statuses.maintenance = { allowed: true, reason: '' };
+                break;
+
+            default:
+                statuses.vacant = { allowed: true, reason: '' };
+                statuses.occupied = { allowed: false, reason: '' };
+                statuses.maintenance = { allowed: true, reason: '' };
+        }
+
+        return statuses;
+    };
 
     const hasChanges = () => {
         if (!isEditing || !unit) {
@@ -54,7 +96,34 @@ const UnitModal = () => {
     const submitUnit = async (e: React.MouseEvent) => {
         e.preventDefault();
         setErrors({});
-        setSuccess(false);
+
+        if (!property?.id) {
+            setErrors({ general: ['Property information is missing. Please close and reopen the unit.'] });
+            return;
+        }
+
+        if (name.trim() === "" || rent.trim() === "") {
+            showToast('Missing Information', 'Please fill in all required fields.', 'error');
+            setErrors({
+                ...(name.trim() === "" && { name: ['Unit name is required'] }),
+                ...(rent.trim() === "" && { monthly_rent: ['Monthly rent is required'] }),
+            });
+            return;
+        }
+
+        if (isEditing && !hasChanges()) {
+            showToast('No Changes', 'No changes were made to the unit.', 'warning');
+            return;
+        }
+
+        // ✅ Check if status transition is allowed
+        const allowedStatuses = getAllowedStatuses();
+        if (!allowedStatuses[status]?.allowed) {
+            setErrors({
+                status: [allowedStatuses[status]?.reason || 'Status change not allowed']
+            });
+            return;
+        }
 
         const payload = {
             name,
@@ -62,75 +131,72 @@ const UnitModal = () => {
             status,
             floor,
             is_active: true,
-            ...(property?.id ? { property: property.id } : {}),
+            property: property.id
         };
 
         try {
             if (isEditing && unit?.id) {
-                if (!property?.id) {
-                    setErrors({
-                        general: ['Property information is missing. Please close and reopen the unit.']
-                    });
-                    return;
-                }
-
                 const response = await updateUnitMutation.mutateAsync({
                     unitId: unit.id,
                     propertyId: property.id,
-                    formData: payload
+                    payload: payload
                 });
+
                 if (response?.id || response?.status === 200) {
-                    setSuccess(true);
-                    setTimeout(() => {
-                        unitModal.close();
-                    }, 1500);
+                    unitModal.close();
+                    showToast('Unit Updated!', 'Your unit has been updated successfully.', 'success');
                 } else {
-                    setErrors(response);
+                    setErrors(response?.errors || response);
                 }
             } else {
-                const formData = new FormData();
-                Object.entries(payload).forEach(([key, val]) => {
-                    formData.append(key, String(val));
+                const response = await createUnitMutation.mutateAsync({ 
+                    propertyId: property.id, 
+                    payload  
                 });
 
-                const response = await createUnitMutation.mutateAsync(formData);
-
                 if (response?.id) {
-                    setSuccess(true);
-                    setTimeout(() => {
-                        unitModal.close();
-                    }, 1500);
+                    unitModal.close();
+                    showToast('Unit Created!', 'Your unit has been created successfully.', 'success');
                 } else {
-                    setErrors(response);
+                    showToast('Failed to create', 'An unexpected error occurred. Please try again.', 'error');
+                    console.error('Failed to create unit:', response);
+                    setErrors({
+                        general: ['An unexpected error occurred. Please try again.']
+                    });
                 }
             }
         } catch (error: any) {
             console.error('Error submitting unit:', error);
-            const serverErrors = error.response?.data || { general: ['An unexpected error occurred. Please try again.'] };
+            const serverErrors = error.response?.data?.errors || 
+                error.response?.data || 
+                { general: ['An unexpected error occurred. Please try again.'] };
             setErrors(serverErrors);
         }
     };
 
     const errorStyle = 'border-2 border-red-500';
 
+    // Get allowed statuses for rendering
+    const allowedStatuses = getAllowedStatuses();
+
     const statusOptions = [
         { 
             value: 'vacant', 
             label: 'Vacant', 
-            color: 'border-red-300 bg-red-50 data-[selected=true]:bg-red-100 data-[selected=true]:border-red-500', 
-            iconColor: 'text-red-500'
+            color: 'border-gray-300 bg-gray-100 data-[selected=true]:bg-red-100 data-[selected=true]:border-red-500', 
+            iconColor: 'text-red-500',
         },
         { 
             value: 'occupied', 
             label: 'Occupied', 
-            color: 'border-emerald-300 bg-emerald-50 data-[selected=true]:bg-emerald-100 data-[selected=true]:border-emerald-500',
-            iconColor: 'text-emerald-500' 
+            color: 'border-gray-300 bg-gray-100 data-[selected=true]:bg-emerald-100 data-[selected=true]:border-emerald-500',
+            iconColor: 'text-emerald-500',
         },
         { 
             value: 'maintenance', 
             label: 'Maintenance', 
-            color: 'border-amber-300 bg-amber-50 data-[selected=true]:bg-amber-100 data-[selected=true]:border-amber-500',
-            iconColor: 'text-amber-500' 
+            color: 'border-gray-300 bg-gray-100 data-[selected=true]:bg-amber-100 data-[selected=true]:border-amber-500',
+            iconColor: 'text-amber-500',
         }
     ];
 
@@ -146,13 +212,9 @@ const UnitModal = () => {
                 </div>
             )}
 
-            {success && (
-                <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-200 animate-in slide-in-from-bottom-4">
-                    <CheckCircle className="w-6 h-6 text-emerald-600" />
-                    <div>
-                        <p className="font-medium text-emerald-800">Unit {isEditing ? 'updated' : 'added'} successfully!</p>
-                        <p className="text-sm text-emerald-600">Redirecting back to units list...</p>
-                    </div>
+            {errors.general && (
+                <div className="p-4 bg-red-50 rounded-xl border border-red-100">
+                    <p className="text-sm text-red-800 font-medium">{errors.general}</p>
                 </div>
             )}
 
@@ -223,51 +285,69 @@ const UnitModal = () => {
                 <div className="space-y-2">
                     <label className="block text-sm font-semibold text-gray-900">Unit Status</label>
                     <div className="grid grid-cols-3 gap-3">
-                        {statusOptions.map((option) => (
-                            <button
-                                key={option.value}
-                                type="button"
-                                data-selected={status === option.value}
-                                className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200 ${option.color} data-[selected=true]:shadow-sm`}
-                                onClick={() => setStatus(option.value)}
-                            >   
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-gray-900">{option.label}</span>
-                                    {status === option.value && (
-                                        <CheckCircle className={`w-4 h-4 stroke-[3] ${option.iconColor}`} />
+                        {statusOptions.map((option) => {
+                            const isAllowed = allowedStatuses[option.value]?.allowed ?? true;
+                            const reason = allowedStatuses[option.value]?.reason || '';
+                            const isSelected = status === option.value;
+                            
+                            return (
+                                <div key={option.value} className="relative group">
+                                    <button
+                                        type="button"
+                                        data-selected={isSelected}
+                                        disabled={!isAllowed}
+                                        className={`
+                                            w-full flex flex-col items-center justify-center p-4 rounded-xl border-2 
+                                            transition-all duration-200 
+                                            ${option.color} 
+                                            data-[selected=true]:shadow-sm
+                                            ${!isAllowed ? 'opacity-50 cursor-not-allowed hover:scale-100 border-gray-200 bg-gray-50' : 'hover:scale-105'}
+                                            relative
+                                        `}
+                                        onClick={() => isAllowed && setStatus(option.value)}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium text-gray-900">{option.label}</span>
+                                            {isSelected && (
+                                                <Check className={`w-5 h-5 stroke-[3] ${option.iconColor}`} />
+                                            )}
+                                            {!isAllowed && (
+                                                <Ban className="w-4 h-4 text-gray-400" />
+                                            )}
+                                        </div>
+                                    </button>
+                                    
+                                    {/* Tooltip showing why disabled */}
+                                    {!isAllowed && reason && (
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10 shadow-lg">
+                                            {reason}
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                        </div>
                                     )}
                                 </div>
-                            </button>
-                        ))}
+                            );
+                        })}
                     </div>
                     {errors.status && (
-                        <p className="text-sm text-red-600 bg-red-50 px-3 py-1.5 rounded-md">{errors.status[0]}</p>
+                        <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+                            <p className="text-red-700 text-sm font-medium">{errors.status[0]}</p>
+                        </div>
                     )}
                 </div>
-
-                {errors.general && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                        <p className="text-red-700 font-medium">{errors.general[0]}</p>
-                    </div>
-                )}
 
                 <button
                     onClick={submitUnit}
                     type="submit"
-                    disabled={!hasChanges() || updateUnitMutation.isPending}
-                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    disabled={updateUnitMutation.isPending}
+                    title={isEditing && !hasChanges() ? 'No changes made.' : ''}
+                    className="w-full py-3 px-4 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                     {(updateUnitMutation.isPending) ? (
                         <>
                             <Loader2 className="w-5 h-5 animate-spin" />
                             {isEditing ? 'Updating Unit...' : 'Adding Unit...'}
                         </>
-                    ) : (updateUnitMutation.isSuccess) ? (
-                        <>
-                            <CheckCircle className="w-5 h-5" />
-                            {isEditing ? 'Unit Updated!' : 'Unit Added!'}
-                        </>
-                    ) : (
+                    ) :  (
                         isEditing ? 'Save Changes' : 'Add New Unit'
                     )}
                 </button>
@@ -289,7 +369,7 @@ const UnitModal = () => {
             isOpen={unitModal.isOpen}
             close={unitModal.close}
             content={content}
-            maxWidth="3xl"
+            maxWidth="max-w-3xl"
         />
     );
 };

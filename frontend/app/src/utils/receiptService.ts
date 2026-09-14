@@ -1,117 +1,191 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
-export const generateReceiptPDF = (payment: any, property: any, unit: any, profile: any) => {
+export interface ReceiptBusiness {
+  company_name: string;
+  email: string;
+  phone: string;
+  address: string;
+  logo: string | null;
+  currency: string;
+}
+
+const loadImageAsDataURL = (url: string): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(null);
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/jpeg", 0.92));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+};
+
+export const generateReceiptPDF = async (
+  payment: any,
+  property: any,
+  unit: any,
+  business: ReceiptBusiness
+): Promise<boolean> => {
+  if (!business) {
+    console.error("[receipt] No business profile provided");
+    return false;
+  }
+
+  if (!payment) {
+    console.error("[receipt] No payment provided");
+    return false;
+  }
+
+  try {
     const doc = new jsPDF();
-    const date = new Date(payment.paid_on).toLocaleDateString('en-GB');
+    const currency = business.currency || "KES";
+    const date = new Date(payment.paid_on).toLocaleDateString("en-GB");
+    const isPayment = payment.type === "payment";
 
-    // 1. DYNAMIC LOGO
-    const logoUrl = profile?.logo || '/rentwise_logo.jpeg';
-    
-    try {
-        doc.addImage(logoUrl, 'JPEG', 15, 10, 25, 25);
-    } catch (e) {
-        console.error("Logo failed to load, skipping...", e);
+    // Logo
+    const logoUrl = business.logo || "/rentwise_logo.jpeg";
+    const logoData = await loadImageAsDataURL(logoUrl);
+    if (logoData) {
+      try {
+        doc.addImage(logoData, "JPEG", 15, 10, 25, 25);
+      } catch (err) {
+        console.warn("[receipt] Logo embed failed, continuing without it", err);
+      }
     }
 
-    // 2. DYNAMIC HEADER TEXT
-    doc.setFontSize(24);
-    doc.setTextColor(30, 41, 59); // Slate-800
-    doc.text((profile?.company_name || "PAYMENT RECEIPT").toUpperCase(), 45, 22);
-    
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(30, 41, 59);
+    doc.text(
+      (business.company_name || "PAYMENT RECEIPT").toUpperCase(),
+      45,
+      22
+    );
+
     doc.setFontSize(9);
     doc.setTextColor(100);
-    
-    // Combine Address and Phone if they exist
-    const contactLine = [profile?.address, profile?.phone].filter(Boolean).join(" | ");
-    if (contactLine) {
-        doc.text(contactLine, 45, 28);
-    }
-    
-    if (profile?.email) {
-        doc.text(profile.email, 45, 33);
-    } else {
-        doc.text("Official Payment Receipt", 45, 33);
-    }
 
-    // 3. METADATA INFO BOX
-    doc.setFillColor(248, 250, 252); 
-    doc.roundedRect(15, 45, 180, 25, 2, 2, 'F');
-    
+    const contactLine = [business.address, business.phone]
+      .filter(Boolean)
+      .join(" | ");
+    if (contactLine) doc.text(contactLine, 45, 28);
+    doc.text(business.email || "Official Payment Receipt", 45, 33);
+
+    // Metadata
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(15, 45, 180, 25, 2, 2, "F");
+
     doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text(`RECEIPT NO:`, 22, 53);
-    doc.setTextColor(0);
-    doc.text(`${payment.reference || 'N/A'}`, 45, 53);
-    
-    doc.setTextColor(71, 85, 105);
-    doc.text(`DATE:`, 22, 60);
-    doc.setTextColor(0);
-    doc.text(`${date}`, 45, 60);
 
-    doc.setTextColor(71, 85, 105);
-    doc.text(`UNIT:`, 110, 53);
-    doc.setTextColor(0);
-    doc.text(`${unit?.name || 'N/A'}`, 135, 53);
+    const labelColor: [number, number, number] = [71, 85, 105];
+    const valueColor: [number, number, number] = [0, 0, 0];
 
-    doc.setTextColor(71, 85, 105);
-    doc.text(`PROPERTY:`, 110, 60);
-    doc.setTextColor(0);
-    doc.text(`${property?.name || 'N/A'}`, 135, 60);
+    const label = (text: string, x: number, y: number) => {
+      doc.setTextColor(...labelColor);
+      doc.text(text, x, y);
+    };
+    const value = (text: string, x: number, y: number) => {
+      doc.setTextColor(...valueColor);
+      doc.text(text, x, y);
+    };
 
-    // 4. PAYMENT DETAILS TABLE
+    label("RECEIPT NO:", 22, 53);
+    value(payment.reference || "N/A", 45, 53);
+
+    label("DATE:", 22, 60);
+    value(date, 45, 60);
+
+    label("UNIT:", 110, 53);
+    value(unit?.name || payment.unit_name || "N/A", 135, 53);
+
+    label("PROPERTY:", 110, 60);
+    value(property?.name || payment.property_name || "N/A", 135, 60);
+
+    // Line item table
     autoTable(doc, {
-        startY: 80,
-        head: [['Description', 'Payment Method', 'Amount']],
-        body: [
-            [
-                `${payment.type === 'payment' ? 'Rental Payment' : 'Refund'} - ${unit?.name || 'Unit'} (${payment.payment_method === 'manual' ? 'CHARGE' : ''})`,
-                payment.payment_method?.toUpperCase(),
-                `${profile?.currency || 'KES'} ${Number(payment.amount_paid).toLocaleString()}`
-            ]
+      startY: 80,
+      head: [["Description", "Payment Method", "Amount"]],
+      body: [
+        [
+          `${isPayment ? "Rental Payment" : "Refund"} - ${
+            unit?.name || payment.unit_name || "Unit"
+          }`,
+          (payment.payment_method || "").toUpperCase(),
+          `${currency} ${Number(payment.amount_paid).toLocaleString()}`,
         ],
-        headStyles: { 
-            fillColor: [37, 99, 235], 
-            textColor: [255, 255, 255],
-            fontSize: 11,
-            fontStyle: 'bold',
-            halign: 'left'
-        },
-        columnStyles: {
-            2: { halign: 'right', fontStyle: 'bold' }
-        },
-        styles: { fontSize: 10, cellPadding: 6 },
-        margin: { left: 15, right: 15 }
+      ],
+      headStyles: {
+        fillColor: [37, 99, 235],
+        textColor: [255, 255, 255],
+        fontSize: 11,
+        fontStyle: "bold",
+        halign: "left",
+      },
+      columnStyles: {
+        2: { halign: "right", fontStyle: "bold" },
+      },
+      styles: { fontSize: 10, cellPadding: 6 },
+      margin: { left: 15, right: 15 },
     });
 
-    // 5. TOTAL & STATUS
+    // Total & status
     const finalY = (doc as any).lastAutoTable.finalY + 20;
-    
-    doc.setFontSize(30);
-    const color = payment.type === "payment" ? [34, 197, 94] : [239, 68, 68];
-    doc.setTextColor(color[0], color[1], color[2]);
-    doc.text(payment.type === "payment" ? "PAID" : "REFUNDED", 15, finalY + 5);
-    
+
+    doc.setFontSize(28);
+    if (isPayment) doc.setTextColor(34, 197, 94);
+    else doc.setTextColor(239, 68, 68);
+    doc.text(isPayment ? "PAID" : "REFUNDED", 15, finalY + 5);
+
     doc.setFontSize(12);
     doc.setTextColor(0);
-    doc.text(`${payment.type === 'payment' ? 'Total Received:' : 'Total Refunded:'}`, 110, finalY);
-    doc.setFontSize(14);
-    doc.text(`${profile?.currency || 'KES'} ${Number(payment.amount_paid).toLocaleString()}`, 150, finalY);
+    doc.text(
+      isPayment ? "Total Received:" : "Total Refunded:",
+      110,
+      finalY
+    );
 
-    // 6. FOOTER
+    doc.setFontSize(14);
+    doc.text(
+      `${currency} ${Number(payment.amount_paid).toLocaleString()}`,
+      150,
+      finalY
+    );
+
+    // Footer
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
-    const footerText = profile?.company_name 
-        ? `Thank you for choosing ${profile.company_name}. For any queries, please contact management.`
-        : "Thank you for your payment. For any queries, please contact management.";
-    
 
-    doc.text(footerText, 105, 285, { align: 'center' });
+    const footerText = business.company_name
+      ? `Thank you for choosing ${business.company_name}. For any queries, please contact management.`
+      : "Thank you for your payment. For any queries, please contact management.";
+    doc.text(footerText, 105, 285, { align: "center" });
 
     doc.setFontSize(7);
     doc.setTextColor(108, 123, 143);
-    doc.text("Receipt Generated by RentWise Property Management System", 105, 290, { align: 'center' });
-    
+    doc.text(
+      "Receipt Generated by RentWise Property Management System",
+      105,
+      290,
+      { align: "center" }
+    );
 
-    doc.save(`Receipt_${payment.reference || 'Payment'}.pdf`);
+    // Save
+    doc.save(`Receipt_${payment.reference || "Payment"}.pdf`);
+    return true;
+  } catch (error) {
+    console.error("[receipt] Failed to generate receipt:", error);
+    return false;
+  }
 };

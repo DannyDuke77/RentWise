@@ -6,7 +6,6 @@ export type AuthUser = {
   id: string
   name: string
   email: string
-  user_type: "landlord" | "tenant" | "admin"
   exp: number
 }
 
@@ -26,15 +25,14 @@ export async function getAuthUser(): Promise<AuthUser | null> {
         if (decoded.exp * 1000 < Date.now()) return null
 
         // Check if token is valid
-        if (!decoded.sub || !decoded.user_type || !decoded.email) {
-        return null
+        if (!decoded.sub || !decoded.email) {
+            return null
         }
 
         return {
             id: decoded.sub,
             name: decoded.name,
             email: decoded.email,
-            user_type: decoded.user_type,
             exp: decoded.exp,
         }
     } catch {

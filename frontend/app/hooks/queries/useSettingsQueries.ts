@@ -1,33 +1,37 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiService from '@/app/services/apiService';
 import { queryKeys } from '../queryKeys';
+import { useBusiness } from "@/app/providers/BusinessProvider";
 
-export function useBusinessProfile(enabled: boolean = true) {
-    return useQuery({
-        queryKey: queryKeys.businessProfile(),
-        queryFn: () => apiService.get('/api/auth/settings/business-profile/'),
-        enabled,
-        staleTime: 10 * 60 * 1000, // 10 minutes stale
-    });
-}
+export function useChargeTypes(
+    page: number,
+    pageSize: number,
+    search?: string,
+    statusFilter?: string,
+    enabled?: boolean
+) {
+    const { activeBusinessId } = useBusiness();
 
-export function useChargeTypes(enabled: boolean = true) {
     return useQuery({
-        queryKey: queryKeys.chargeTypes(),
+        queryKey: queryKeys.chargeTypes(activeBusinessId, page, pageSize, search, statusFilter),
         queryFn: async () => {
-            const data = await apiService.get('/api/charge-types/');
-            return Array.isArray(data.results) ? data.results : [];
+            const data = await apiService.get(`/api/charge-types/?page=${page}&page_size=${pageSize}&search=${search}&is_active=${statusFilter}`,
+                {
+                    businessId: activeBusinessId,
+                }
+            );
+            return data;
         },
-        enabled,
-        staleTime: 10 * 60 * 1000, // 10 minutes stale
+        enabled: enabled && !!activeBusinessId,
+        staleTime: 10 * 60 * 1000,
     });
 }
 
 export function useUserProfile(enabled: boolean = true) {
     return useQuery({
         queryKey: queryKeys.userProfile(),
-        queryFn: () => apiService.get('/api/auth/settings/user-settings/'),
+        queryFn: () => apiService.get('/api/auth/settings'),
         enabled,
-        staleTime: 10 * 60 * 1000, // 10 minutes stale
+        staleTime: 10 * 60 * 1000,
     });
 }

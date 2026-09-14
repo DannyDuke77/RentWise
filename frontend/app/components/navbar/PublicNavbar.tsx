@@ -13,11 +13,11 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 
-const baseUrl = process.env.NEXT_PUBLIC_MAIN_SITE_URL || "http://rentwise.localhost";
-const landlordPortalUrl = process.env.NEXT_PUBLIC_LANDLORD_PORTAL_URL || "http://app.rentwise.localhost";
-const tenantPortalUrl = process.env.NEXT_PUBLIC_TENANT_PORTAL_URL || "http://tenant.rentwise.localhost";
+const baseUrl = process.env.NEXT_PUBLIC_MAIN_SITE_URL || '';
+const landlordPortalUrl = process.env.NEXT_PUBLIC_LANDLORD_PORTAL_URL || '';
+const tenantPortalUrl = process.env.NEXT_PUBLIC_TENANT_PORTAL_URL || '';
 
-const EXCLUDED_PATHS = ['/accept-invitation'];
+const EXCLUDED_PATHS = ['/accept-invitation', '/auth/register'];
 
 const PublicNavbar = () => {
     const path = usePathname();
@@ -46,7 +46,7 @@ const PublicNavbar = () => {
                     ? "bg-white/95 backdrop-blur-sm shadow-md"
                     : "bg-white/90 backdrop-blur-sm"
             }`}>
-                <div className="mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="max-w-[96rem] mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16 lg:h-20">
 
                         {/* Logo */}
