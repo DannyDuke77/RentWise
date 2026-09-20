@@ -23,6 +23,7 @@ import PaymentDeleteModal from "@/app/components/payments/PaymentDeleteModal";
 import { usePaymentActions } from "@/app/hooks/usePaymentsActions";
 import { useBusiness } from "@/app/providers/BusinessProvider";
 import apiService from "@/app/services/apiService";
+import PaymentsPageSkeleton from "@/app/components/skeletons/PaymentsPageSkeleton";
 
 const PaymentsPage = () => {
     const {
@@ -63,7 +64,7 @@ const PaymentsPage = () => {
     const debouncedSearch = useDebounce(searchTerm);
     const effectiveSearch = debouncedSearch.trim();
 
-    const { data: paymentData, isLoading: paymentsLoading } = usePayments(
+    const { data: paymentData, isPending: paymentsLoading } = usePayments(
         page, 
         pageSize, 
         effectiveSearch, 
@@ -205,6 +206,11 @@ const PaymentsPage = () => {
         setEditErrors(error.response?.data || { general: ['Failed to update payment'] });
     }
 };
+
+    if (paymentsLoading) {
+        return <PaymentsPageSkeleton />;
+    }
+
     return (
         <div className="max-w-8xl space-y-8 mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="">
@@ -328,13 +334,7 @@ const PaymentsPage = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {paymentsLoading ? (
-                                    <tr>
-                                        <td colSpan={9} className="py-12 text-center">
-                                            <LoadingSpinner size="md" color="blue-600" label="Updating payments..." />
-                                        </td>
-                                    </tr>
-                                ) : rawPayments.length === 0 ? (
+                                {rawPayments.length === 0 ? (
                                     <tr>
                                         <td colSpan={9} className="py-12 text-center text-gray-500">
                                             No payments found matching your criteria.

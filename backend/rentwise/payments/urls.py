@@ -9,7 +9,7 @@ router = DefaultRouter()
 router.register(r'configurations', api.MpesaConfigurationViewSet, basename="mpesa-configuration")
 
 urlpatterns = [
-    path('', include(router.urls)),
-    path('callback/', api.mpesa_callback, name='mpesa-callback'),
-    path('initiate/', api.InitiateMpesaPaymentView.as_view(), name='initiate-mpesa-payment'),
+    path('api/v1/payments/', include(router.urls)),
+    path('api/v1/payments/callback/', api.mpesa_callback, name='mpesa-callback'),
+    path('api/v1/payments/initiate/', api.InitiateMpesaPaymentView.as_view(), name='initiate-mpesa-payment'),
 ]

@@ -18,7 +18,7 @@ import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import { useToast } from "@/app/providers/ToastProvider";
 import { PaymentModal, PaymentModalMode, PaymentFormPayload } from "@/app/components/modals/PaymentModal";
 import { RefundModal } from "@/app/components/modals/RefundModal";
-import StatCard from "@/app/components/ui/StatCard";
+import StatCard from "@/app/components/ui/PaymentTabStatCard";
 import { SearchInput } from '@/app/components/ui/SearchInput';
 import RefreshButton from "../../ui/RefreshButton";
 import PaymentActionsMenu from "../../payments/PaymentsActionsMenu";
@@ -26,6 +26,8 @@ import PaymentDeleteModal from "@/app/components/payments/PaymentDeleteModal";
 import { usePaymentActions } from "@/app/hooks/usePaymentsActions";
 import { useBusiness } from "@/app/providers/BusinessProvider";
 import apiService from "@/app/services/apiService";
+import PaymentTabSkeleton from "../../skeletons/UnitPaymentTabSkeleton";
+import TableSkeleton from "../../skeletons/TableSkeleton";
 
 interface PaymentTabProps {
     property: Property;
@@ -42,7 +44,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
 
     const { showToast } = useToast();
 
-    // --- Ledger filters ---
+    // Ledger filters
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [filterMethod, setFilterMethod] = useState("");
@@ -50,13 +52,13 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedSearch = useDebounce(searchTerm, 500);
 
-    // --- Single modal state (view / edit / create) ---
+    // Single modal state (view / edit / create)
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<PaymentModalMode>('view');
     const [modalPayment, setModalPayment] = useState<Payment | null>(null);
     const [editErrors, setEditErrors] = useState<Record<string, string[]>>({});
 
-    // --- Create-mode controlled form state ---
+    // Create-mode controlled form state
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [amount, setAmount] = useState("");
     const [paymentCategory, setPaymentCategory] = useState<"rent" | "deposit">("rent");
@@ -67,7 +69,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     const [createErrors, setCreateErrors] = useState<Record<string, string[]>>({});
     const [message, setMessage] = useState("");
 
-    // --- Refund modal state ---
+    // Refund modal state
     const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
     const [refundAmount, setRefundAmount] = useState(0);
     const [refundMethod, setRefundMethod] = useState("");
@@ -102,6 +104,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
 
     const {
         data: paymentsData,
+        isPending: isPaymentsPending,
         refetch: refetchPayments,
         isFetching: isPaymentsFetching,
     } = useUnitPayments(
@@ -135,9 +138,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     const isValidMpesa = (ref: string) => /^[A-Z0-9]{10}$/.test(ref);
     const refundCap = refundCategory === "deposit" ? depositHeld : summary.credit;
 
-    // ------------------------------------------------------------------
-    // CREATE flow (controlled state, reset on success)
-    // ------------------------------------------------------------------
+    // CREATE flow
     const handleCreateSubmit = async (payload: PaymentFormPayload) => {
         setCreateErrors({});
 
@@ -216,9 +217,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         setIsPaymentModalOpen(true);
     };
 
-    // ------------------------------------------------------------------
-    // VIEW / EDIT flow (modal owns form state; parent only submits payload)
-    // ------------------------------------------------------------------
+    // VIEW / EDIT flow
     const openView = (payment: Payment) => {
         setModalPayment(payment);
         setModalMode('view');
@@ -268,9 +267,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         }
     };
 
-    // ------------------------------------------------------------------
     // REFUND flow
-    // ------------------------------------------------------------------
     const openRefund = (category: "rent" | "deposit") => {
         setRefundCategory(category);
         setRefundAmount(category === "deposit" ? depositHeld : summary.credit);
@@ -344,9 +341,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         }
     };
 
-    // ------------------------------------------------------------------
     // Export / receipt helpers
-    // ------------------------------------------------------------------
     const handleExportCSV = async () => {
         if (!activeBusiness?.id) {
             showToast("Error", "No business selected", "error");
@@ -403,9 +398,6 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         setSearchTerm("");
     };
 
-    // ------------------------------------------------------------------
-    // Render guards
-    // ------------------------------------------------------------------
     if (unit.status !== "occupied") {
         return (
             <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -417,6 +409,8 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
             </div>
         );
     }
+
+    if (isPaymentsPending) return <PaymentTabSkeleton />;
 
     return (
         <div className="space-y-8 md:px-2 py-4">
@@ -625,7 +619,6 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                             <thead className="bg-gray-50 sticky top-0 z-10 border-b-4 border-gray-100">
                                 <tr>
                                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Paid On</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Recorded On</th>
                                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Reference</th>
                                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Description</th>
                                     <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
@@ -635,8 +628,8 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                             <tbody className="divide-y divide-gray-100">
                                 {isPaymentsFetching ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center">
-                                            <LoadingSpinner size="lg" label="Loading payments data..." />
+                                        <td colSpan={5} className="">
+                                            <TableSkeleton cols={5} rows={rawPayments.length} rowSize="h-8" headerVisible={false} />
                                         </td>
                                     </tr>
                                 ) : rawPayments.length > 0 ? rawPayments.map((payment: Payment) => (
@@ -651,22 +644,6 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                                             </div>
                                             <p className="text-xs text-gray-500">
                                                 {new Date(payment.paid_on).toLocaleTimeString("en-US", {
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                    hour12: true,
-                                                })}
-                                            </p>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-medium text-gray-700">
-                                                {new Date(payment.created_at).toLocaleDateString("en-GB", {
-                                                    day: "2-digit",
-                                                    month: "short",
-                                                    year: "numeric",
-                                                })}
-                                            </div>
-                                            <p className="text-xs text-gray-500">
-                                                {new Date(payment.created_at).toLocaleTimeString("en-US", {
                                                     hour: "2-digit",
                                                     minute: "2-digit",
                                                     hour12: true,

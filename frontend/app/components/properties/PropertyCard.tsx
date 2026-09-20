@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { Eye, MapPin, Layers, MoreVertical, Trash2, Edit2, AlertTriangle, Home } from "lucide-react";
+import { 
+  MapPin, 
+  Building2, 
+  MoreVertical, 
+  Trash2, 
+  Edit2, 
+  AlertTriangle, 
+  ChevronRight, 
+  Dot
+} from "lucide-react";
 import Link from "next/link";
 import { Menu, MenuButton, MenuItem, MenuItems, Transition } from "@headlessui/react";
 import usePropertyModal from "@/app/hooks/usePropertyModal";
@@ -15,47 +24,57 @@ interface PropertyCardProps {
 const statusMap = {
   full: {
     label: 'Fully Occupied',
-    className: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/60 ring-emerald-500/10',
+    dotClass: 'bg-emerald-500',
   },
   partial: {
     label: 'Partially Vacant',
-    className: 'bg-amber-50 text-amber-700 border-amber-200'
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200/60 ring-amber-500/10',
+    dotClass: 'bg-amber-500',
   },
   low: {
     label: 'Fully Vacant',
-    className: 'bg-rose-50 text-rose-700 border-rose-200'
+    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200/60 ring-rose-500/10',
+    dotClass: 'bg-rose-500',
   },
 };
 
-const getStatus = (units: number, occupied_units: number) => {
+const getStatus = (units: number, occupied: number) => {
   if (units === 0) return 'low';
-  if (occupied_units === units) return 'full';
-  if (occupied_units > 0) return 'partial';
+  if (occupied === units) return 'full';
+  if (occupied > 0) return 'partial';
   return 'low';
 };
 
 const PropertyCard: React.FC<PropertyCardProps> = ({ property }) => {
   const propertyModal = usePropertyModal();
   const updateProperty = useUpdateProperty();
-
   const { showToast } = useToast();
 
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
+  const [deactivateError, setDeactivateError] = useState<string | null>(null);
 
   const isPropertyOccupied = property.occupied_units_count > 0;
+  const occupancyPercentage = property.units_count > 0 
+    ? Math.round((property.occupied_units_count / property.units_count) * 100) 
+    : 0;
 
-  const handleDeleteClick = () => {
+  const handleDeactivateClick = () => {
     if (isPropertyOccupied) {
-      showToast('Property Occupied!', 'Please vacate all tenants first before deleting the property.', 'warning', 10000);
+      showToast(
+        'Property Occupied!', 
+        `${property.occupied_units_count} ${property.occupied_units_count === 1 ? 'unit is' : 'units are'} currently occupied. Please terminate active tenancies before deactivating.`, 
+        'error', 
+        6000
+      );
       return;
     }
 
-    setDeleteError(null);
-    setIsDeleteModalOpen(true);
+    setDeactivateError(null);
+    setIsDeactivateModalOpen(true);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDeactivate = async () => {
     if (!property) return;
 
     try {
@@ -64,15 +83,15 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property }) => {
         payload: { is_active: false } 
       });
 
-      setIsDeleteModalOpen(false);
-      showToast('Property Deleted!', 'Your property has been deleted successfully.', 'success');
+      setIsDeactivateModalOpen(false);
+      showToast('Property Deactivated', 'Your property has been deactivated successfully.', 'success');
     } catch (error: any) {
-      console.error("Error deleting property:", error);
+      console.error("Error deactivating property:", error);
       const backendMessage = error?.response?.data?.detail
         || (Array.isArray(error?.response?.data) ? error.response.data[0] : null)
         || error?.message
-        || "Something went wrong while deleting this property. Please try again.";
-      setDeleteError(backendMessage);
+        || "Something went wrong while deactivating this property.";
+      setDeactivateError(backendMessage);
     }
   };
   
@@ -81,63 +100,76 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property }) => {
 
   return (
     <>
-      <div className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-all duration-200 group">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Left Section - Property Info */}
-          <div className="flex items-start gap-4">
-            {/* Property Icon */}
-            <div className="hidden sm:flex w-12 h-12 bg-blue-50 rounded-xl items-center justify-center flex-shrink-0">
-              <Home className="w-6 h-6 text-blue-600" />
+      <div className="group relative bg-white border border-slate-200/80 rounded-2xl px-4 py-6 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          
+          {/* Main Info */}
+          <div className="flex items-start gap-4 flex-1 min-w-0">
+            <div className="hidden sm:flex w-12 h-12 bg-blue-50 text-blue-600 rounded-xl items-center justify-center flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-200">
+              <Building2 className="w-6 h-6" />
             </div>
             
             <div className="space-y-1.5 min-w-0 flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors truncate">
-                {property.name}
-              </h3>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
-                <span className="flex items-center gap-1.5">
-                  <MapPin size={14} className="text-gray-400 flex-shrink-0" />
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-semibold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+                  {property.name}
+                </h3>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-0.5 rounded-full border ring-1 ring-inset ${statusInfo.badgeClass}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotClass}`} />
+                  {statusInfo.label}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                <span className="flex items-center gap-1 truncate">
+                  <MapPin size={14} className="text-slate-400 flex-shrink-0" />
                   <span className="truncate">{property.location}</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <Layers size={14} className="text-gray-400 flex-shrink-0" />
-                  {property.units_count} Units
+                <Dot size={16} className="text-slate-400 flex-shrink-0" />
+                <span className="font-medium text-slate-700">
+                  {property.units_count} {property.units_count === 1 ? 'Unit' : 'Units'} Total
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Right Section - Actions */}
-          <div className="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto">
-            {/* Occupancy Stats - Desktop */}
-            <div className="hidden sm:block text-right">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Occupancy</p>
-              <p className="text-sm font-semibold text-gray-700">
-                {property.units_count > 0 
-                  ? `${Math.round((property.occupied_units_count / property.units_count) * 100)}% Full`
-                  : '0% Full'
-                }
-              </p>
+          {/* Occupancy Indicator & Actions */}
+          <div className="flex items-center justify-between lg:justify-end gap-6 border-t border-slate-100 pt-4 lg:pt-0 lg:border-t-0">
+            
+            {/* Occupancy Stats */}
+            <div className="flex flex-col min-w-[140px]">
+              <div className="flex justify-between items-center text-xs mb-1">
+                <span className="text-slate-500 font-medium">Occupancy</span>
+                <p className="flex items-center gap-1">
+                  <span className="font-semibold text-slate-700">{occupancyPercentage}%</span>
+                  <span className="text-slate-500">({property.occupied_units_count}/{property.units_count})</span>
+                </p>
+              </div>
+              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-600 rounded-full transition-all duration-300" 
+                  style={{ width: `${occupancyPercentage}%` }}
+                />
+              </div>
             </div>
 
-            {/* Status Badge & Actions */}
+            {/* Action Buttons */}
             <div className="flex items-center gap-2">
-              <span className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${statusInfo.className}`}>
-                {statusInfo.label}
-              </span>
-
               <Link
                 href={`/properties/${property.id}`}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-all active:scale-95"
               >
-                <Eye size={16} />
-                <span className="hidden sm:inline">View</span>
+                <span>Manage</span>
+                <ChevronRight size={14} className="text-slate-400" />
               </Link>
 
               {/* Dropdown Menu */}
               <Menu as="div" className="relative">
-                <MenuButton className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                  <MoreVertical className="w-5 h-5 text-gray-500" />
+                <MenuButton 
+                  aria-label="Property options"
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors focus:outline-none"
+                >
+                  <MoreVertical className="w-4 h-4" />
                 </MenuButton>
                 
                 <Transition
@@ -148,50 +180,58 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property }) => {
                   leaveFrom="transform scale-100 opacity-100"
                   leaveTo="transform scale-95 opacity-0"
                 >
-                  <MenuItems className="absolute right-0 mt-2 w-40 origin-top-right bg-white border border-gray-200 rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50 py-1">
-                    <MenuItem>
-                      {({ active }) => (
-                        <button
-                          onClick={() => propertyModal.open(property, true)}
-                          className={`${active ? 'bg-blue-50 text-blue-700' : 'text-gray-700'} group flex w-full items-center px-4 py-2.5 text-sm transition-colors`}
-                        >
-                          <Edit2 className="mr-3 h-4 w-4" /> 
-                          Edit Property
-                        </button>
-                      )}
-                    </MenuItem>
-                    <MenuItem>
-                      {({ active }) => (
-                        <button
-                          onClick={handleDeleteClick}
-                          className={`${active ? 'bg-rose-50 text-rose-700' : 'text-gray-700'} group flex w-full items-center px-4 py-2.5 text-sm transition-colors`}
-                        >
-                          <Trash2 className="mr-3 h-4 w-4" /> 
-                          Delete Property
-                        </button>
-                      )}
-                    </MenuItem>
+                  <MenuItems className="absolute right-0 mt-2 w-48 origin-top-right bg-white border border-slate-200 rounded-xl shadow-lg ring-1 ring-black/5 focus:outline-none z-50 py-1 divide-y divide-slate-100">
+                    <div className="py-0.5">
+                      <MenuItem>
+                        {({ active }) => (
+                          <button
+                            onClick={() => propertyModal.open(property, true)}
+                            className={`${
+                              active ? 'bg-slate-50 text-slate-900' : 'text-slate-700'
+                            } flex w-full items-center px-3.5 py-2 text-xs font-medium transition-colors`}
+                          >
+                            <Edit2 className="mr-2.5 h-3.5 w-3.5 text-slate-400" /> 
+                            Edit Property
+                          </button>
+                        )}
+                      </MenuItem>
+                    </div>
+                    <div className="py-0.5">
+                      <MenuItem>
+                        {({ active }) => (
+                          <button
+                            onClick={handleDeactivateClick}
+                            className={`${
+                              active ? 'bg-rose-50 text-rose-700' : 'text-rose-600'
+                            } flex w-full items-center px-3.5 py-2 text-xs font-medium transition-colors`}
+                          >
+                            <Trash2 className="mr-2.5 h-3.5 w-3.5 text-rose-500" /> 
+                            Deactivate Property
+                          </button>
+                        )}
+                      </MenuItem>
+                    </div>
                   </MenuItems>
                 </Transition>
               </Menu>
             </div>
+
           </div>
         </div>
       </div>
 
-      {/* Confirm Delete Modal */}
       <ConfirmModal
-        isOpen={isDeleteModalOpen}
-        icon={<AlertTriangle size={28} className="text-rose-600" />}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleConfirmDelete}
+        isOpen={isDeactivateModalOpen}
+        icon={<AlertTriangle size={24} className="text-rose-600" />}
+        onClose={() => setIsDeactivateModalOpen(false)}
+        onConfirm={handleConfirmDeactivate}
         isLoading={updateProperty.isPending}
-        title="Delete Property"
-        detail={deleteError}
-        message="Remove this property from your portfolio?"
-        message2="The property will no longer appear in your active properties."
-        disableConfirm={updateProperty.isPending || deleteError !== null}
-        confirmText="Remove Property"
+        title="Deactivate Property"
+        detail={deactivateError}
+        message="Are you sure you want to deactivate this property?"
+        message2="The property will be removed from your active portfolio, but historical tenancy records will be retained."
+        disableConfirm={updateProperty.isPending || deactivateError !== null}
+        confirmText="Deactivate"
       />
     </>
   );

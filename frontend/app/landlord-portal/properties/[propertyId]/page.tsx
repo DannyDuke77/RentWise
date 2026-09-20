@@ -7,24 +7,14 @@ import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import { useProperty } from "@/app/hooks/queries/usePropertyQueries";
 import { Building, Building2, MapPin, Pin } from "lucide-react";
 import PaymentAnalytics from "@/app/components/payments/PaymentAnalytics";
+import PropertyDetailSkeleton from "@/app/components/skeletons/PropertyDetailSkeleton";
 
 const PropertyDetailPage = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
   
-  const { data: property, isLoading, isError } = useProperty(propertyId);
+  const { data: property, isPending, isError } = useProperty(propertyId);
 
-  if (isLoading || !property) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <LoadingSpinner
-          size="lg"
-          color="blue-600"
-          label="Fetching property details..."
-          showTimer={true}
-        />
-      </div>
-    );
-  }
+if (isPending) return <PropertyDetailSkeleton />;
 
   if (isError) {
     return (

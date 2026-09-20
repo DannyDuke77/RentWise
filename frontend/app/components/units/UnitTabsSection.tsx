@@ -22,11 +22,11 @@ const VALID_TABS: TabKey[] = ['details', 'payments', 'charges', 'logs'];
 
 interface UnitTabsSectionProps {
   unitId: string;
-  initialUnit: any;
+  unit: any;
   property: any;
 }
 
-const UnitTabsSection = ({ unitId, initialUnit, property }: UnitTabsSectionProps) => {
+const UnitTabsSection = ({ unitId, unit, property }: UnitTabsSectionProps) => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -35,10 +35,6 @@ const UnitTabsSection = ({ unitId, initialUnit, property }: UnitTabsSectionProps
   const initialTab: TabKey = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'details';
 
   const [currentTab, setCurrentTabState] = useState<TabKey>(initialTab);
-  const [hasPendingCharges, setHasPendingCharges] = useState(false);
-  const [isVacateModalOpen, setIsVacateModalOpen] = useState(false);
-  const [isRemoveRoommateModalOpen, setIsRemoveRoommateModalOpen] = useState(false);
-  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
 
   useEffect(() => {
     const urlTab = searchParams.get('tab') as TabKey | null;
@@ -59,54 +55,6 @@ const UnitTabsSection = ({ unitId, initialUnit, property }: UnitTabsSectionProps
     router.replace(`${pathname}${query ? `?${query}` : ''}`, { scroll: false });
   };
 
-  const { 
-    data: tenantData, 
-    refetch: refetchTenants,
-    isFetching 
-  } = useUnitTenants(unitId);
-  const tenants = tenantData?.tenants ?? [];
-  const tenancyId = tenantData?.tenancyId ?? null;
-
-  const removeRoommate = useRemoveRoommate();
-  const vacateUnit = useVacateUnit();
-
-  const { showToast } = useToast();
-
-  const handleOpenRemoveRoommateModal = (tenantId: string) => {
-    setSelectedTenantId(tenantId);
-    setIsRemoveRoommateModalOpen(true);
-  };
-
-  const handleRemoveRoommate = async () => {
-    if (!selectedTenantId || !unitId || !property) return;
-    try {
-      await removeRoommate.mutateAsync({
-        unitId,
-        tenantId: selectedTenantId,
-        propertyId: property.id,
-      });
-      showToast('Roommate Removed!', 'Roommate removed successfully', 'success');
-      setIsRemoveRoommateModalOpen(false);
-      setSelectedTenantId(null);
-    } catch (error) {
-      console.error('Failed to remove roommate:', error);
-    }
-  };
-
-  const confirmRemoveTenancy = async () => {
-    if (!unitId || !property) return;
-    try {
-      await vacateUnit.mutateAsync({
-        unitId,
-        propertyId: property.id,
-      });
-      showToast('Lease Terminated!', 'Lease terminated successfully', 'success');
-      setIsVacateModalOpen(false);
-    } catch (error) {
-      console.error('Failed to vacate unit:', error);
-    }
-  };
-
   return (
     <div className="space-y-6">
       <BackButton property={property as Property} label="Back to all units" />
@@ -115,63 +63,34 @@ const UnitTabsSection = ({ unitId, initialUnit, property }: UnitTabsSectionProps
         <TabHeader
           currentTab={currentTab}
           setCurrentTab={setCurrentTab}
-          hasTenant={tenants.length > 0}
-          hasPendingCharges={hasPendingCharges}
         />
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        {/* Modals */}
-        <ConfirmModal
-          isOpen={isVacateModalOpen}
-          icon={<AlertTriangle size={24} className="text-red-500" />}
-          title="Terminate Lease?"
-          message="This will end the lease and remove all tenants from this unit."
-          message2="If you only want to remove one tenant, use the 'Remove Tenant' button on their card instead."
-          confirmText="Terminate Lease"
-          isLoading={vacateUnit.isPending}
-          onConfirm={confirmRemoveTenancy}
-          onClose={() => setIsVacateModalOpen(false)}
-        />
-
-        <ConfirmModal
-          isOpen={isRemoveRoommateModalOpen}
-          icon={<AlertTriangle size={24} className="text-red-500" />}
-          title="Remove Tenant?"
-          message="Are you sure you want to remove this tenant from this unit?"
-          message2="This action cannot be undone."
-          confirmText="Remove Tenant"
-          isLoading={removeRoommate.isPending}
-          onConfirm={handleRemoveRoommate}
-          onClose={() => {
-            setIsRemoveRoommateModalOpen(false);
-            setSelectedTenantId(null);
-          }}
-        />
-
         {currentTab === 'details' && (
           <DetailsTab
             property={property}
-            unit={initialUnit}
-            tenants={tenants}
-            refetchTenants={refetchTenants}
-            isFetching={isFetching}
-            onRemoveRoommate={handleOpenRemoveRoommateModal}
-            onRemoveTenancy={() => setIsVacateModalOpen(true)}
+            unit={unit}
           />
         )}
 
-        {currentTab === 'payments' && <PaymentTab property={property} unit={initialUnit} />}
+        {currentTab === 'payments' && unit && (
+          <PaymentTab 
+            property={property} 
+            unit={unit} 
+          />
+        )}
 
-        {currentTab === 'charges' && (
+        {currentTab === 'charges' && unit && (
           <ChargesTab
-            unit={initialUnit}
-            tenancyId={tenancyId}
-            onPendingStatusChange={setHasPendingCharges}
+            unit={unit}
+            tenancyId={unit?.tenancy_id}
           />
         )}
 
-        {currentTab === 'logs' && <LogsTab unitId={unitId} />}
+        {currentTab === 'logs' && (
+          <LogsTab unitId={unitId} />
+        )}
       </div>
     </div>
   );

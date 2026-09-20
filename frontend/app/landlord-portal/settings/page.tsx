@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Building2, HandCoins, UserCircle2, Users, Smartphone } from "lucide-react";
-import BusinessDetails from "./components/BusinessDetails";
-import TeamTab from "./components/Team";
-import UserSettings from "./components/UserSettings";
-import ChargeTypesTab from "./components/ChargeTypes";
-import MpesaSettings from "./components/MpesaSettings";
+import { Building2, HandCoins, UserCircle2, Users, Smartphone, Settings, SettingsIcon } from "lucide-react";
+import BusinessDetails from "./tabs/BusinessDetails";
+import TeamTab from "./tabs/Team";
+import UserSettings from "./tabs/UserSettings";
+import ChargeTypesTab from "./tabs/ChargeTypes";
+import MpesaSettings from "./tabs/MpesaSettings";
 
 const TABS = [
   { id: "business", label: "Business Details", icon: Building2 },
@@ -52,11 +52,16 @@ const SettingsPage = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50/50 py-6 px-4">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-8">
       <div className="mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
-          <p className="text-gray-500 mt-1">Manage your business profile and personal preferences.</p>
+        <header className="mb-8 flex items-center gap-4">
+          <div className="">
+            <SettingsIcon className="w-10 h-10" />
+          </div>
+          <div className="">
+            <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+            <p className="text-gray-500">Manage your account and business settings</p>
+          </div>
         </header>
 
         {/* Tabs */}

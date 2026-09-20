@@ -16,7 +16,24 @@ export function useProperties(page: number, pageSize: number,   search: string =
         );
         return data;
     },
-    enabled : true,
+    enabled: !!activeBusinessId,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function usePropertiesStats() {
+  const { activeBusinessId } = useBusiness();
+  return useQuery({
+    queryKey: queryKeys.propertiesStats(activeBusinessId),
+    queryFn: async () => {
+      const data = await apiService.get(`/api/properties/stats/`, 
+        {
+          businessId: activeBusinessId,
+        }
+      );
+      return data;
+    },
+    enabled: !!activeBusinessId,
     staleTime: 10 * 60 * 1000,
   });
 }

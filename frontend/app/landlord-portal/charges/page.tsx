@@ -1,4 +1,3 @@
-// app/landlord-portal/charges/page.tsx
 'use client';
 
 import { useState } from "react";
@@ -15,6 +14,10 @@ import Pagination from "@/app/components/ui/Pagination";
 import { SearchInput } from "@/app/components/ui/SearchInput";
 import { Charge } from "@/app/src/types/Types";
 import RefreshButton from "@/app/components/ui/RefreshButton";
+import ChargesPageSkeleton from "@/app/components/skeletons/ChargesPageSkeleton";
+import TableSkeleton from "@/app/components/skeletons/TableSkeleton";
+import StatCard from "@/app/components/ui/StatCard";
+import { stat } from "fs";
 
 const ChargesPage = () => {
     const [page, setPage] = useState(1);
@@ -26,7 +29,7 @@ const ChargesPage = () => {
     const debouncedSearch = useDebounce(searchTerm, 500);
     const effectiveSearch = debouncedSearch.trim();
 
-    const { data: chargesData, isLoading, isFetching, refetch } = useCharges(
+    const { data: chargesData, isPending, isFetching, refetch } = useCharges(
         page,
         pageSize,
         effectiveSearch,
@@ -34,7 +37,7 @@ const ChargesPage = () => {
         unitFilter
     );
 
-    const { data: stats, isLoading: statsLoading } = useChargeStats();
+    const { data: statsData, isPending: statsPending } = useChargeStats();
 
     const charges: Charge[] = chargesData?.results ?? [];
     const totalCount = chargesData?.count ?? 0;
@@ -50,12 +53,6 @@ const ChargesPage = () => {
         setUnitFilter("");
         setPage(1);
     };
-
-    const getTotalAmountPerStatus = (status: Charge['status']) => {
-        return charges
-            .filter((charge) => charge.status === status)
-            .reduce((total, charge) => total + Number(charge.amount), 0);
-    }
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -83,6 +80,8 @@ const ChargesPage = () => {
         }
     };
 
+    if (isPending) return <ChargesPageSkeleton />;
+
     return (
         <div className="max-w-8xl space-y-8 mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {/* Header */}
@@ -90,8 +89,8 @@ const ChargesPage = () => {
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-600/30">
-                                <Receipt className="w-6 h-6 text-white" />
+                            <div className="">
+                                <Receipt className="w-10 h-10" />
                             </div>
                             <div>
                                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
@@ -151,61 +150,47 @@ const ChargesPage = () => {
             </div>
 
             {/* Stats Cards */}
-            {!statsLoading && stats && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Charges</p>
-                                <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total_charges}</p>
-                                <p className="text-sm text-gray-600 mt-0.5">KES {stats.total_amount.toLocaleString()}</p>
-                            </div>
-                            <div className="p-3 bg-blue-50 rounded-xl">
-                                <Receipt className="w-5 h-5 text-blue-600" />
-                            </div>
-                        </div>
-                    </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <StatCard 
+                    title="Total Charges"
+                    value={statsData?.total_charges}
+                    icon={Receipt}
+                    color="text-blue-600"
+                    bg="bg-blue-50"
+                    ring="ring-blue-500/10"
+                    isPending={statsPending}
+                />
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Pending</p>
-                                <p className="text-2xl font-bold text-amber-600 mt-1">{stats.pending}</p>
-                                <p className="text-sm text-amber-700 mt-0.5">KES {getTotalAmountPerStatus('pending').toLocaleString()}</p>
-                            </div>
-                            <div className="p-3 bg-amber-50 rounded-xl">
-                                <Clock className="w-5 h-5 text-amber-600" />
-                            </div>
-                        </div>
-                    </div>
+                <StatCard 
+                    title="Pending Charges"
+                    value={statsData?.pending}
+                    icon={Clock}
+                    color="text-rose-500"
+                    bg="bg-rose-50"
+                    ring="ring-rose-500/10"
+                    isPending={statsPending}
+                />
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</p>
-                                <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.paid}</p>
-                                <p className="text-sm text-emerald-700 mt-0.5">KES {getTotalAmountPerStatus('paid').toLocaleString()}</p>
-                            </div>
-                            <div className="p-3 bg-emerald-50 rounded-xl">
-                                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                            </div>
-                        </div>
-                    </div>
+                <StatCard 
+                    title="Paid Charges"
+                    value={statsData?.paid}
+                    icon={CheckCircle2}
+                    color="text-emerald-500"
+                    bg="bg-emerald-50"
+                    ring="ring-emerald-500/10"
+                    isPending={statsPending}
+                />
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Waived</p>
-                                <p className="text-2xl font-bold text-gray-500 mt-1">{stats.waived}</p>
-                                <p className="text-sm text-gray-500 mt-0.5">KES {getTotalAmountPerStatus('waived').toLocaleString()}</p>
-                            </div>
-                            <div className="p-3 bg-gray-50 rounded-xl">
-                                <Minus className="w-5 h-5 text-gray-500" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+                <StatCard 
+                    title="Waived Charges"
+                    value={statsData?.waived}
+                    icon={Minus}    
+                    color="text-gray-500"
+                    bg="bg-gray-50"
+                    ring="ring-gray-500/10"
+                    isPending={statsPending}
+                />
+            </div>
 
             {/* Table Container */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
@@ -281,8 +266,8 @@ const ChargesPage = () => {
                         <tbody className="divide-y divide-gray-100">
                             {isFetching ? (
                                 <tr>
-                                    <td colSpan={7} className="py-12 text-center">
-                                        <LoadingSpinner size="md" color="blue-600" label="Loading charges..." />
+                                    <td colSpan={7} className="">
+                                        <TableSkeleton rows={charges.length} cols={7} rowSize="h-8" headerVisible={false} />
                                     </td>
                                 </tr>
                             ) : charges.length === 0 ? (

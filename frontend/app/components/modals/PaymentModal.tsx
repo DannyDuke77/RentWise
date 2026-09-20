@@ -86,7 +86,6 @@ export const PaymentModal = ({
 }: PaymentModalProps) => {
     const today = useToday();
 
-    // Internal state for edit/view modes (seeded from `payment`)
     const [internalCategory, setInternalCategory] = useState<"rent" | "deposit">("rent");
     const [internalAmount, setInternalAmount] = useState("");
     const [internalMethod, setInternalMethod] = useState("");
@@ -99,7 +98,6 @@ export const PaymentModal = ({
 
     const isControlled = mode === 'create';
 
-    // Resolved values
     const category = isControlled ? (controlledCategory ?? "rent") : internalCategory;
     const amount = isControlled ? (controlledAmount ?? "") : internalAmount;
     const method = isControlled ? (controlledMethod ?? "") : internalMethod;
@@ -116,7 +114,7 @@ export const PaymentModal = ({
     const setNotes = isControlled ? setControlledNotes : setInternalNotes;
     const setMessage = isControlled ? setControlledMessage : setInternalMessage;
 
-    // Seed internal state from payment when opening in edit/view mode
+    // Controlled state sync
     useEffect(() => {
         if (!isOpen || isControlled || !payment) return;
 
@@ -124,7 +122,7 @@ export const PaymentModal = ({
         setInternalCategory((payment.category as "rent" | "deposit") ?? 'rent');
         setInternalMethod(payment.payment_method ?? '');
         setInternalReference(payment.reference ?? '');
-        setInternalDate(payment.paid_on?.split('T')[0] ?? '');
+        setInternalDate(payment?.paid_on ? payment.paid_on.slice(0, 16) : '');
         setInternalNotes(payment.notes ?? '');
         setInternalMessage('');
         setEditEnabled(mode === 'edit');
@@ -364,7 +362,7 @@ export const PaymentModal = ({
                             <Calendar className="w-4 h-4" />
                         </div>
                         <input
-                            type="date"
+                            type="datetime-local"
                             disabled={isReadOnly}
                             className="w-full pl-12 pr-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                             value={date}

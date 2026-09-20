@@ -8,6 +8,7 @@ import {
 import { useTenantPayments } from "@/app/hooks/queries/useTenantPaymentsQueries";
 import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import Pagination from "@/app/components/ui/Pagination";
+import TenantPaymentsSkeleton from "@/app/components/skeletons/TenantPaymentsSkeleton";
 
 
 const getPaymentMethodIcon = (method: string) => {
@@ -49,7 +50,7 @@ export default function TenantPaymentsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const { data, isLoading, isError, isFetching } = useTenantPayments(
+  const { data, isPending, isError, isFetching } = useTenantPayments(
     page,
     pageSize
   );
@@ -57,17 +58,8 @@ export default function TenantPaymentsPage() {
   const payments = data?.results ?? [];
   const count = data?.count ?? 0;
 
-  if (isLoading) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center p-4">
-        <LoadingSpinner
-          size="lg"
-          color="blue-600"
-          label="Loading your payment history..."
-          showTimer
-        />
-      </div>
-    );
+  if (isPending) {
+    return <TenantPaymentsSkeleton />;
   }
 
   if (isError) {
@@ -157,17 +149,7 @@ export default function TenantPaymentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isFetching ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center">
-                    <LoadingSpinner
-                      size="md"
-                      color="blue-600"
-                      label="Updating payments..."
-                    />
-                  </td>
-                </tr>
-              ) : payments.length === 0 ? (
+              {payments.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-3">

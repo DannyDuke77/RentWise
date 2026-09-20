@@ -8,7 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from django.db.models import Q, Prefetch, Sum
+from django.db.models import Q, Prefetch, Sum, Count
 from django.shortcuts import get_object_or_404
 from datetime import datetime
 
@@ -19,7 +19,7 @@ from .serializers import (
 )
 from .models import Property, TenantInvitation, Unit, Tenant, UnitPayment, Tenancy, Charge, ChargeType, TenancyMember, ChangeLog
 
-from accounts.permissions import IsBusinessMember
+from accounts.permissions import IsBusinessMember, HasBusinessContext
 from accounts.models import Business
 
 # Services
@@ -59,17 +59,13 @@ class Pagination(PageNumberPagination):
         }, status=status.HTTP_200_OK)
     
 class PropertyViewSet(ModelViewSet):
-    permission_classes = [IsBusinessMember]
+    permission_classes = [HasBusinessContext]
     serializer_class = PropertySerializer
     pagination_class = Pagination
     lookup_field = "id"
 
     def get_queryset(self):
         business_id = self.request.headers.get("X-Business-ID")
-
-        if not business_id:
-            return Property.objects.none()
-
         
         queryset = Property.objects.filter(
             business_id=business_id,
@@ -106,14 +102,33 @@ class PropertyViewSet(ModelViewSet):
     def perform_create(self, serializer):
         business_id = self.request.headers.get("X-Business-ID")
 
-        if not business_id:
-            raise ValidationError({
-                "business": "Business context is required."
-            })
-
         business = get_object_or_404(Business, id=business_id, memberships__user=self.request.user,)
 
         serializer.save(business=business)
+
+    def perform_update(self, serializer):
+        property = self.get_object()
+
+        if serializer.validated_data.get("is_active") is False:
+            if property.units.filter(
+                is_active=True,
+                status="occupied"
+            ).exists():
+                occupied_count = property.units.filter(
+                    is_active=True,
+                    status="occupied"
+                ).count()
+
+                raise ValidationError({
+                    "property": (
+                        f"{occupied_count} "
+                        f"{'unit is' if occupied_count == 1 else 'units are'} "
+                        "currently occupied. "
+                        "Please terminate the active tenancies before deactivating this property."
+                    )
+                })
+
+        serializer.save()
 
     @action(detail=True, methods=["get"])
     def units(self, request, id=None):
@@ -162,6 +177,37 @@ class PropertyViewSet(ModelViewSet):
         response = HttpResponse(pdf_buffer.getvalue(), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Position_{property_obj.name}.pdf"'
         return response
+
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        queryset = self.get_queryset()
+
+        total_properties = queryset.count()
+
+        unit_stats = Unit.objects.filter(
+            property__in=queryset,
+            is_active=True,
+        ).aggregate(
+            total_units=Count('id'),
+            total_occupied=Count('id', filter=Q(status='occupied')),
+            total_vacant=Count('id', filter=Q(status='vacant')),
+            total_maintenance=Count('id', filter=Q(status='maintenance')),
+        )
+
+        total_units = unit_stats['total_units'] or 0
+        total_occupied = unit_stats['total_occupied'] or 0
+        total_vacant = unit_stats['total_vacant'] or 0
+        total_maintenance = unit_stats['total_maintenance'] or 0
+        occupancy_rate = (total_occupied / total_units * 100) if total_units else 0
+
+        return Response({
+            "total_properties": total_properties,
+            "total_units": total_units,
+            "total_occupied": total_occupied,
+            "total_vacant": total_vacant,
+            "total_maintenance": total_maintenance,
+            "occupancy_rate": occupancy_rate,
+        })
     
 class UnitViewSet(ModelViewSet):
     permission_classes = [IsBusinessMember]
@@ -343,12 +389,14 @@ class TenantViewSet(ModelViewSet):
     def get_queryset(self):
         business_id = self.request.headers.get("X-Business-ID")
 
-        if not business_id:
+        if not Business.objects.filter(
+            id=business_id,
+            memberships__user=self.request.user,
+        ).exists():
             return Tenant.objects.none()
-        
+
         queryset = Tenant.objects.filter(
             tenancy_members__tenancy__unit__property__business_id=business_id,
-            tenancy_members__tenancy__unit__property__business__memberships__user=self.request.user
         ).distinct()
 
         search = self.request.query_params.get("search")
@@ -367,7 +415,8 @@ class TenantViewSet(ModelViewSet):
                     'tenancy_members',
                     queryset=TenancyMember.objects.select_related(
                         'tenancy__unit', 
-                        'tenancy__unit__property'
+                        'tenancy__unit__property',
+                        'tenancy__unit__property__business'
                     )
                 )
             )
@@ -474,6 +523,24 @@ class TenantViewSet(ModelViewSet):
             status=status.HTTP_200_OK
         )
 
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        queryset = self.get_queryset()
+
+        total_tenants = queryset.count()
+        total_active_tenants = queryset.filter(
+            tenancy_members__is_active=True
+        ).count()
+        total_inactive_tenants = queryset.filter(
+            tenancy_members__is_active=False
+        ).count()
+
+        return Response({
+            "total_tenants": total_tenants,
+            "total_active_tenants": total_active_tenants,
+            "total_inactive_tenants": total_inactive_tenants
+        })
+
 class TenantMeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -488,7 +555,6 @@ class TenantMeView(APIView):
                 is_active=True,
             )
             .select_related("unit", "unit__property")
-            .distinct()
         )
 
         return Response({
@@ -512,16 +578,13 @@ class TenantMeView(APIView):
         })
 
 class PaymentViewSet(ModelViewSet):
-    permission_classes = [IsBusinessMember]
+    permission_classes = [HasBusinessContext]
     pagination_class = Pagination
     lookup_field = 'id'
     serializer_class = UnitPaymentSerializer
 
     def get_queryset(self):
         business_id = self.request.headers.get("X-Business-ID")
-
-        if not business_id:
-            return UnitPayment.objects.none()
         
         queryset = UnitPayment.objects.select_related(
             "tenancy", "tenancy__unit", "tenancy__unit__property"
@@ -658,7 +721,7 @@ class PaymentViewSet(ModelViewSet):
         fmt = request.query_params.get("export_format", "csv")
 
         if fmt == "csv":
-            return stream_payments_csv(queryset, filename_prefix="payments")
+            return stream_payments_csv(queryset, filename_prefix=f"payments")
         return Response(
             {"detail": f"Unsupported format: {fmt}"},
             status=status.HTTP_400_BAD_REQUEST,
@@ -683,20 +746,16 @@ class TenantPaymentsView(ListAPIView):
                 tenancy__is_active=True,
             )
             .order_by("-paid_on", "-created_at")
-            .distinct()
         )
     
 class ChargeTypeViewSet(ModelViewSet):
     serializer_class = ChargeTypeSerializer
-    permission_classes = [IsBusinessMember]
+    permission_classes = [HasBusinessContext]
     pagination_class = Pagination
     lookup_field = 'id'
 
     def get_queryset(self):
         business_id = self.request.headers.get("X-Business-ID")
-
-        if not business_id:
-            ChargeType.objects.none()
 
         queryset = ChargeType.objects.filter(
             business_id=business_id, 
@@ -717,11 +776,6 @@ class ChargeTypeViewSet(ModelViewSet):
     def perform_create(self, serializer):
         business_id = self.request.headers.get("X-Business-ID")
 
-        if not business_id:
-            raise ValidationError({
-                "business": "Business context is required."
-            })
-
         business = get_object_or_404(
             Business,
             id=business_id,
@@ -731,15 +785,12 @@ class ChargeTypeViewSet(ModelViewSet):
         serializer.save(business=business)
 
 class ChargeViewSet(ModelViewSet):
-    permission_classes = [IsBusinessMember]
+    permission_classes = [HasBusinessContext]
     pagination_class = Pagination
     lookup_field = 'id'
 
     def get_queryset(self):
         business_id = self.request.headers.get("X-Business-ID")
-
-        if not business_id:
-            Charge.objects.none()
 
         queryset = Charge.objects.select_related(
             'tenancy', 'tenancy__unit', 'tenancy__unit__property'
@@ -823,7 +874,7 @@ class ChargeViewSet(ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 class ChangeLogViewSet(ReadOnlyModelViewSet):
-    permission_classes = [IsBusinessMember]
+    permission_classes = [HasBusinessContext]
     serializer_class = ChangeLogSerializer
     pagination_class = Pagination
     lookup_field = 'id'

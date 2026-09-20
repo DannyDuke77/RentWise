@@ -9,6 +9,7 @@ export const queryKeys = {
 
     // Property
     properties: (businessId: string | null, page?: number, pageSize?: number, search?: string) => ['properties', businessId, page, pageSize, search] as const,
+    propertiesStats: (businessId: string | null) => ['properties-stats', businessId] as const,
     property: (businessId: string | null, propertyId: string) => ['property', businessId, propertyId] as const,
     propertyTypes: () => ['property-types'] as const,
     propertyRentSummary: (businessId: string | null, propertyId: string, month: number, year: number) => ['property-rent-summary', businessId, propertyId, month, year] as const,
@@ -23,6 +24,7 @@ export const queryKeys = {
 
     // Tenants
     tenants: (businessId: string | null, page: number, pageSize: number, search?: string, status?: string) => ['tenants', businessId, page, pageSize, search, status] as const,
+    tenantsStats: (businessId: string | null) => ['tenants-stats', businessId] as const,
     tenantPortal: () => ["tenantPortal"] as const,
     tenantPayments: (page: number, pageSize: number) => ["tenantPayments", page, pageSize] as const,
 

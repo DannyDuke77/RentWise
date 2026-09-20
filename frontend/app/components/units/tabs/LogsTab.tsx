@@ -28,6 +28,7 @@ import { useDebounce } from '@/app/hooks/useDebounce';
 import Pagination from '@/app/components/ui/Pagination';
 import RefreshButton from '../../ui/RefreshButton';
 import { useBusiness } from '@/app/providers/BusinessProvider';
+import TableSkeleton from '../../skeletons/TableSkeleton';
 
 interface ChangeLogTableProps {
     unitId?: string;
@@ -40,7 +41,6 @@ const FIELD_METADATA: Record<string, { icon: any; color: string; label: string }
     status: { icon: AlertCircle, color: 'text-amber-500', label: 'Status' },
     monthly_rent: { icon: Hash, color: 'text-emerald-500', label: 'Monthly Rent' },
     floor: { icon: Layers, color: 'text-purple-500', label: 'Floor' },
-    property: { icon: FileText, color: 'text-indigo-500', label: 'Property' },
     description: { icon: FileText, color: 'text-teal-500', label: 'Description' },
     location: { icon: FileText, color: 'text-cyan-500', label: 'Location' },
 };
@@ -138,9 +138,6 @@ const LogsTab = ({ unitId }: ChangeLogTableProps) => {
                     <div>
                         <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                             Activity Log
-                            <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200/50">
-                                Live
-                            </span>
                         </h3>
                         <p className="text-sm text-gray-500 mt-0.5">
                             Track all changes made to this unit in real-time
@@ -222,14 +219,7 @@ const LogsTab = ({ unitId }: ChangeLogTableProps) => {
             {/* Table */}
             <div>
                 {isFetching ? (
-                    <div className="flex items-center justify-center py-20">
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="relative">
-                                <div className="w-12 h-12 border-4 border-blue-100 rounded-full animate-spin border-t-blue-500"></div>
-                            </div>
-                            <p className="text-sm text-gray-500">Loading change logs...</p>
-                        </div>
-                    </div>
+                    <TableSkeleton rows={pageSize} cols={5} rowSize="h-8" />
                 ) : logs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 bg-gradient-to-b from-gray-50 to-white rounded-2xl border-2 border-dashed border-gray-200">
                         <div className="p-6 bg-white rounded-full shadow-lg shadow-gray-100 mb-6">

@@ -43,12 +43,12 @@ export function useChargeStats(enabled: boolean = true) {
     return useQuery({
         queryKey: queryKeys.chargeStats(activeBusinessId),
         queryFn: async () => {
-            const response = await apiService.get('/api/charges/stats/',
+            const data = await apiService.get('/api/charges/stats/',
                 {
                     businessId: activeBusinessId,
                 }
             );
-            return response as ChargeStats;
+            return data;
         },
         enabled: enabled && !!activeBusinessId,
         staleTime: 5 * 60 * 1000,

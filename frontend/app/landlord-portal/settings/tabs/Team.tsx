@@ -516,6 +516,7 @@ const TeamTab = () => {
                 onConfirm={handleConfirmRoleChange}
                 onClose={closeRoleChangeModal}
                 confirmText="Change Role"
+                confirmColor="bg-blue-600 hover:bg-blue-700"
                 isLoading={updateMemberRole.isPending}
             />
 

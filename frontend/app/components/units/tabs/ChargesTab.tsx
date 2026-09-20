@@ -29,10 +29,9 @@ import RefreshButton from "../../ui/RefreshButton";
 interface ChargesTabProps {
     unit: any;
     tenancyId: string | null;
-    onPendingStatusChange: (hasPending: boolean) => void;
 }
 
-const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps) => {
+const ChargesTab = ({ unit, tenancyId }: ChargesTabProps) => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
@@ -79,11 +78,6 @@ const ChargesTab = ({ unit, tenancyId, onPendingStatusChange }: ChargesTabProps)
         description: "",
     });
     const [isFormExpanded, setIsFormExpanded] = useState(true);
-
-    useEffect(() => {
-        const hasPending = charges.some((c: Charge) => c.status === "pending");
-        onPendingStatusChange(hasPending);
-    }, [charges, onPendingStatusChange]);
 
     const handleFilterChange = (setter: Function, value: any) => {
         setter(value);

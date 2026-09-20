@@ -27,3 +27,18 @@ export function useTenants(
     });
 
 }
+
+export function useTenantsStats(enabled: boolean = true) {
+    const { activeBusinessId } = useBusiness();
+    return useQuery({
+        queryKey: queryKeys.tenantsStats(activeBusinessId),
+        queryFn: async () => {
+            const data = await apiService.get('/api/tenants/stats', {
+                businessId: activeBusinessId,
+            });
+            return data;
+        },
+        enabled: enabled && !!activeBusinessId,
+        staleTime: 10 * 60 * 1000,
+    });
+}

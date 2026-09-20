@@ -16,6 +16,7 @@ import CustomTooltip from "@/app/components/ui/CustomTooltip";
 import { useToast } from "@/app/providers/ToastProvider";
 import { useBusiness } from "@/app/providers/BusinessProvider";
 import Image from "next/image";
+import Toggle from "@/app/components/ui/Toggle";
 
 const emptyForm = {
   consumerKey: "",
@@ -510,18 +511,25 @@ export default function MpesaSettings() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Status
               </label>
-              <label
-                className={`flex items-center gap-3 px-4 py-2.5 bg-white border rounded-lg cursor-pointer transition ${
+              <div
+                className={`flex items-center justify-between gap-3 px-4 py-2.5 bg-white border rounded-lg transition ${
                   errors.isActive
                     ? "border-red-300"
                     : "border-gray-200 hover:border-blue-400"
                 }`}
               >
-                <input
-                  type="checkbox"
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-700">
+                    {form.isActive ? "M-Pesa payments enabled" : "M-Pesa payments disabled"}
+                  </span>
+                </div>
+
+                <Toggle
                   checked={form.isActive}
-                  onChange={(e) => {
-                    setForm({ ...form, isActive: e.target.checked });
+                  aria-label="Toggle M-Pesa payments"
+                  onChange={(checked) => {
+                    setForm((prev) => ({ ...prev, isActive: checked }));
                     setErrors((prev) => {
                       if (!prev.isActive) return prev;
                       const next = { ...prev };
@@ -529,15 +537,8 @@ export default function MpesaSettings() {
                       return next;
                     });
                   }}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <div className="flex items-center gap-2">
-                  <Wallet className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-700">
-                    Enable M-Pesa payments
-                  </span>
-                </div>
-              </label>
+              </div>
               {errors.isActive && (
                 <p className="mt-1.5 text-sm text-red-600">
                   {errors.isActive[0]}

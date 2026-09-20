@@ -221,6 +221,7 @@ const BusinessDetails = () => {
                     fill
                     className="object-contain p-2"
                     unoptimized
+                    loading="eager"
                   />
 
                   {logoPreview && (

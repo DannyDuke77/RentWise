@@ -13,6 +13,7 @@ import AddUnitButton from "../navigation/AddUnitButton";
 import { useDebounce } from "@/app/hooks/useDebounce";
 import { SearchInput } from '@/app/components/ui/SearchInput';
 import RefreshButton from "../ui/RefreshButton";
+import UnitsSectionSkeleton from "../skeletons/UnitsRowsSkeleton";
 
 type Props = {
   property: Property;
@@ -31,7 +32,7 @@ const UnitsSection = ({ property }: Props) => {
 
   const hasUnits = property?.units_count > 0;
 
-  const { data, isFetching, refetch } = usePropertyUnits(
+  const { data, isPending, refetch, isFetching } = usePropertyUnits(
     property.id, 
     page, 
     pageSize, 
@@ -53,36 +54,6 @@ const UnitsSection = ({ property }: Props) => {
     setPage(1);
   };
 
-  // Status counts
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      occupied: 0,
-      vacant: 0,
-      maintenance: 0
-    };
-    rawUnits.forEach((unit) => {
-      if (unit.status in counts) {
-        counts[unit.status]++;
-      }
-    });
-    return counts;
-  }, [rawUnits]);
-
-  // Rent status counts
-  const rentStatusCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      paid: 0,
-      partial: 0,
-      unpaid: 0
-    };
-    rawUnits.forEach((unit) => {
-      const rent_status = unit.rent_status?.status || 'unpaid';
-      if (rent_status in counts) {
-        counts[rent_status]++;
-      }
-    });
-    return counts;
-  }, [rawUnits]);
 
   const hasActiveFilters = searchTerm || statusFilter || rentStatusFilter;
 
@@ -99,7 +70,7 @@ const UnitsSection = ({ property }: Props) => {
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Units</h2>
                 <p className="text-sm text-gray-500">
-                  {totalCount} {totalCount === 1 ? 'unit' : 'units'} in {property.name}
+                  {property.units_count} {property.units_count === 1 ? 'unit' : 'units'} in {property.name}
                 </p>
               </div>
             </div>
@@ -110,15 +81,15 @@ const UnitsSection = ({ property }: Props) => {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium border border-emerald-200">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                {statusCounts.occupied} Occupied
+                {property.occupied_units_count} Occupied
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 rounded-full text-xs font-medium border border-rose-200">
                 <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />
-                {statusCounts.vacant} Vacant
+                {property.vacant_units_count} Vacant
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-xs font-medium border border-amber-200">
                 <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
-                {statusCounts.maintenance} Maintenance
+                {property.maintenance_units_count} Maintenance
               </div>
             </div>
 
@@ -176,22 +147,15 @@ const UnitsSection = ({ property }: Props) => {
       </div>
 
       {/* Units */}
-      {isFetching ? (
-        <div className="p-16 text-center">
-          <LoadingSpinner
-            size="lg"
-            color="blue-600"
-            label="Loading units..."
-            showTimer={true}
-          />
-        </div>
+      {isPending || isFetching ? (
+          <UnitsSectionSkeleton />
       ) : rawUnits.length === 0 ? (
         <div className="p-16 text-center">
           <div className="w-20 h-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-gray-200">
             <Building className="w-10 h-10 text-gray-300" />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            {hasActiveFilters ? "No matching units" : "No units yet"}
+            {hasActiveFilters ? "No units found" : "No units yet"}
           </h3>
           <p className="text-gray-500 max-w-sm mx-auto text-sm">
             {hasActiveFilters

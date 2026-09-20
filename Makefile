@@ -1,4 +1,4 @@
-.PHONY: dev down devup superuser
+.PHONY: dev down devup restart superuser
 
 # Start dev environment
 dev:
@@ -10,6 +10,9 @@ devup:
 
 down:
 	docker compose --env-file .env.dev -f docker-compose.dev.yml down
+
+restart:
+	docker compose --env-file .env.dev -f docker-compose.dev.yml restart
 
 superuser:
 	docker compose --env-file .env.dev -f docker-compose.dev.yml exec backend python manage.py createsuperuser

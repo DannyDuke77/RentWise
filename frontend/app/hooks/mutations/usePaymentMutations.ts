@@ -18,7 +18,11 @@ export function usePaymentMutation() {
 
     return useMutation({
         mutationFn: ({ payload }: PaymentMutationVariables) => 
-            apiService.post(`/api/payments/`, payload),
+            apiService.post(`/api/payments/`, payload,
+                {
+                    businessId: activeBusinessId
+                }
+            ),
         onSuccess: (_, variables) => {  
             queryClient.invalidateQueries({
                 queryKey: ['payments', activeBusinessId],

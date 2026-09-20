@@ -12,6 +12,7 @@ import PropertyAuditModal from '@/app/components/modals/PropertyAuditModal';
 import { usePropertySummary } from '@/app/hooks/queries/usePropertyQueries';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import RefreshButton from '../ui/RefreshButton';
+import PropertyRentSummarySkeleton from '../skeletons/PropertyRentSummarySkeleton';
 
 export interface PropertySummary {
   total_units: number;
@@ -135,14 +136,7 @@ const PropertyRentSummary = ({
 
           {/* Loading State */}
           {isSummaryFetching && (
-            <div className="flex items-center justify-center py-8">
-              <LoadingSpinner
-                size="lg"
-                color="blue-600"
-                label="Fetching rent summary..."
-                showTimer={true}
-              />
-            </div>
+              <PropertyRentSummarySkeleton />
           )}
 
           {/* Error State */}

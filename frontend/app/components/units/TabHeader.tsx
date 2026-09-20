@@ -9,11 +9,9 @@ import {
 interface TabHeaderProps {
     currentTab: 'details' | 'payments' | 'charges' | 'logs';
     setCurrentTab: (tab: 'details' | 'payments' | 'charges' | 'logs') => void;
-    hasTenant: boolean;
-    hasPendingCharges?: boolean;
 }
 
-const TabHeader = ({ currentTab, setCurrentTab, hasTenant, hasPendingCharges }: TabHeaderProps) => {
+const TabHeader = ({ currentTab, setCurrentTab }: TabHeaderProps) => {
     const tabs = [
         {
             id: 'details' as const,
@@ -32,7 +30,6 @@ const TabHeader = ({ currentTab, setCurrentTab, hasTenant, hasPendingCharges }: 
             label: 'Charges',
             icon: Receipt,
             show: true,
-            hasBadge: hasPendingCharges,
         },
         {
             id: 'logs' as const,
@@ -58,8 +55,8 @@ const TabHeader = ({ currentTab, setCurrentTab, hasTenant, hasPendingCharges }: 
     return (
         <div className="border-b border-gray-200 bg-white shadow-sm">
             <div className="px-1">
-                {/* Scrollable tab strip – hides scrollbar, scrolls horizontally on small screens */}
-                <div className="flex overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-none [-ms-overflow-style:none] [supports(scrollbar-width:none)]:scrollbar-none [&::-webkit-scrollbar]:hidden">
+                {/* Scrollable tab buttons */}
+                <div className="flex gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-none [-ms-overflow-style:none] [supports(scrollbar-width:none)]:scrollbar-none [&::-webkit-scrollbar]:hidden">
                     {visibleTabs.map((tab) => {
                         const Icon = tab.icon;
                         const isActive = currentTab === tab.id;
@@ -84,13 +81,6 @@ const TabHeader = ({ currentTab, setCurrentTab, hasTenant, hasPendingCharges }: 
                                     />
                                 )}
                                 <span>{tab.label}</span>
-
-                                {tab.hasBadge && (
-                                    <span className="relative flex h-2.5 w-2.5 items-center justify-center">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
-                                    </span>
-                                )}
                             </button>
                         );
                     })}

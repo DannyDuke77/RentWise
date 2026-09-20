@@ -33,11 +33,15 @@ export function usePayments(
 }
 
 export function usePaymentAnalytics(enabled: boolean = true) {
+  const { activeBusinessId } = useBusiness();
+
   return useQuery({
     queryKey: queryKeys.paymentAnalytics(),
     queryFn: async () => {
-      const data: PaymentAnalytics = await apiService.get(
-        `/api/payments/analytics/`
+      const data: PaymentAnalytics = await apiService.get(`/api/payments/analytics/`, 
+        {
+          businessId: activeBusinessId,
+        }
       );
 
       return data;
@@ -52,12 +56,15 @@ export function usePropertyPaymentAnalytics(
   options?: Omit<UseQueryOptions<PaymentAnalytics>, 'queryKey' | 'queryFn'>
 ) {
   const { enabled = true, ...restOptions } = options || {};
+  const { activeBusinessId } = useBusiness();
 
   return useQuery({
     queryKey: queryKeys.propertyPaymentAnalytics(propertyId),
     queryFn: async () => {
-      const data: PaymentAnalytics = await apiService.get(
-        `/api/payments/property/${propertyId}/analytics/`
+      const data: PaymentAnalytics = await apiService.get(`/api/payments/property/${propertyId}/analytics/`,
+        {
+          businessId: activeBusinessId,
+        }
       );
       return data;
     },

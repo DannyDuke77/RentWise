@@ -8,13 +8,15 @@ import {
   Filter, ChevronRight, ChevronDown as ChevronDownIcon,
   ArrowRight
 } from "lucide-react";
-import { useTenants } from "@/app/hooks/queries/useTenantsQueries";
+import { useTenants, useTenantsStats } from "@/app/hooks/queries/useTenantsQueries";
 import { Tenant } from "@/app/src/types/Types";
 import Pagination from "@/app/components/ui/Pagination";
 import { SearchInput } from "@/app/components/ui/SearchInput";
 import { useDebounce } from "@/app/hooks/useDebounce";
 import Link from "next/link";
 import CustomTooltip from "@/app/components/ui/CustomTooltip";
+import StatCard from "@/app/components/ui/StatCard";
+import TableSkeleton from "@/app/components/skeletons/TableSkeleton";
 
 // Helper functions for tenancy display
 const getUniqueProperties = (tenancies: any[]) => {
@@ -102,7 +104,7 @@ const TenantsPage = () => {
   const debouncedSearch = useDebounce(searchTerm, 500);
   const effectiveSearch = debouncedSearch.trim();
 
-  const { data: tenantData, isLoading, isError } = useTenants(
+  const { data: tenantData, isPending: isTenantsPending, isError } = useTenants(
     page, 
     pageSize,
     effectiveSearch,
@@ -111,6 +113,8 @@ const TenantsPage = () => {
 
   const rawTenants: Tenant[] = tenantData?.results ?? [];
   const totalCount = tenantData?.count ?? 0;
+
+  const { data: statsData, isPending: isStatsPending } = useTenantsStats();
 
   const isActive = (tenant: Tenant) => tenant.tenancies?.some((t) => t.is_active);
 
@@ -144,33 +148,48 @@ const TenantsPage = () => {
     </span>
   );
 
-  const StatCard = ({ label, value, color = 'gray' }: any) => (
-    <div className={`bg-white rounded-xl border p-5 shadow-sm ${
-      color !== 'gray' ? `border-l-4 border-l-${color}-500` : ''
-    }`}>
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className={`text-3xl font-bold ${color !== 'gray' ? `text-${color}-600` : 'text-gray-900'}`}>
-        {value}
-      </p>
-    </div>
-  );
-
   return (
-    <div className="max-w-8xl space-y-8 mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="flex items-center gap-3">
-          <Users className="w-10 h-10 text-blue-600" />
-          <span className="text-3xl font-bold text-gray-900 uppercase">Tenants</span>
-        </h1>
-        <p className="mt-2 text-gray-600">Historical and active tracking of all residents</p>
-      </div>
+      <header className="flex items-center gap-4">
+        <div className="">
+          <Users className="w-10 h-10" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Tenants</h1>
+          <p className="text-gray-600">Historical and active tracking of all residents</p>
+        </div>
+      </header>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard label="Total Records" value={totalCount} />
-        <StatCard label="Currently Renting (Page)" value={rawTenants.filter(t => isActive(t)).length} color="green" />
-        <StatCard label="Past Tenants (Page)" value={rawTenants.filter(t => !isActive(t)).length} color="amber" />
+        <StatCard 
+          icon={Users} 
+          title="Total Tenants"
+          value={totalCount} 
+          color="text-blue-600" 
+          bg="bg-blue-50"
+          ring="ring-blue-500/10"
+          isPending={isStatsPending}
+        />
+        <StatCard 
+          icon={Users} 
+          title="Active Tenants"
+          value={statsData?.total_active_tenants} 
+          color="text-green-600" 
+          bg="bg-green-50"
+          ring="ring-green-500/10"
+          isPending={isStatsPending}
+        />
+        <StatCard 
+          icon={Users} 
+          title="Past Tenants" 
+          value={statsData?.total_inactive_tenants} 
+          color="text-red-600" 
+          bg="bg-red-50"
+          ring="ring-red-500/10"
+          isPending={isStatsPending}
+        />
       </div>
 
       {/* Filters */}
@@ -208,11 +227,8 @@ const TenantsPage = () => {
       </div>
 
       {/* Table */}
-      {isLoading ? (
-        <LoadingSpinner 
-          label="Loading tenants..." 
-        />
-      
+      {isTenantsPending ? (
+        <TableSkeleton rows={10} cols={5} />
       ) : rawTenants.length === 0 ? (
         <div className="bg-gray-50 border-2 border-dashed rounded-2xl p-20 text-center">
           <UserIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />

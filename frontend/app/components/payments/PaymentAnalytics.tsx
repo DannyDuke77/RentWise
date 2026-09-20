@@ -12,11 +12,11 @@ import { usePaymentAnalytics, usePropertyPaymentAnalytics } from "@/app/hooks/qu
 import LoadingSpinner from '../ui/LoadingSpinner';
 import RefreshButton from '../ui/RefreshButton';
 import { useBusiness } from '@/app/providers/BusinessProvider';
+import PaymentAnalyticsSkeleton from '../skeletons/PaymentAnalyticsSkeleton';
 
 interface PaymentAnalyticsProps {
   label?: string;
   propertyId?: string;
-  isLoading?: boolean;
   defaultExpanded?: boolean;
 }
 
@@ -44,7 +44,7 @@ const StatCard = ({ label, value, icon: Icon, iconBg, iconColor }: StatCardProps
   </div>
 );
 
-const PaymentAnalytics = ({ label, propertyId, isLoading = false, defaultExpanded = false }: PaymentAnalyticsProps) => {
+const PaymentAnalytics = ({ label, propertyId, defaultExpanded = false }: PaymentAnalyticsProps) => {
   const visualizationModal = usePaymentVisualizationModal();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
@@ -60,34 +60,7 @@ const PaymentAnalytics = ({ label, propertyId, isLoading = false, defaultExpande
   );
 
   const activeQuery = propertyId ? propertyQuery : globalQuery;
-  const { data: analytics, refetch, isFetching } = activeQuery;
-
-  if (isLoading) {
-    return (
-      <div className="mb-8 bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="h-6 w-48 bg-gray-200 rounded animate-pulse" />
-            <div className="h-4 w-64 bg-gray-100 rounded mt-2 animate-pulse" />
-          </div>
-          <div className="h-10 w-36 bg-gray-200 rounded-lg animate-pulse" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-gray-50 rounded-xl p-5 border border-gray-100">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gray-200 animate-pulse" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 w-20 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-7 w-28 bg-gray-200 rounded animate-pulse" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const { data: analytics, refetch, isFetching, isPending } = activeQuery;
 
   const stats = analytics?.stats;
 
@@ -164,7 +137,7 @@ const PaymentAnalytics = ({ label, propertyId, isLoading = false, defaultExpande
         <div className="flex items-center gap-6">
           {isExpanded && stats && (
             <>
-              <RefreshButton isFetching={isFetching} refetch={refetch} />
+              <RefreshButton isFetching={isPending} refetch={refetch} />
             
               <button
                 onClick={() => { visualizationModal.open(); }}
@@ -193,24 +166,15 @@ const PaymentAnalytics = ({ label, propertyId, isLoading = false, defaultExpande
       <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${!isExpanded ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`}>
         <div className="overflow-hidden">
           <div className="px-5 md:px-6 pb-6">
-            {/* Loader */}
-            {isFetching && (
-              <div className="py-4">
-                <LoadingSpinner size="lg" color="blue-600" label="Loading payment analytics..." showTimer={true} />
-              </div>
-            )}
-
-            {/* Data */}
-            {!isFetching && cards.length > 0 && (
+            {isPending && !analytics ? (
+              <PaymentAnalyticsSkeleton />
+            ) : cards.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {cards.map((card) => (
                   <StatCard key={card.label} {...card} />
                 ))}
               </div>
-            )}
-
-            {/* Empty */}
-            {!isFetching && cards.length === 0 && (
+            ) : (
               <div className="py-8 text-center text-gray-500">
                 <p className="text-sm">No payment data available</p>
               </div>

@@ -11,34 +11,9 @@ import UnitTabsSection from "@/app/components/units/UnitTabsSection";
 const UnitDetailPage = () => {
   const { unitId } = useParams<{ unitId: string }>();
 
-  const { data: unit, isLoading, isError } = useUnit(unitId);
+  const { data: unit, isPending, isError } = useUnit(unitId);
 
-  {/* Custom Data loading messages 
-    const dataMessages = [
-        { time: 0, message: "Fetching your data..." },
-        { time: 4, message: "Loading large dataset..." },
-        { time: 8, message: "Still loading... This might take a moment" },
-        { time: 15, message: "We're experiencing high traffic. Please wait..." },
-        { time: 30, message: "This is taking unusually long. Please check your connection." },
-    ];
-  */}
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <LoadingSpinner
-          size="lg"
-          color="blue-600"
-          // messages={dataMessages}
-          label="Fetching unit details..."
-          showTimer={true}
-        />
-      </div>
-      
-    );
-  }
-
-  if (isError || !unit) {
+  if (!unit && !isPending && !isError) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200/80 p-8 text-center shadow-xl shadow-slate-100/50 space-y-6">
@@ -107,7 +82,7 @@ const UnitDetailPage = () => {
               </span>
             </div>
             <p className="flex items-center text-xs sm:text-sm font-medium text-slate-500 md:pl-12">
-              {unit.property.name ? `${unit.property.name}` : ''} <Dot /> {getFloorDisplay(unit?.floor || '0')}
+              {unit?.property.name ? `${unit.property.name}` : ''} <Dot /> {getFloorDisplay(unit?.floor || '0')}
             </p>
           </div>
 
@@ -124,7 +99,7 @@ const UnitDetailPage = () => {
 
       {/* Tabbed Content */}
       <div className="w-full px-2 sm:px-6 lg:px-8">
-        <UnitTabsSection unitId={unitId} initialUnit={unit} property={unit?.property} />
+        <UnitTabsSection unitId={unitId} unit={unit} property={unit?.property} />
       </div>
     </div>
   );

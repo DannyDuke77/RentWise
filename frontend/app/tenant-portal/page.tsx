@@ -13,6 +13,7 @@ import TenantPaymentModal from "../components/modals/TenantPaymentModal";
 import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import RefreshButton from "../components/ui/RefreshButton";
 import Image from "next/image";
+import TenantPortalSkeleton from "../components/skeletons/TenantPortalSkeleton";
 
 export default function TenantPortal() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -20,16 +21,7 @@ export default function TenantPortal() {
   const { data: tenant, refetch, isLoading, isError } = useTenantPortal();
 
   if (isLoading) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center p-4">
-        <LoadingSpinner
-          size="lg"
-          color="blue-600"
-          label="Loading your account..."
-          showTimer
-        />
-      </div>
-    );
+    return <TenantPortalSkeleton />;
   }
 
   if (isError || !tenant) {
@@ -48,12 +40,17 @@ export default function TenantPortal() {
     );
   }
 
-  const totalBalance = tenant.tenancies.reduce(
-    (sum, t) => sum + Number(t.balance),
-    0
-  );
+  const totalDue = tenant.tenancies.reduce((sum, t) => {
+    const bal = Number(t.balance);
+    return bal > 0 ? sum + bal : sum;
+  }, 0);
 
-  const isBalanceDue = totalBalance > 0;
+  const totalCredit = tenant.tenancies.reduce((sum, t) => {
+    const bal = Number(t.balance);
+    return bal < 0 ? sum + Math.abs(bal) : sum;
+  }, 0);
+
+  const isBalanceDue = totalDue > 0;
   const paidCount = tenant.tenancies.filter(
     (t) => Number(t.balance) <= 0
   ).length;
@@ -112,21 +109,34 @@ export default function TenantPortal() {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
-          <div className="space-y-3 pr-10">
+          <div className="space-y-4 pr-10">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
               <span className={`w-1.5 h-1.5 rounded-full ${isBalanceDue ? "bg-amber-400" : "bg-emerald-400"}`} />
               Live Overview
             </span>
             
-            <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400 font-medium">
-                Total Outstanding Balance
-              </p>
-              <p className={`mt-1 text-3xl sm:text-4xl font-bold tracking-tight font-mono ${
-                isBalanceDue ? "text-rose-400" : "text-emerald-400"
-              }`}>
-                KES {totalBalance.toLocaleString()}
-              </p>
+            <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-medium">
+                  Total Amount Due
+                </p>
+                <p className={`mt-1 text-3xl sm:text-4xl font-bold tracking-tight font-mono ${
+                  isBalanceDue ? "text-rose-400" : "text-emerald-400"
+                }`}>
+                  KES {totalDue.toLocaleString()}
+                </p>
+              </div>
+
+              {totalCredit > 0 && (
+                <div className="sm:border-l sm:border-slate-800 sm:pl-8">
+                  <p className="text-xs uppercase tracking-wider text-slate-400 font-medium">
+                    Unapplied Credit
+                  </p>
+                  <p className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight font-mono text-emerald-400">
+                    KES {totalCredit.toLocaleString()}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-1 text-xs text-slate-300 pt-1">
@@ -283,7 +293,11 @@ export default function TenantPortal() {
                       <Stat
                         icon={<Wallet className="w-4 h-4 text-slate-500" />}
                         label="Current balance"
-                        value={`KES ${balance.toLocaleString()}`}
+                        value={
+                          balance < 0 
+                            ? `KES ${Math.abs(balance).toLocaleString()} (Credit)` 
+                            : `KES ${balance.toLocaleString()}`
+                        }
                         valueClass={paid ? "text-emerald-600 font-mono" : "text-rose-600 font-mono font-semibold"}
                       />
                       <Stat

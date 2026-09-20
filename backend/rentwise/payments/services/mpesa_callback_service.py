@@ -25,7 +25,7 @@ def process_mpesa_callback(data):
         .get(checkout_request_id=checkout_request_id)
     )
 
-    # Ignore duplicate callbacks that have already been processed.
+    # Duplicate callback protection
     if mpesa_transaction.status != "pending":
         return mpesa_transaction
 

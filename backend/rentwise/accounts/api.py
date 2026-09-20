@@ -55,7 +55,6 @@ class UserSettingsView(APIView):
 class BusinessViewSet(ModelViewSet):
     permission_classes = [IsBusinessMember]
     serializer_class = BusinessSerializer
-    pagination_class = Pagination
     lookup_field = "id"
 
     def get_queryset(self):
@@ -89,10 +88,11 @@ class BusinessViewSet(ModelViewSet):
         if request.method == "GET":
             invitations = BusinessInvitation.objects.filter(business=business, accepted_at__isnull=True, cancelled_at__isnull=True).order_by("-created_at")
 
-            page = self.paginate_queryset(invitations)
+            paginator = Pagination()
+            page = paginator.paginate_queryset(invitations, request, view=self)
             if page is not None:
                 serializer = BusinessInvitationSerializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
+                return paginator.get_paginated_response(serializer.data)
 
             serializer = BusinessInvitationSerializer(
                 invitations,
@@ -197,12 +197,13 @@ class BusinessViewSet(ModelViewSet):
             .filter(business=business)
             .select_related("user")
             .order_by("joined_at")
-        )
+        )   
 
-        page = self.paginate_queryset(memberships)
+        paginator = Pagination()
+        page = paginator.paginate_queryset(memberships, request, view=self)
         if page is not None:
             serializer = BusinessMembershipSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            return paginator.get_paginated_response(serializer.data)
 
 
         serializer = BusinessMembershipSerializer(memberships, many=True)
