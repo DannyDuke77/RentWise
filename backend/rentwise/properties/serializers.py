@@ -33,12 +33,14 @@ class UnitDetailSerializer(serializers.ModelSerializer):
     property = PropertyShortSerializer(read_only=True)
     tenant_names = serializers.SerializerMethodField()
     tenancy_id = serializers.SerializerMethodField()
-   
+    balance = serializers.SerializerMethodField()
+    deposit = serializers.SerializerMethodField()
+
     class Meta:
         model = Unit
         fields = [
             'id', 'property', 'name', 'monthly_rent', 'status', 
-            'floor', 'is_active', 'tenant_names', 'tenancy_id'
+            'floor', 'is_active', 'tenant_names', 'tenancy_id', 'balance', 'deposit'
         ]
         read_only_fields = ['property']
 
@@ -59,6 +61,24 @@ class UnitDetailSerializer(serializers.ModelSerializer):
     def get_tenancy_id(self, obj):
         tenancy = obj.tenancies.filter(is_active=True).first()
         return str(tenancy.id) if tenancy else None
+
+    def get_balance(self, obj):
+        tenancy = obj.tenancies.filter(is_active=True).first()
+        if not tenancy:
+            return None
+        try:
+            return float(tenancy.calculate_balance())
+        except Exception:
+            return None
+
+    def get_deposit(self, obj):
+        tenancy = obj.tenancies.filter(is_active=True).first()
+        if not tenancy:
+            return None
+        try:
+            return float(tenancy.get_deposit_held())
+        except Exception:
+            return None
 
 class TenantSerializer(serializers.ModelSerializer):
     units = serializers.SerializerMethodField()

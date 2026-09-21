@@ -9,7 +9,7 @@ import LogoutButton from "../LogoutButton";
 import { useBusiness } from "@/app/providers/BusinessProvider";
 import { useToast } from "@/app/providers/ToastProvider";
 import {
-  LayoutDashboard, Building, Users, CreditCard, Settings,
+  LayoutDashboard, Building, Users, CreditCard, Settings, Plus, House,
   ChevronLeft, ChevronDown, Menu, X, User, HandCoins, PanelLeftClose, PanelLeftOpen
 } from "lucide-react"
 import { Business } from "@/app/src/types/Types";
@@ -22,6 +22,7 @@ interface SidebarProps {
 const LandlordNavItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Properties", href: "/properties", icon: Building },
+  { label: "Units", href: "/units", icon: House },
   { label: "Tenants", href: "/tenants", icon: Users },
   { label: "Payments", href: "/payments", icon: CreditCard },
   { label: "Charges", href: "/charges", icon: HandCoins },
@@ -42,8 +43,15 @@ const PORTAL_LABELS = {
   admin: "ADMIN",
 } as const;
 
+const EXCLUDED_PATHS = ['/accept-invitation'];
+
 const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
   const pathname = usePathname();
+
+  if (EXCLUDED_PATHS.some(excluded => pathname.startsWith(excluded))) {
+    return null;
+  }
+  
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -117,7 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
       setIsOpen(false);
     }
 
-    if (pathname.includes('/properties') || pathname.includes('/units')) {
+    if (pathname.includes('/properties')) {
       router.push('/properties');
     }
 
@@ -230,13 +238,14 @@ const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
                 <div className="relative">
                   <button
                     onClick={() => {
-                      if (businesses.length > 1) {
+                      if (businesses.length > 0) {
                         setBusinessMenuOpen(!businessMenuOpen);
+                      } else {
+                        router.push("/onboarding/business");
                       }
                     }}
-                    disabled={businesses.length <= 1}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-gray-900/50 border border-gray-700/60 text-left ${
-                      businesses.length > 1
+                      businesses.length > 0
                         ? "hover:bg-gray-700/50 hover:border-blue-500/40 cursor-pointer shadow-sm"
                         : "cursor-default"
                     } transition-all duration-200 group`}
@@ -247,15 +256,21 @@ const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
 
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                        Active Business
+                        {businesses.length > 0 ? "Active Business" : "Create Business"}
                       </p>
                       <p className="text-sm font-semibold text-white truncate">
                         {activeBusiness?.company_name}
                       </p>
                     </div>
 
-                    {businesses.length > 1 && (
+                    {businesses.length > 0 ? (
                       <ChevronDown
+                        className={`w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200 ${
+                          businessMenuOpen ? "rotate-180 text-blue-400" : ""
+                        }`}
+                      />
+                    ) : (
+                      <Plus
                         className={`w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200 ${
                           businessMenuOpen ? "rotate-180 text-blue-400" : ""
                         }`}
@@ -263,32 +278,57 @@ const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
                     )}
                   </button>
 
-                  {businessMenuOpen && businesses.length > 1 && (
+                  {businessMenuOpen && businesses.length > 0 && (
                     <div className="absolute left-0 right-0 top-full mt-2 bg-gray-800/95 backdrop-blur-md border border-gray-700 rounded-xl shadow-2xl overflow-hidden z-50 divide-y divide-gray-700/50 animate-fadeIn">
                       <div className="px-3 py-2 bg-gray-900/40 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                         Switch Business
                       </div>
+
                       <div className="max-h-60 overflow-y-auto">
                         {businesses.map((business: any) => (
                           <button
                             key={business.id}
-                            onClick={() => handleSwitchBusiness(business)}
+                            onClick={() => {
+                              handleSwitchBusiness(business)
+                              
+                            }}
                             className={`w-full flex items-center gap-3 px-3 py-3 text-left transition-colors ${
                               business.id === activeBusinessId
                                 ? "bg-blue-600/15 text-blue-400 font-medium"
                                 : "hover:bg-gray-700/60 text-white"
                             }`}
                           >
-                            <Building className={`w-4 h-4 shrink-0 ${business.id === activeBusinessId ? "text-blue-400" : "text-gray-400"}`} />
+                            <Building
+                              className={`w-4 h-4 shrink-0 ${
+                                business.id === activeBusinessId
+                                  ? "text-blue-400"
+                                  : "text-gray-400"
+                              }`}
+                            />
+
                             <span className="text-sm truncate flex-1">
                               {business.company_name}
                             </span>
+
                             {business.id === activeBusinessId && (
                               <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
                             )}
                           </button>
                         ))}
                       </div>
+
+                      <Link
+                        href="/onboarding/business"
+                        onClick={() => {
+                          setBusinessMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-3 text-left text-blue-400 hover:bg-gray-700/60 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span className="text-sm font-medium">
+                          New business
+                        </span>
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -297,7 +337,7 @@ const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
           )}
         </div>
 
-        {/* ===== NAV (flex-1, scrollable) ===== */}
+        {/* Sidebar */}
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-6">
           {/* Section Title */}
           <div className={`flex items-center justify-between mb-4 px-3 transition-all duration-300 ${

@@ -25,11 +25,7 @@ export function useCharges(
             if (status) url += `&status=${status}`;
             if (unitId) url += `&unit_id=${unitId}`;
             
-            const response = await apiService.get(url,
-                {
-                    businessId: activeBusinessId,
-                }
-            );
+            const response = await apiService.get(url);
             return response;
         },
         enabled: enabled && !!activeBusinessId,
@@ -43,11 +39,7 @@ export function useChargeStats(enabled: boolean = true) {
     return useQuery({
         queryKey: queryKeys.chargeStats(activeBusinessId),
         queryFn: async () => {
-            const data = await apiService.get('/api/charges/stats/',
-                {
-                    businessId: activeBusinessId,
-                }
-            );
+            const data = await apiService.get('/api/charges/stats/');
             return data;
         },
         enabled: enabled && !!activeBusinessId,

@@ -19,7 +19,7 @@ export function useCreateMpesaConfiguration() {
 
     return useMutation({
         mutationFn: ({payload }: { payload: MpesaConfigurationPayload; }) =>
-            apiService.post("/api/v1/payments/configurations/", payload, { businessId: activeBusinessId }),
+            apiService.post("/api/v1/payments/configurations/", payload),
 
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({
@@ -35,7 +35,7 @@ export function useUpdateMpesaConfiguration() {
 
   return useMutation({
     mutationFn: ({ configurationId, payload }: { configurationId: string; payload: MpesaConfigurationPayload; }) =>
-      apiService.patch(`/api/v1/payments/configurations/${configurationId}/`, payload, { businessId: activeBusinessId }),
+      apiService.patch(`/api/v1/payments/configurations/${configurationId}/`, payload),
 
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({

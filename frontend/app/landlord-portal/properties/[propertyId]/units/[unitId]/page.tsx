@@ -1,11 +1,9 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { Building2, AlertCircle, RotateCcw, DoorOpen, Dot, House } from "lucide-react";
-import BackButton from "@/app/components/navigation/BackButton";
+import { AlertCircle, RotateCcw, DoorOpen, Dot, House } from "lucide-react";
 import Link from "next/link";
 import { useUnit } from "@/app/hooks/queries/useUnitsQueries";
-import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import UnitTabsSection from "@/app/components/units/UnitTabsSection";
 
 const UnitDetailPage = () => {

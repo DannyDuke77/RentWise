@@ -25,6 +25,15 @@ import { useBusiness } from "@/app/providers/BusinessProvider";
 import apiService from "@/app/services/apiService";
 import PaymentsPageSkeleton from "@/app/components/skeletons/PaymentsPageSkeleton";
 
+const currency = (n: number | null, code = "KES") =>
+  n === null
+    ? "—"
+    : new Intl.NumberFormat("en-KE", {
+        style: "currency",
+        currency: code,
+        maximumFractionDigits: 2,
+      }).format(n);
+
 const PaymentsPage = () => {
     const {
         page,
@@ -116,10 +125,7 @@ const PaymentsPage = () => {
         if (filterDate) params.set("filter_date", filterDate);
 
         try {
-            const blob = await apiService.getBlob(
-                `/api/payments/export/?${params.toString()}`,
-                { businessId: activeBusinessId }
-            );
+            const blob = await apiService.getBlob(`/api/payments/export/?${params.toString()}`);
 
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -310,34 +316,25 @@ const PaymentsPage = () => {
                     {/* Table */}
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead>
-                                <tr className="bg-gray-50/80 border-b border-gray-200">
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                        <div className="flex items-center">
-                                            <Home className="w-4 h-4 mr-2" />
-                                            Property
-                                        </div>
+                            <thead className="bg-gray-50/80 border-b border-gray-200">
+                                <tr>
+                                {["Property", "Tenancy Start", "Amount", "Method", "Category", "Type", "Paid On", "Reference"].map(
+                                    (label, i) => (
+                                    <th
+                                        key={i}
+                                        className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                                    >
+                                        {label}
                                     </th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                        <div className="flex items-center">
-                                            <Calendar className="w-4 h-4 mr-2" />
-                                            Tenancy Start
-                                        </div>
-                                    </th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount (KES)</th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Method</th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Category</th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Paid On</th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">Reference</th>
-                                    <th className="text-left py-4 px-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                                    )
+                                )}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {rawPayments.length === 0 ? (
                                     <tr>
                                         <td colSpan={9} className="py-12 text-center text-gray-500">
-                                            No payments found matching your criteria.
+                                            {searchTerm ? `No payments found for "${searchTerm}".` : "No payments found."}
                                         </td>
                                     </tr>
                                 ) : (
@@ -355,7 +352,7 @@ const PaymentsPage = () => {
                                                 </div>
                                             </td>
                                             <td className="py-4 px-6">
-                                                <div className="flex items-center">
+                                                <div className="flex items-center text-sm">
                                                     <Calendar className="w-4 h-4 mr-2 text-gray-400" />
                                                     <span className="text-gray-700 whitespace-nowrap">
                                                         {new Date(payment.tenancy_start).toLocaleDateString('en-GB', { 
@@ -367,15 +364,12 @@ const PaymentsPage = () => {
                                                 </div>
                                             </td>
                                             <td className="py-4 px-6">
-                                                <span className="font-bold text-gray-900 text-lg">
-                                                    {parseFloat(payment.amount_paid).toLocaleString(undefined, {
-                                                        minimumFractionDigits: 2,
-                                                        maximumFractionDigits: 2
-                                                    })}
+                                                <span className="font-bold text-gray-900 text-md">
+                                                    {currency(parseFloat(payment.amount_paid))}
                                                 </span>
                                             </td>
                                             <td className="py-4 px-6">
-                                                <div className="flex items-center space-x-2">
+                                                <div className="flex items-center space-x-2 text-sm">
                                                     {getPaymentMethodIcon(payment.payment_method)}
                                                     <span className="text-gray-700">{payment.payment_method}</span>
                                                 </div>
@@ -391,7 +385,7 @@ const PaymentsPage = () => {
                                                 </span>
                                             </td>
                                             <td className="py-4 px-6 whitespace-nowrap">
-                                                <div className="text-gray-700">
+                                                <div className="text-gray-700 text-sm">
                                                     {new Date(payment.paid_on).toLocaleDateString('en-GB', {
                                                         weekday: 'short',
                                                         year: 'numeric',

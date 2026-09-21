@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+
 import { getAuthUser } from "@/app/src/lib/auth";
 import PublicNavbar from "./PublicNavbar";
 import Sidebar from "./Sidebar";

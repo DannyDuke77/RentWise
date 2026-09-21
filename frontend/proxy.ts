@@ -2,8 +2,35 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const authRoutes = ['/auth/login', '/auth/register'];
+const publicRoutes = ['/accept-invitation'];
 
-const publicInvitationRoutes = ['/accept-invitation'];
+function redirectToLogin(
+    request: NextRequest,
+    pathname: string,
+    search: string,
+) {
+    const loginUrl = request.nextUrl.clone();
+
+    loginUrl.pathname = '/auth/login';
+    loginUrl.search = '';
+    loginUrl.searchParams.set('next', `${pathname}${search}`);
+
+    return NextResponse.redirect(loginUrl);
+}
+
+function rewriteToPortal(
+    request: NextRequest,
+    portalPath: string,
+) {
+    const url = request.nextUrl.clone();
+
+    if (!url.pathname.startsWith(portalPath)) {
+        url.pathname =
+            `${portalPath}${url.pathname === '/' ? '' : url.pathname}`;
+    }
+
+    return NextResponse.rewrite(url);
+}
 
 export function proxy(request: NextRequest) {
     const token = request.cookies.get('session_access_token')?.value;
@@ -11,87 +38,49 @@ export function proxy(request: NextRequest) {
     const { pathname, search } = request.nextUrl;
     const hostname = request.headers.get('host')?.split(':')[0];
 
-    const isTenantPortal = hostname === process.env.NEXT_PUBLIC_TENANT_PORTAL_HOST;
-    const isLandlordPortal = hostname === process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST;
-    const isMainSite = hostname === process.env.NEXT_PUBLIC_MAIN_SITE_HOST;
-    const isAdminPortal = hostname === process.env.NEXT_PUBLIC_ADMIN_PORTAL_HOST;
+    const isTenantPortal =
+        hostname === process.env.NEXT_PUBLIC_TENANT_PORTAL_HOST;
+
+    const isLandlordPortal =
+        hostname === process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST;
+
+    const isMainSite =
+        hostname === process.env.NEXT_PUBLIC_MAIN_SITE_HOST;
+
+    const isAdminPortal =
+        hostname === process.env.NEXT_PUBLIC_ADMIN_PORTAL_HOST;
 
     // PUBLIC WEBSITE
     if (isMainSite) {
         return NextResponse.next();
     }
 
-    // AUTH ROUTES
-    if (authRoutes.some(route => pathname.startsWith(route))) {
+    // PUBLIC ROUTES
+    if (
+        authRoutes.some(route => pathname.startsWith(route)) ||
+        publicRoutes.some(route => pathname.startsWith(route))
+    ) {
         return NextResponse.next();
+    }
+
+    // ALL PORTAL ROUTES REQUIRE AN AUTHENTICATED SESSION
+    if (!token) {
+        return redirectToLogin(request, pathname, search);
     }
 
     // TENANT PORTAL
     if (isTenantPortal) {
-        const isPublicTenantRoute = publicInvitationRoutes.some(route => pathname.startsWith(route));
-
-        if (isPublicTenantRoute) {
-            return NextResponse.next();
-        }
-
-        if (!token) {
-            const loginUrl = request.nextUrl.clone();
-            loginUrl.pathname = '/auth/login';
-            loginUrl.search = '';
-            loginUrl.searchParams.set('next', `${pathname}${search}`);
-            return NextResponse.redirect(loginUrl);
-        }
-
-        if (!pathname.startsWith('/tenant-portal')) {
-            const url = request.nextUrl.clone();
-            url.pathname = `/tenant-portal${pathname === '/' ? '' : pathname}`;
-            return NextResponse.rewrite(url);
-        }
-
-        return NextResponse.next();
+        return rewriteToPortal(request, '/tenant-portal');
     }
 
     // LANDLORD PORTAL
     if (isLandlordPortal) {
-        const isPublicInvitationRoute = publicInvitationRoutes.some(route => pathname.startsWith(route));
-
-        if (isPublicInvitationRoute) {
-            return NextResponse.next();
-        }
-        if (!token) {
-            const loginUrl = request.nextUrl.clone();
-            loginUrl.pathname = '/auth/login';
-            loginUrl.search = '';
-            loginUrl.searchParams.set('next', `${pathname}${search}`);
-            return NextResponse.redirect(loginUrl);
-        }
-
-        if (!pathname.startsWith('/landlord-portal')) {
-            const url = request.nextUrl.clone();
-            url.pathname = `/landlord-portal${pathname === '/' ? '' : pathname}`;
-            return NextResponse.rewrite(url);
-        }
-
-        return NextResponse.next();
+        return rewriteToPortal(request, '/landlord-portal');
     }
 
     // ADMIN PORTAL
     if (isAdminPortal) {
-        if (!token) {
-            const loginUrl = request.nextUrl.clone();
-            loginUrl.pathname = '/auth/login';
-            loginUrl.search = '';
-            loginUrl.searchParams.set('next', `${pathname}${search}`);
-            return NextResponse.redirect(loginUrl);
-        }
-
-        if (!pathname.startsWith('/admin')) {
-            const url = request.nextUrl.clone();
-            url.pathname = `/admin${pathname === '/' ? '' : pathname}`;
-            return NextResponse.rewrite(url);
-        }
-
-        return NextResponse.next();
+        return rewriteToPortal(request, '/admin');
     }
 
     return NextResponse.next();

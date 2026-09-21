@@ -51,7 +51,7 @@ const PropertyRentSummary = ({
     propertyId, 
     month, 
     year, 
-    { enabled: isExpanded && Boolean(property) }
+    { enabled: isExpanded && Boolean(propertyId) }
   );
 
   const currentMonthName = today.toLocaleString('default', { month: 'long' });

@@ -11,6 +11,7 @@ router = DefaultRouter()
 router.register(r"businesses", api.BusinessViewSet, basename="business")
 
 urlpatterns = [
+    path("api/auth/me/", api.CurrentUserView.as_view(), name="current-user"),
     path('api/auth/register/', CustomRegisterView.as_view(), name='rest_register'),
     path('api/auth/login/', CustomTokenObtainPairView.as_view(), name='rest_login'),
     path('api/auth/logout/', LogoutView.as_view(), name='rest_logout'),

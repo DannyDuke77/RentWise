@@ -83,7 +83,7 @@ const Login = () => {
         setLoading(true);
         setErrors([]);
 
-        const formData = { email, password };
+        const formData = { email, password, portal_type: portalType };
 
         try {
             const response = await apiService.post('/api/auth/login/', formData);
@@ -104,40 +104,41 @@ const Login = () => {
             const decoded: any = jwtDecode(response.access);
             const userId = decoded.user_id ?? decoded.sub;
 
-            const portalAllowsUser = {
-                tenant: response.portal_access?.tenant === true,
-                landlord: response.portal_access?.landlord === true,
-                admin: response.portal_access?.admin === true,
-                public: true,
-            };
-
-            if (!portalAllowsUser[portalType]) {
-                setErrors([
-                    `This account cannot access the ${config.name}. Please use the correct portal.`
-                ]);
-                return;
-            }
-
-            // Only create the session after the portal check passes.
             await handleLogin(userId, response.access, response.refresh);
 
             const next = searchParams.get('next');
 
             if (next) {
                 router.push(next);
-            } else if (portalType === 'tenant') {
+                return;
+            }
+
+            if (portalType === 'tenant') {
                 window.location.href =
                     `${process.env.NEXT_PUBLIC_TENANT_PORTAL_URL}/tenant-portal`;
-            } else if (portalType === 'landlord') {
-                window.location.href =
-                    `${process.env.NEXT_PUBLIC_LANDLORD_PORTAL_URL}/landlord-portal`;
-            } else if (portalType === 'admin') {
+                return;
+            }
+
+            if (portalType === 'admin') {
                 window.location.href =
                     `${process.env.NEXT_PUBLIC_ADMIN_PORTAL_URL}/admin`;
+                return;
             }
+
+            // Default: landlord
+            window.location.href =
+                `${process.env.NEXT_PUBLIC_LANDLORD_PORTAL_URL}/landlord-portal`;
         } catch (error: any) {
             console.error('Login error:', error);
-            setErrors(['Network error or server unavailable']);
+
+            const data = error?.response?.data;
+            const messages =
+                data?.non_field_errors ||
+                data?.detail ||
+                data?.error ||
+                ['Network error or server unavailable'];
+
+            setErrors(Array.isArray(messages) ? messages : [messages]);
         } finally {
             setLoading(false);
         }

@@ -9,11 +9,7 @@ export function useProperties(page: number, pageSize: number,   search: string =
   return useQuery({
     queryKey: queryKeys.properties(activeBusinessId, page, pageSize, search),
     queryFn: async () => {
-        const data = await apiService.get(`/api/properties/?page=${page}&page_size=${pageSize}&search=${search}`, 
-          {
-            businessId: activeBusinessId,
-          }
-        );
+        const data = await apiService.get(`/api/properties/?page=${page}&page_size=${pageSize}&search=${search}`);
         return data;
     },
     enabled: !!activeBusinessId,
@@ -26,11 +22,7 @@ export function usePropertiesStats() {
   return useQuery({
     queryKey: queryKeys.propertiesStats(activeBusinessId),
     queryFn: async () => {
-      const data = await apiService.get(`/api/properties/stats/`, 
-        {
-          businessId: activeBusinessId,
-        }
-      );
+      const data = await apiService.get(`/api/properties/stats/`);
       return data;
     },
     enabled: !!activeBusinessId,
@@ -42,11 +34,7 @@ export const propertyQueries = {
   property: (businessId: string | null, propertyId: string) => ({
     queryKey: queryKeys.property(businessId, propertyId),
     queryFn: async () => {
-      const data = await apiService.get(`/api/properties/${propertyId}/`,
-        {
-          businessId: businessId,
-        }
-      );
+      const data = await apiService.get(`/api/properties/${propertyId}/`);
       return data;
     },
     staleTime: 10 * 60 * 1000,
@@ -56,11 +44,7 @@ export const propertyQueries = {
     queryKey: queryKeys.propertyRentSummary(businessId, propertyId, month, year),
     queryFn: async () => {
       const data = await apiService.get(
-        `/api/properties/${propertyId}/rent-summary/?month=${month}&year=${year}`,
-        {
-          businessId: businessId,
-        }
-      );
+        `/api/properties/${propertyId}/rent-summary/?month=${month}&year=${year}`);
       return data.summary as PropertySummary;
     },
     staleTime: 10 * 60 * 1000,
@@ -77,11 +61,7 @@ export const propertyQueries = {
   ) => ({
     queryKey: queryKeys.propertyUnits(businessId, propertyId, page, pageSize, search, statusFilter, rentStatusFilter),
     queryFn: async () => {
-      const data = await apiService.get(`/api/properties/${propertyId}/units/?page=${page}&page_size=${pageSize}&search=${search}&status=${statusFilter}&rent_status=${rentStatusFilter}`,
-        {
-          businessId: businessId,
-        }
-      );
+      const data = await apiService.get(`/api/properties/${propertyId}/units/?page=${page}&page_size=${pageSize}&search=${search}&status=${statusFilter}&rent_status=${rentStatusFilter}`);
       return data;
     },
     staleTime: 10 * 60 * 1000,
@@ -103,26 +83,32 @@ export function usePropertyUnits(
   search: string = "",
   statusFilter: string = "",
   rentStatusFilter: string = "",
-  options?: { enabled: boolean }
 ) {
   const { activeBusinessId } = useBusiness();
+
+  const enabled = !!activeBusinessId && !!propertyId;
+
   return useQuery({
     ...propertyQueries.units(activeBusinessId, propertyId, page, pageSize, search, statusFilter, rentStatusFilter),
-    enabled: !!activeBusinessId && (options?.enabled ?? true),
+    enabled,
   });
 }
 
 
 export function usePropertySummary(
-  propertyId: string, 
-  month: number, 
-  year: number, 
+  propertyId: string,
+  month: number,
+  year: number,
   options?: Omit<UseQueryOptions<PropertySummary>, 'queryKey' | 'queryFn'>
 ) {
   const { activeBusinessId } = useBusiness();
+
+  const callerEnabled = options?.enabled !== false;
+  const canFetch = !!activeBusinessId && !!propertyId;
+
   return useQuery({
     ...propertyQueries.rentSummary(activeBusinessId, propertyId, month, year),
     ...options,
-    enabled: !!activeBusinessId && (options?.enabled ?? true),
+    enabled: callerEnabled && canFetch,
   });
 }

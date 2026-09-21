@@ -167,3 +167,110 @@ export interface Business {
     phone: string;
     address: string;
 }
+
+
+export interface UnitRow {
+  id: string;
+  property: { id: string; name: string };
+  name: string;
+  monthly_rent: string;
+  status: "occupied" | "vacant" | "maintenance";
+  floor: string;
+  is_active: boolean;
+  tenant_names: string;
+  tenancy_id: string | null;
+  balance: number | null;
+  deposit: number | null;
+}
+
+export interface UnitsStats {
+  total_units: number;
+  total_occupied: number;
+  total_vacant: number;
+  total_maintenance: number;
+  occupancy_rate: number;
+}
+
+export interface DashboardData {
+  kpis: {
+    occupancy_rate: number;
+    total_properties: number;
+    total_units: number;
+    occupied: number;
+    vacant: number;
+    maintenance: number;
+    rent_collected_this_month: number;
+    rent_collected_prev_month: number;
+    rent_collected_change_pct: number | null;
+    rent_outstanding: number;
+    unpaid_units_count: number;
+  };
+  overdue_units: Array<{
+    unit: {
+      id: string;
+      name: string;
+      status: string;
+    };
+    property: {
+      id: string;
+      name: string;
+    };
+    tenant_name: string | null;
+    amount_due: number;
+    days_overdue: number;
+  }>;
+  expiring_leases: Array<{
+    id: string;
+    tenant_name: string;
+    unit: {
+      id: string;
+      name: string;
+    };
+    property: {
+      id: string;
+      name: string;
+    };
+    end_date: string;
+    days_until_expiry: number;
+  }>;
+  recent_activity: Array<{
+    id: string;
+    type: "payment" | "tenancy" | "maintenance" | "unit_change";
+    text: string;
+    created_at: string;
+  }>;
+  recent_charges: Array<{
+    id: string;
+    type_name: string;
+    amount: number;
+    status: "pending" | "paid" | "waived";
+    unit: {
+      id: string;
+      name: string;
+    };
+    property: {
+      id: string;
+      name: string;
+    };
+    description: string;
+    created_at: string;
+  }>;
+  properties_preview: Array<{
+    id: string;
+    name: string;
+    units_count: number;
+    occupied_units_count: number;
+  }>;
+}
+
+export interface DashboardTrends {
+  period: "30d" | "90d" | "1y";
+  total: number;
+  points: Array<{
+    label: string;
+    year: number;
+    month: number;
+    collected: number;
+    count: number;
+  }>;
+}

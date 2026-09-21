@@ -1,13 +1,13 @@
-export default function LandlordHome() {
-    return (
-        <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-                Dashboard
-            </h1>
+import { redirect } from "next/navigation";
+import { getPortalAccess } from "@/app/src/lib/portal";
+import LandlordDashboard from "@/app/components/landlord-portal/LandlordDashboard";
 
-            <p className="mt-2 text-gray-600">
-                Welcome to your RentWise dashboard.
-            </p>
-        </div>
-    );
+export default async function LandlordPortalPage() {
+  const access = await getPortalAccess();
+
+  if (!access.landlord) {
+    redirect("/onboarding/business");
+  }
+
+  return <LandlordDashboard />;
 }

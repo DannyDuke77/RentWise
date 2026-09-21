@@ -14,7 +14,17 @@ from django.utils import timezone
 from .models import Business, BusinessMembership, BusinessInvitation
 from .permissions import IsBusinessMember
 from .serializers import BusinessSerializer, UserSettingsSerializer, BusinessInvitationSerializer, BusinessMembershipSerializer
-from .services import create_business_invitation, accept_business_invitation, resend_business_invitation, change_business_member_role, remove_business_member
+from .services import (
+    create_business,
+    get_user_portal_access,
+    create_business_invitation,
+    accept_business_invitation,
+    resend_business_invitation,
+    change_business_member_role,
+    remove_business_member,
+    get_business_dashboard,
+    get_dashboard_trends
+)
 
 class Pagination(PageNumberPagination):
     page_size = 10
@@ -35,6 +45,17 @@ class Pagination(PageNumberPagination):
 @permission_classes([IsAuthenticated])
 def create_object(request):
     return Response({"detail": "object created"})
+
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({
+            "id": str(request.user.id),
+            "name": request.user.name,
+            "email": request.user.email,
+            "portal_access": get_user_portal_access(request.user),
+        })
     
 class UserSettingsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -53,21 +74,24 @@ class UserSettingsView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class BusinessViewSet(ModelViewSet):
-    permission_classes = [IsBusinessMember]
     serializer_class = BusinessSerializer
     lookup_field = "id"
+
+    def get_permissions(self):
+        if self.action in ["list", "create"]:
+            return [IsAuthenticated()]
+        return [IsBusinessMember()]
 
     def get_queryset(self):
         return Business.objects.filter(memberships__user=self.request.user).distinct()
 
     def perform_create(self, serializer):
-        business = serializer.save()
-
-        BusinessMembership.objects.create(
-            business=business,
-            user=self.request.user,
-            role="owner",
+        business = create_business(
+            user=self.request.user, 
+            **serializer.validated_data
         )
+
+        serializer.instance = business
 
     def perform_update(self, serializer):
         business = self.get_object()
@@ -81,6 +105,14 @@ class BusinessViewSet(ModelViewSet):
 
         serializer.save()
 
+    @action(detail=True, methods=["get"], url_path="dashboard")
+    def dashboard(self, request, id=None):
+        business = self.get_object()
+        return Response(
+            get_business_dashboard(business),
+            status=status.HTTP_200_OK,
+        )
+    
     @action(detail=True, methods=["get", "post"], url_path="invitations")
     def invitations(self, request, id=None):
         business = self.get_object()

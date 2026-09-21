@@ -15,11 +15,7 @@ export function useTenants(
     return useQuery({
         queryKey: queryKeys.tenants(activeBusinessId, page, pageSize, search, status),
         queryFn: async () => {
-            const data = await apiService.get(`/api/tenants/?page=${page}&page_size=${pageSize}&search=${search}&status=${status}`,
-                {
-                    businessId: activeBusinessId,
-                }
-            );
+            const data = await apiService.get(`/api/tenants/?page=${page}&page_size=${pageSize}&search=${search}&status=${status}`);
             return data;
         },
         enabled: enabled && !!activeBusinessId,
@@ -33,9 +29,7 @@ export function useTenantsStats(enabled: boolean = true) {
     return useQuery({
         queryKey: queryKeys.tenantsStats(activeBusinessId),
         queryFn: async () => {
-            const data = await apiService.get('/api/tenants/stats', {
-                businessId: activeBusinessId,
-            });
+            const data = await apiService.get('/api/tenants/stats');
             return data;
         },
         enabled: enabled && !!activeBusinessId,

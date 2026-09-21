@@ -31,18 +31,6 @@ from .services.unit_service import update_unit
 from .services.rent import get_property_dashboard, get_property_units
 from .services.export import stream_payments_csv
 
-@action(detail=False, methods=["get"], url_path="export")
-def export(self, request):
-    queryset = self.get_queryset()
-    fmt = request.query_params.get("format", "csv")
-
-    if fmt == "csv":
-        return stream_payments_csv(queryset, filename_prefix="payments")
-    return Response(
-        {"detail": f"Unsupported format: {fmt}"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
-
 class Pagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = "page_size"
@@ -216,21 +204,44 @@ class UnitViewSet(ModelViewSet):
     lookup_field = "id"
 
     def get_queryset(self):
-        queryset = Unit.objects.select_related("property").filter(property__business__memberships__user=self.request.user)
+        business_id = self.request.headers.get("X-Business-ID")
+
+        queryset = Unit.objects.select_related("property").filter(
+            property__business_id=business_id,
+            property__business__memberships__user=self.request.user,
+        )
+
+        # Filters
         property_id = self.request.query_params.get("property")
+        status_filter = self.request.query_params.get("status")
+        search = self.request.query_params.get("search")
+
         if property_id:
             queryset = queryset.filter(property_id=property_id)
-            
-        if self.action in ['list', 'retrieve']:
+
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(property__name__icontains=search) |
+                Q(tenancies__tenancy_members__tenant__full_name__icontains=search) |
+                Q(tenancies__tenancy_members__tenant__phone__icontains=search)
+            ).distinct()
+
+        if self.action in ["list", "retrieve"]:
             queryset = queryset.prefetch_related(
                 Prefetch(
-                    'tenancies',
-                    queryset=Tenancy.objects.filter(is_active=True).prefetch_related(
+                    "tenancies",
+                    queryset=Tenancy.objects.filter(is_active=True)
+                    .select_related("unit", "unit__property")
+                    .prefetch_related(
                         Prefetch(
-                            'tenancy_members',
-                            queryset=TenancyMember.objects.filter(is_active=True).select_related('tenant')
+                            "tenancy_members",
+                            queryset=TenancyMember.objects.filter(is_active=True).select_related("tenant"),
                         )
-                    )
+                    ),
                 )
             )
 

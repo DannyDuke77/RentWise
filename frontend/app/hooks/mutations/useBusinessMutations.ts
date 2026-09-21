@@ -2,6 +2,38 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiService from '@/app/services/apiService';
 import { queryKeys } from '../queryKeys';
 
+export function useCreateBusiness() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: Record<string, any>) =>
+            apiService.post("/api/businesses/", payload),
+        onSuccess: (data) => {
+            queryClient.setQueryData(
+                queryKeys.businesses(),
+                (oldData: any) => {
+                    if (!oldData) {
+                        return [data];
+                    }
+
+                    if (Array.isArray(oldData)) {
+                        return [...oldData, data];
+                    }
+
+                    return {
+                        ...oldData,
+                        results: [...(oldData.results ?? []), data],
+                    };
+                }
+            );
+
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.businesses(),
+            });
+        },
+    });
+}
+
 export function useUpdateBusiness() {
     const queryClient = useQueryClient();
     return useMutation({
@@ -27,6 +59,9 @@ export function useUpdateBusiness() {
                     };
                 }
             );
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.businesses(),
+            });
         },
     });
 }

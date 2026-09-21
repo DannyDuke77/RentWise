@@ -41,11 +41,7 @@ export const useUpdateTenant = () => {
 
     return useMutation({
         mutationFn: async ({ tenantId, payload, }: { tenantId: string; payload: UpdateTenantPayload; }) => {
-            apiService.patch(`/api/tenants/${tenantId}/`, payload, 
-                {
-                    businessId: activeBusinessId
-                }
-            );
+            apiService.patch(`/api/tenants/${tenantId}/`, payload);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["tenants"] });
@@ -59,11 +55,7 @@ export function useRemoveRoommate() {
 
     return useMutation({
         mutationFn: ({ unitId, tenantId, propertyId }: { unitId: string; tenantId: string; propertyId: string; }) =>
-            apiService.post(`/api/tenants/unit/${unitId}/remove-roommate/${tenantId}/`, {}, 
-                {
-                    businessId: activeBusinessId
-                }
-            ),
+            apiService.post(`/api/tenants/unit/${unitId}/remove-roommate/${tenantId}/`, {}),
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.unitTenants(variables.unitId) });
             queryClient.invalidateQueries({ 

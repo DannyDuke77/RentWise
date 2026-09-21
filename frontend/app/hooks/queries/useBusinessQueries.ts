@@ -11,6 +11,7 @@ export function useBusinesses(enabled: boolean = true) {
         },
         enabled,
         staleTime: 10 * 60 * 1000,
+        refetchOnMount: 'always',
     });
 }
 

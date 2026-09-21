@@ -12,8 +12,14 @@ type RequestOptions = {
   businessId?: string | null;
 };
 
+let activeBusinessId: string | null = null;
+
+export function setApiBusinessId(id: string | null) {
+  activeBusinessId = id;
+}
+
 const apiService = {
-  get: async (url: string, options?: RequestOptions) => {
+  get: async (url: string) => {
     try {
       const fullUrl = `${API_URL}${url}`;
 
@@ -27,8 +33,8 @@ const apiService = {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      if (options?.businessId) {
-        headers["X-Business-ID"] = options.businessId;
+      if (activeBusinessId) {
+        headers["X-Business-ID"] = activeBusinessId;
       }
 
       console.log("🌐 Fetching from:", fullUrl);
@@ -66,7 +72,7 @@ const apiService = {
     }
   },
 
-  post: async function (url: string, data: any, options?: RequestOptions): Promise<any> {
+  post: async function (url: string, data: any): Promise<any> {
     const headers: Record<string, string> = {};
 
     // Only attach token if NOT logging in
@@ -81,8 +87,8 @@ const apiService = {
         }
     }
 
-    if (options?.businessId) {
-      headers["X-Business-ID"] = options.businessId;
+    if (activeBusinessId) {
+      headers["X-Business-ID"] = activeBusinessId;
     }
 
     if (!(data instanceof FormData)) {
@@ -112,7 +118,7 @@ const apiService = {
   return responseData;
 },
 
-  patch: async function (url: string, data: any, options?: RequestOptions): Promise<any> {
+  patch: async function (url: string, data: any): Promise<any> {
     const token = await getAccessToken();
     const headers: Record<string, string> = {};
 
@@ -120,8 +126,8 @@ const apiService = {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    if (options?.businessId) {
-      headers["X-Business-ID"] = options.businessId;
+    if (activeBusinessId) {
+      headers["X-Business-ID"] = activeBusinessId;
     }
 
     if (!(data instanceof FormData)) {
@@ -144,15 +150,15 @@ const apiService = {
     return response.json();
   },
 
-  delete: async function (url: string, options?: RequestOptions): Promise<any> {
+  delete: async function (url: string): Promise<any> {
     const token = await getAccessToken();
     const headers: Record<string, string> = {};
 
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
-    if (options?.businessId) {
-      headers["X-Business-ID"] = options.businessId;
+    if (activeBusinessId) {
+      headers["X-Business-ID"] = activeBusinessId;
     }
 
     console.log("🗑️ Deleting:", `${API_URL}${url}`);
@@ -169,7 +175,7 @@ const apiService = {
     return response.json();
   },
 
-  getBlob: async (url: string, options?: RequestOptions): Promise<Blob> => {
+  getBlob: async (url: string): Promise<Blob> => {
     const token = await getAccessToken();
     const headers: Record<string, string> = {};
     
@@ -177,8 +183,8 @@ const apiService = {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    if (options?.businessId) {
-      headers["X-Business-ID"] = options.businessId;
+    if (activeBusinessId) {
+      headers["X-Business-ID"] = activeBusinessId;
     }
 
     console.log("📥 Downloading:", `${API_URL}${url}`);

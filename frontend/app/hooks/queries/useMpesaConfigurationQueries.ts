@@ -20,11 +20,7 @@ export function useMpesaConfiguration(enabled: boolean = true) {
     return useQuery({
         queryKey: queryKeys.mpesaConfiguration(activeBusinessId),
         queryFn: async () => {
-            const data: MpesaConfiguration[] = await apiService.get("/api/v1/payments/configurations/", 
-                { 
-                    businessId: activeBusinessId 
-                }
-            );
+            const data: MpesaConfiguration[] = await apiService.get("/api/v1/payments/configurations/");
             return data[0] ?? null;
         },
         enabled: enabled && !!activeBusinessId,

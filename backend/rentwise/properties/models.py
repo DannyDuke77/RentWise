@@ -162,7 +162,6 @@ class Tenancy(models.Model):
     def calculate_balance(self, up_to_date=None, start_from=None):
         """
         Calculates the tenancy balance up to a specific date.
-
         Balance = Rent Due + Charges - Payments + Refund adjustments
         """
 
@@ -182,7 +181,6 @@ class Tenancy(models.Model):
 
         # 2. Calculate Charges
         total_charges = sum((c.amount for c in self.charges.filter(created_at__date__lte=up_to_date) if c.status != "waived"), Decimal("0.00"))
-
 
         # 3. Calculate Payments & Refunds
         payments_query = self.payments.filter(paid_on__date__lte=up_to_date, category="rent")

@@ -39,10 +39,10 @@ const UnitsSection = ({ property }: Props) => {
     effectiveSearch,
     statusFilter,
     rentStatusFilter,
-    {
-      enabled: hasUnits && !!property.id,
-    }
   );
+
+  console.log("isFetching", isFetching);
+  console.log("isPending", isPending);
 
   const rawUnits: Unit[] = data?.results ?? [];
   const totalCount = data?.count ?? 0;
@@ -56,6 +56,10 @@ const UnitsSection = ({ property }: Props) => {
 
 
   const hasActiveFilters = searchTerm || statusFilter || rentStatusFilter;
+
+  if (isPending || isFetching) {
+    return <UnitsSectionSkeleton />;
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -147,9 +151,7 @@ const UnitsSection = ({ property }: Props) => {
       </div>
 
       {/* Units */}
-      {isPending || isFetching ? (
-          <UnitsSectionSkeleton />
-      ) : rawUnits.length === 0 ? (
+      {rawUnits.length === 0 ? (
         <div className="p-16 text-center">
           <div className="w-20 h-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-gray-200">
             <Building className="w-10 h-10 text-gray-300" />

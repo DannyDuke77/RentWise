@@ -8,20 +8,14 @@ import {
     Building, 
     Search, 
     Grid3X3,
-    Building2,
-    Home,
-    UserCheck,
-    UserMinus,
-    Wrench,
-    TrendingUp
 } from "lucide-react";
 import { useProperties, usePropertiesStats } from "@/app/hooks/queries/usePropertyQueries";
 import { Property } from "@/app/src/types/Types";
 import AddPropertyButton from "@/app/components/navigation/AddPropertyButton";
 import { useDebounce } from "@/app/hooks/useDebounce";
+import BusinessStatsGrid from "@/app/components/properties/BusinessStatsGrid";
 import Pagination from "@/app/components/ui/Pagination";
 import { SearchInput } from "@/app/components/ui/SearchInput";
-import { useBusiness } from "@/app/providers/BusinessProvider";
 import PropertiesPageSkeleton from "@/app/components/skeletons/PropertiesPageSkeleton";
 
 const PropertyPage = () => {
@@ -103,64 +97,7 @@ const PropertyPage = () => {
       </div>
       
       <div className="space-y-6">
-        {rawProperties.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-6 gap-3 sm:gap-4">
-            <StatCard 
-              title="Total Properties" 
-              value={statsData.total_properties} 
-              icon={Building2}
-              color="text-blue-600"
-              bg="bg-blue-50"
-              ring="ring-blue-500/10"
-              isPending={isStatsPending}
-            />
-            <StatCard 
-              title="Total Units" 
-              value={statsData.total_units} 
-              icon={Home}
-              color="text-indigo-600"
-              bg="bg-indigo-50"
-              ring="ring-indigo-500/10"
-              isPending={isStatsPending}
-            />
-            <StatCard 
-              title="Occupied" 
-              value={statsData.total_occupied} 
-              icon={UserCheck}
-              color="text-emerald-600"
-              bg="bg-emerald-50"
-              ring="ring-emerald-500/10"
-              isPending={isStatsPending}
-            />
-            <StatCard 
-              title="Vacant" 
-              value={statsData.total_vacant} 
-              icon={UserMinus}
-              color="text-amber-600"
-              bg="bg-amber-50"
-              ring="ring-amber-500/10"
-              isPending={isStatsPending}
-            />
-            <StatCard 
-              title="Maintenance" 
-              value={statsData.total_maintenance} 
-              icon={Wrench}
-              color="text-rose-600"
-              bg="bg-rose-50"
-              ring="ring-rose-500/10"
-              isPending={isStatsPending}
-            />
-            <StatCard 
-              title="Occupancy Rate" 
-              value={`${statsData.occupancy_rate.toFixed(2)}%`} 
-              icon={TrendingUp}
-              color="text-purple-600"
-              bg="bg-purple-50"
-              ring="ring-purple-500/10"
-              isPending={isStatsPending}
-            />
-          </div>
-        )}
+        <BusinessStatsGrid stats={statsData} isPending={isStatsPending} />
 
         {rawProperties.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 bg-white border-2 border-dashed border-slate-200 rounded-2xl">

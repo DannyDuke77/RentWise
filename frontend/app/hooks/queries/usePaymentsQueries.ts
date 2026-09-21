@@ -19,11 +19,7 @@ export function usePayments(
     queryKey: queryKeys.payments(activeBusinessId, page, pageSize, search, paymentMethod, filterDate, filterType),
     queryFn: async () => {
       const data: PaginatedPayments = await apiService.get(
-        `/api/payments/?page=${page}&page_size=${pageSize}&search=${search}&payment_method=${paymentMethod}&filter_date=${filterDate}&filter_type=${filterType}`,
-        {
-          businessId: activeBusinessId,
-        }
-      );
+        `/api/payments/?page=${page}&page_size=${pageSize}&search=${search}&payment_method=${paymentMethod}&filter_date=${filterDate}&filter_type=${filterType}`);
 
       return data;
     },
@@ -38,11 +34,7 @@ export function usePaymentAnalytics(enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.paymentAnalytics(),
     queryFn: async () => {
-      const data: PaymentAnalytics = await apiService.get(`/api/payments/analytics/`, 
-        {
-          businessId: activeBusinessId,
-        }
-      );
+      const data: PaymentAnalytics = await apiService.get(`/api/payments/analytics/`);
 
       return data;
     },
@@ -61,11 +53,7 @@ export function usePropertyPaymentAnalytics(
   return useQuery({
     queryKey: queryKeys.propertyPaymentAnalytics(propertyId),
     queryFn: async () => {
-      const data: PaymentAnalytics = await apiService.get(`/api/payments/property/${propertyId}/analytics/`,
-        {
-          businessId: activeBusinessId,
-        }
-      );
+      const data: PaymentAnalytics = await apiService.get(`/api/payments/property/${propertyId}/analytics/`);
       return data;
     },
     staleTime: 10 * 60 * 1000,

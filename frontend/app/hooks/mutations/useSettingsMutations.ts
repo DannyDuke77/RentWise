@@ -19,7 +19,7 @@ export function useCreateChargeType() {
     const { activeBusinessId } = useBusiness();
 
     return useMutation({
-        mutationFn: (payload: FormData | Record<string, any>) => apiService.post('/api/charge-types/', payload, {businessId: activeBusinessId}),
+        mutationFn: (payload: FormData | Record<string, any>) => apiService.post('/api/charge-types/', payload),
         onSuccess: () => {
             queryClient.invalidateQueries({
                 queryKey: ['charge-types', activeBusinessId],
@@ -35,7 +35,7 @@ export function useUpdateChargeType() {
     const { activeBusinessId } = useBusiness();
 
     return useMutation({
-        mutationFn: (payload: any) => apiService.patch(`/api/charge-types/${payload.id}/`, payload, {businessId: activeBusinessId}),
+        mutationFn: (payload: any) => apiService.patch(`/api/charge-types/${payload.id}/`, payload),
         onSuccess: () => {
             queryClient.invalidateQueries({ 
                 queryKey: ['charge-types', activeBusinessId],

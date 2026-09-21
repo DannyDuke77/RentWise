@@ -6,39 +6,56 @@ from rest_framework.exceptions import AuthenticationFailed
 
 from .models import Business, User, BusinessMembership, BusinessInvitation
 from .validators import normalize_kenyan_phone
-from .services import register_business_owner
-
-from properties.models import Tenant
+from .services import create_user, get_user_portal_access
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-
-        token['name'] = user.name
-        token['email'] = user.email
+        token["name"] = user.name
+        token["email"] = user.email
         token["sub"] = str(user.id)
-
         return token
-    
+
     def validate(self, attrs):
-        try:
-            data = super().validate(attrs)
+        portal = self.initial_data.get("portal_type")
 
-            user = self.user
+        if portal not in {"tenant", "landlord", "admin"}:
+            raise AuthenticationFailed("Invalid portal.")
 
-            data["portal_access"] = {
-                "tenant": Tenant.objects.filter(user=user).exists(),
-                "landlord": BusinessMembership.objects.filter(user=user).exists(),
-                "admin": user.is_staff or user.is_superuser
-            }
+        data = super().validate(attrs)
 
-            return data
+        user = self.user
+        portal_access = get_user_portal_access(user)
 
-        except AuthenticationFailed:
+        if portal == "tenant" and not portal_access["tenant"]:
             raise AuthenticationFailed(
-                "Invalid credentials, please try again."
+                "This account does not have access to the tenant portal."
             )
+
+        if portal == "admin" and not portal_access["admin"]:
+            raise AuthenticationFailed(
+                "This account does not have access to the admin portal."
+            )
+
+        if portal == "landlord":
+            has_landlord_access = portal_access["landlord"]
+            has_other_access = (
+                portal_access["tenant"]
+                or portal_access["admin"]
+            )
+
+            if not has_landlord_access and has_other_access:
+                raise AuthenticationFailed(
+                    "This account does not have access to the landlord portal."
+                )
+
+            # No portal access at all is allowed here.
+            # The user will be sent to business onboarding.
+
+        data["portal_access"] = portal_access
+
+        return data
 
 class CustomRegisterSerializer(RegisterSerializer):
     username = None
@@ -48,8 +65,6 @@ class CustomRegisterSerializer(RegisterSerializer):
     phone_number = serializers.CharField(required=False, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True)
     avatar = serializers.ImageField(required=False, allow_null=True)
-
-    company_name = serializers.CharField(required=True)
 
     def validate_avatar(self, value):
         # Max file size: 2MB
@@ -81,7 +96,6 @@ class CustomRegisterSerializer(RegisterSerializer):
         data['phone_number'] = self.validated_data.get('phone_number', '')
         data['address'] = self.validated_data.get('address', '')
         data['avatar'] = self.validated_data.get('avatar', None)
-        data['company_name'] = self.validated_data.get('company_name', '')
         return data
     
     def validate(self, attrs):
@@ -92,17 +106,14 @@ class CustomRegisterSerializer(RegisterSerializer):
         return super().validate(attrs)
 
     def save(self, request):
-        user, business = register_business_owner(
+        return create_user(
             name=self.validated_data["name"],
             email=self.validated_data["email"],
             password=self.validated_data["password1"],
-            company_name=self.validated_data["company_name"],
             phone_number=self.validated_data.get("phone_number"),
             address=self.validated_data.get("address"),
             avatar=self.validated_data.get("avatar"),
         )
-
-        return user
     
 class UserDetailSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField(read_only=True)

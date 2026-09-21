@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { usePathname } from "next/navigation";
+import { setApiBusinessId } from "@/app/services/apiService";
 import { useBusinesses } from "@/app/hooks/queries/useBusinessQueries";
 
 interface BusinessContextType {
@@ -17,48 +18,63 @@ const BusinessContext = createContext<BusinessContextType | undefined>(
     undefined
 );
 
-export function BusinessProvider({ children, }: { children: React.ReactNode; }) {
+export function BusinessProvider({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [isLandlordPortal, setIsLandlordPortal] = useState(false);
 
     useEffect(() => {
         setIsLandlordPortal(
             window.location.hostname ===
-            process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST
+                process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST
         );
     }, []);
 
     const isAuthRoute = pathname.startsWith("/auth");
-
     const shouldFetchBusinesses = isLandlordPortal && !isAuthRoute;
 
     const { data, isLoading } = useBusinesses(shouldFetchBusinesses);
+
+    // Stable reference — new array identity only when `data` changes
+    const businesses = useMemo(() => {
+        if (Array.isArray(data)) return data;
+        return data?.results ?? [];
+    }, [data]);
+
     const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
 
-    const businesses = Array.isArray(data) ? data : data?.results ?? [];
+    const activeBusiness = businesses.find((b: any) => b.id === activeBusinessId) ?? null;
 
-    const activeBusiness =
-        businesses.find(
-            (business: any) => business.id === activeBusinessId
-        ) ?? null;
+    useEffect(() => {
+        setApiBusinessId(activeBusinessId);
+    }, [activeBusinessId]);
 
     const activeBusinessRole = activeBusiness?.membership_role ?? null;
 
+    // Reconciliation effect — no `activeBusinessId` in deps
     useEffect(() => {
         if (!businesses.length) return;
 
-        const savedBusinessId = localStorage.getItem("activeBusinessId");
+        setActiveBusinessId((current) => {
+            // Keep the current selection if it still exists
+            if (current && businesses.some((b: any) => b.id === current)) {
+                return current;
+            }
 
-        if (savedBusinessId && businesses.some((business: any) => business.id === savedBusinessId)) {
-            setActiveBusinessId(savedBusinessId);
-            return;
-        }
+            // Try the saved ID
+            const savedBusinessId = localStorage.getItem("activeBusinessId");
+            if (
+                savedBusinessId &&
+                businesses.some((b: any) => b.id === savedBusinessId)
+            ) {
+                return savedBusinessId;
+            }
 
-        if (businesses.length === 1) {
-            setActiveBusinessId(businesses[0].id);
-        }
+            // Fall back to the first
+            return businesses[0].id;
+        });
     }, [businesses]);
 
+    // Persist selection
     useEffect(() => {
         if (activeBusinessId) {
             localStorage.setItem("activeBusinessId", activeBusinessId);

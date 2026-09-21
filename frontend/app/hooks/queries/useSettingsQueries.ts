@@ -15,11 +15,7 @@ export function useChargeTypes(
     return useQuery({
         queryKey: queryKeys.chargeTypes(activeBusinessId, page, pageSize, search, statusFilter),
         queryFn: async () => {
-            const data = await apiService.get(`/api/charge-types/?page=${page}&page_size=${pageSize}&search=${search}&is_active=${statusFilter}`,
-                {
-                    businessId: activeBusinessId,
-                }
-            );
+            const data = await apiService.get(`/api/charge-types/?page=${page}&page_size=${pageSize}&search=${search}&is_active=${statusFilter}`);
             return data;
         },
         enabled: enabled && !!activeBusinessId,
