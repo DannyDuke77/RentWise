@@ -11,6 +11,7 @@ export function useAddTenant() {
         mutationFn: ({ unitId, payload, propertyId }: { unitId: string; payload: any; propertyId: string; }) => apiService.post(`/api/tenants/unit/${unitId}/`, payload),
 
         onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.unit(variables.unitId) });
             queryClient.invalidateQueries({ queryKey: queryKeys.unitTenants(variables.unitId) });
             queryClient.invalidateQueries({ 
                 queryKey: ['property-units', activeBusinessId],
@@ -28,6 +29,29 @@ export function useAddTenant() {
     });
 }
 
+export function useUpdateTenancyBillingStart() {
+    const queryClient = useQueryClient();
+    const { activeBusinessId } = useBusiness();
+
+    return useMutation({
+        mutationFn: ({ unitId, propertyId, billingStartDate }: { unitId: string; propertyId: string; billingStartDate: string;/* YYYY-MM-DD */ }) =>
+            apiService.patch(`/api/tenants/unit/${unitId}/`, { billing_start_date: billingStartDate }),
+
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.unit(variables.unitId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.unitTenants(variables.unitId) });
+            queryClient.invalidateQueries({
+                queryKey: ['property-units', activeBusinessId],
+                exact: false,
+            });
+            queryClient.invalidateQueries({
+                queryKey: ['properties', activeBusinessId],
+                exact: false,
+            });
+        },
+    });
+}
+
 interface UpdateTenantPayload {
     full_name?: string;
     phone?: string;
@@ -40,11 +64,15 @@ export const useUpdateTenant = () => {
     const {activeBusinessId} = useBusiness();
 
     return useMutation({
-        mutationFn: async ({ tenantId, payload, }: { tenantId: string; payload: UpdateTenantPayload; }) => {
+        mutationFn: async ({ tenantId, unitId, payload, }: { tenantId: string; unitId: string; payload: UpdateTenantPayload; }) => {
             apiService.patch(`/api/tenants/${tenantId}/`, payload);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["tenants"] });
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ 
+                queryKey: ['tenants', activeBusinessId],
+                exact: false
+            });
+            queryClient.invalidateQueries({ queryKey: queryKeys.unitTenants(variables.unitId) });
         },
     });
 };
@@ -57,6 +85,7 @@ export function useRemoveRoommate() {
         mutationFn: ({ unitId, tenantId, propertyId }: { unitId: string; tenantId: string; propertyId: string; }) =>
             apiService.post(`/api/tenants/unit/${unitId}/remove-roommate/${tenantId}/`, {}),
         onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.unit(variables.unitId) });
             queryClient.invalidateQueries({ queryKey: queryKeys.unitTenants(variables.unitId) });
             queryClient.invalidateQueries({ 
                 queryKey: ['property-units', activeBusinessId],

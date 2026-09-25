@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from django.core.exceptions import ImproperlyConfigured
-
+from celery.schedules import crontab
 import sys
 # print("Starting", sys.executable)
 from corsheaders.defaults import default_headers
@@ -98,6 +98,7 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
 # Portal configuration
+PUBLIC_PORTAL_URL = os.environ.get("PUBLIC_PORTAL_URL")
 TENANT_PORTAL_URL = os.environ.get("TENANT_PORTAL_URL")
 LANDLORD_PORTAL_URL = os.environ.get("LANDLORD_PORTAL_URL")
 ADMIN_PORTAL_URL = os.environ.get("ADMIN_PORTAL_URL")
@@ -168,7 +169,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'rentwise.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
@@ -227,3 +227,16 @@ STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Celery
+CELERY_BROKER_URL = "redis://redis:6379/0"
+CELERY_RESULT_BACKEND = "redis://redis:6379/0"
+
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+CELERY_BEAT_SCHEDULE = {
+    "generate-rent-charges-daily": {
+        "task": "properties.tasks.generate_rent_charges_task",
+        "schedule": crontab(hour=0, minute=5),
+    },
+}

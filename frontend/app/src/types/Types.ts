@@ -18,6 +18,29 @@ export interface Unit {
     };
 };
 
+export type TenantTenancy = {
+  id: string;
+  unit: string;
+  property: string;
+  monthly_rent: string;
+  balance: string;
+  deposit_held: string;
+  start_date: string;
+  billing_start_date: string | null;
+  created_at: string;
+  mpesa_available: boolean;
+  mpesa_status: "active" | "disabled" | "not_configured";
+};
+
+export type TenantProfile = {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string;
+  tenancies: TenantTenancy[];
+  pending_charges: Charge[];
+};
+
 export interface Property {
   id: string;
   name: string;
@@ -49,6 +72,15 @@ export interface Payment {
     id: string;
     name: string;
   }
+  business: {
+    id: string;
+    company_name: string;
+    email: string;
+    phone: string;
+    address: string;
+    logo: string | null;
+    currency: string;
+  };
   amount_paid: string;
   payment_method: "mpesa" | "cash" | "bank";
   type: "payment" | "refund";

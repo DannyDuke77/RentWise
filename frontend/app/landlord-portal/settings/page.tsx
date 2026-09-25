@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Building2, HandCoins, UserCircle2, Users, Smartphone, Settings, SettingsIcon } from "lucide-react";
 import BusinessDetails from "./tabs/BusinessDetails";

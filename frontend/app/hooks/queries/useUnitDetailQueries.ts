@@ -2,17 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import apiService from '@/app/services/apiService';
 import { queryKeys } from '../queryKeys';
 
-export function useUnitDetails(unitId?: string | null) {
-    return useQuery({
-        queryKey: queryKeys.unitDetails(unitId),
-        queryFn: async () => {
-            const data = await apiService.get(`/api/units/${unitId}/`);
-            return data;
-        },
-        enabled: !!unitId,
-    });
-}
-
 export function useUnitTenants(unitId?: string | null) {
     return useQuery({
         queryKey: queryKeys.unitTenants(unitId),
@@ -20,7 +9,8 @@ export function useUnitTenants(unitId?: string | null) {
             const res = await apiService.get(`/api/tenants/unit/${unitId}/`);
             const tenants = res?.tenants || (Array.isArray(res) ? res : []);
             const tenancyId: string | null = res?.tenancy_id ?? null;
-            return { tenants, tenancyId };
+            const tenancyBillingStart: string | null = res?.tenancy_billing_start_date ?? null;
+            return { tenants, tenancyId, tenancyBillingStart };
         },
         enabled: !!unitId,
     });
@@ -38,15 +28,28 @@ export function useUnitPayments(
     return useQuery({
         queryKey: queryKeys.unitPayments(unitId, page, pageSize, search, filterMethod, filterDate),
         queryFn: async () => {
-            const res = await apiService.get(`/api/units/${unitId}/payments/?page=${page}&page_size=${pageSize}&search=${search}&payment_method=${filterMethod}&filter_date=${filterDate}`);
-            const data = res?.results || [];
+            const params = new URLSearchParams({
+                page: String(page),
+                page_size: String(pageSize),
+            });
+
+            if (search) params.append("search", search);
+            if (filterMethod) params.append("payment_method", filterMethod);
+            if (filterDate) params.append("filter_date", filterDate);
+
+            const res = await apiService.get(`/api/units/${unitId}/payments/?${params.toString()}`);
+
             return {
-                count: res.count || 0,
-                payments: data.payments || [],
-                balance: Number(data.balance || 0),
-                depositHeld: Number(data.deposit_held || 0),
-                charges: data.charges || [],
-                monthlyRent: Number(data.monthly_rent || 0),
+                count: res?.count || 0,
+                next: res?.next || null,
+                previous: res?.previous || null,
+                payments: res?.payments || [],
+                balance: Number(res?.balance || 0),
+                depositHeld: Number(res?.deposit_held || 0),
+                charges: Number(res?.charges || 0),
+                chargeDetails: res?.charge_details || [],
+                monthlyRent: Number(res?.monthly_rent || 0),
+                status: res?.status || "settled",
             };
         },
         enabled: enabled && !!unitId,

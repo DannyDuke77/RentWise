@@ -5,9 +5,10 @@ from django.db.models import Q, Sum, Count
 from django.db.models.functions import TruncMonth
 
 from ..models import UnitPayment, Tenancy
+from ..services.balance import recompute_tenancy_balance
 
 @transaction.atomic
-def process_payment(tenancy, validated_data, source="manual"):
+def process_payment(tenancy, validated_data, source="manual", mpesa_transaction=None):
     if not tenancy:
         raise ValidationError("No active tenancy found.")
     tenancy = Tenancy.objects.select_for_update().get(pk=tenancy.pk)
@@ -42,13 +43,13 @@ def process_payment(tenancy, validated_data, source="manual"):
         type=payment_type,
         category=category,
         source=source,
+        mpesa_transaction=mpesa_transaction,
         notes=validated_data.get("notes", ""),
     )
 
-    tenancy.balance = tenancy.calculate_balance()
-    tenancy.save(update_fields=["balance"])
+    new_balance = recompute_tenancy_balance(tenancy)
 
-    return payment, tenancy.balance
+    return payment, new_balance
 
 def get_payment_analytics(user, property_id=None):
     payments = UnitPayment.objects.filter(tenancy__unit__property__business__memberships__user=user)

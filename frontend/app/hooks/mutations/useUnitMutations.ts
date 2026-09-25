@@ -10,6 +10,7 @@ export function useCreateUnit() {
     return useMutation({
         mutationFn: ({ payload }: { propertyId: string; payload: Record<string, any> }) => apiService.post('/api/units/', payload),
         onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.property(activeBusinessId, variables.propertyId) });
             queryClient.invalidateQueries({ queryKey: queryKeys.units() });
             queryClient.invalidateQueries({ 
                 queryKey: ['property-units', activeBusinessId],
@@ -24,9 +25,10 @@ export function useUpdateUnit() {
     const { activeBusinessId } = useBusiness();
 
     return useMutation({
-        mutationFn: ({ unitId, payload }: { unitId: string; propertyId: string; payload: Record<string, any> }) => apiService.patch(`/api/units/${unitId}/`, payload),        
+        mutationFn: ({ unitId, propertyId, payload }: { unitId: string; propertyId: string; payload: Record<string, any> }) => apiService.patch(`/api/units/${unitId}/`, payload),        
         onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.unitDetails(variables.unitId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.property(activeBusinessId, variables.propertyId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.unit(variables.unitId) });
             queryClient.invalidateQueries({ 
                 queryKey: ['property-units', activeBusinessId],
                 exact: false 

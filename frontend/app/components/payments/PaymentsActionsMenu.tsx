@@ -7,7 +7,6 @@ import { Payment } from "@/app/src/types/Types";
 interface PaymentActionsMenuProps {
     payment: Payment;
     onGenerateReceipt: (payment: Payment) => void;
-    onView: (payment: Payment) => void;
     onEdit: (payment: Payment) => void;
     onDelete: (payment: Payment) => void;
     showView?: boolean;
@@ -18,7 +17,6 @@ interface PaymentActionsMenuProps {
 const PaymentActionsMenu = ({
     payment,
     onGenerateReceipt,
-    onView,
     onEdit,
     onDelete,
     showView = true,
@@ -53,20 +51,6 @@ const PaymentActionsMenu = ({
                     </button>
                     )}
                 </MenuItem>
-
-                {showView && (
-                    <MenuItem>
-                    {({ active }) => (
-                        <button
-                        onClick={() => onView(payment)}
-                        className={`${active ? "bg-gray-50" : ""} flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700`}
-                        >
-                        <Eye className="w-4 h-4" />
-                        View Details
-                        </button>
-                    )}
-                    </MenuItem>
-                )}
 
                 {showEdit && !isStk && (
                     <MenuItem>

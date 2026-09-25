@@ -10,9 +10,10 @@ export function useUnit(unitId: string) {
     return useQuery({
         queryKey: queryKeys.unit(unitId),
         queryFn: async () => {
-        const data = await apiService.get(`/api/units/${unitId}/`);
-        return data;
+            const data = await apiService.get(`/api/units/${unitId}/`);
+            return data;
         },
+        enabled: !!unitId && !!activeBusinessId,
     });
 }
 
@@ -23,6 +24,7 @@ export function useUnits(
     search: string = "",
     status: string = "",
     propertyId: string = "",
+    rentStatus: string = ""
 ) {
     const { activeBusinessId } = useBusiness();
 
@@ -33,9 +35,10 @@ export function useUnits(
     if (search) params.set("search", search);
     if (status) params.set("status", status);
     if (propertyId) params.set("property", propertyId);
+    if (rentStatus) params.set("rent_status", rentStatus);
 
     return useQuery({
-        queryKey: ["units", activeBusinessId, page, pageSize, search, status, propertyId],
+        queryKey: ["units", activeBusinessId, page, pageSize, search, status, propertyId, rentStatus],
         queryFn: async () => apiService.get(`/api/units/?${params.toString()}`),
         enabled: !!activeBusinessId,
         placeholderData: keepPreviousData,

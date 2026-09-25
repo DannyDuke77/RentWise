@@ -1,17 +1,14 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import UnitRow from "./UnitRow";
-import { 
-    Building, Search, X, RefreshCcw, Grid3X3, LayoutList,
-} from "lucide-react";
+import { Building, Search, X, Grid3X3, LayoutList } from "lucide-react";
 import { Property, Unit } from "@/app/src/types/Types";
 import Pagination from "../ui/Pagination";
 import { usePropertyUnits } from "@/app/hooks/queries/usePropertyQueries";
-import LoadingSpinner from "../ui/LoadingSpinner";
 import AddUnitButton from "../navigation/AddUnitButton";
 import { useDebounce } from "@/app/hooks/useDebounce";
-import { SearchInput } from '@/app/components/ui/SearchInput';
+import { SearchInput } from "@/app/components/ui/SearchInput";
 import RefreshButton from "../ui/RefreshButton";
 import UnitsSectionSkeleton from "../skeletons/UnitsRowsSkeleton";
 
@@ -25,7 +22,7 @@ const UnitsSection = ({ property }: Props) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [rentStatusFilter, setRentStatusFilter] = useState("");
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const debouncedSearch = useDebounce(searchTerm, 500);
   const effectiveSearch = debouncedSearch.trim();
@@ -33,16 +30,13 @@ const UnitsSection = ({ property }: Props) => {
   const hasUnits = property?.units_count > 0;
 
   const { data, isPending, refetch, isFetching } = usePropertyUnits(
-    property.id, 
-    page, 
-    pageSize, 
+    property.id,
+    page,
+    pageSize,
     effectiveSearch,
     statusFilter,
     rentStatusFilter,
   );
-
-  console.log("isFetching", isFetching);
-  console.log("isPending", isPending);
 
   const rawUnits: Unit[] = data?.results ?? [];
   const totalCount = data?.count ?? 0;
@@ -53,7 +47,6 @@ const UnitsSection = ({ property }: Props) => {
     setRentStatusFilter("");
     setPage(1);
   };
-
 
   const hasActiveFilters = searchTerm || statusFilter || rentStatusFilter;
 
@@ -66,22 +59,19 @@ const UnitsSection = ({ property }: Props) => {
       {/* Header */}
       <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-white">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-600/30">
-                <Building className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Units</h2>
-                <p className="text-sm text-gray-500">
-                  {property.units_count} {property.units_count === 1 ? 'unit' : 'units'} in {property.name}
-                </p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-600/30">
+              <Building className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Units</h2>
+              <p className="text-sm text-gray-500">
+                {property.units_count} {property.units_count === 1 ? "unit" : "units"} in {property.name}
+              </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Status Badges */}
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium border border-emerald-200">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
@@ -107,17 +97,17 @@ const UnitsSection = ({ property }: Props) => {
         {/* Filters Bar */}
         <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-100">
           <div className="flex-1 min-w-[200px]">
-            <SearchInput 
-              onSearchChange={setSearchTerm} 
+            <SearchInput
+              onSearchChange={setSearchTerm}
               placeholder="Search by unit name or tenant..."
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <select 
+            <select
               className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all min-w-[130px]"
-              value={statusFilter} 
-              onChange={e => setStatusFilter(e.target.value)}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="">All Status</option>
               <option value="occupied">Occupied</option>
@@ -125,10 +115,10 @@ const UnitsSection = ({ property }: Props) => {
               <option value="maintenance">Maintenance</option>
             </select>
 
-            <select 
+            <select
               className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all min-w-[130px]"
-              value={rentStatusFilter} 
-              onChange={e => setRentStatusFilter(e.target.value)}
+              value={rentStatusFilter}
+              onChange={(e) => setRentStatusFilter(e.target.value)}
             >
               <option value="">All Rent Status</option>
               <option value="paid">Paid</option>
@@ -162,8 +152,7 @@ const UnitsSection = ({ property }: Props) => {
           <p className="text-gray-500 max-w-sm mx-auto text-sm">
             {hasActiveFilters
               ? "Try adjusting your search or filters to find what you're looking for."
-              : `Start by adding your first unit to ${property.name}.`
-            }
+              : `Start by adding your first unit to ${property.name}.`}
           </p>
           {hasActiveFilters && (
             <button
@@ -180,7 +169,8 @@ const UnitsSection = ({ property }: Props) => {
           <div className="px-6 py-3 bg-gray-50/50 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-4 text-sm">
               <span className="text-gray-600">
-                Showing <strong className="text-gray-900">{rawUnits.length}</strong> of <strong className="text-gray-900">{totalCount}</strong> units
+                Showing <strong className="text-gray-900">{rawUnits.length}</strong> of{" "}
+                <strong className="text-gray-900">{totalCount}</strong> units
               </span>
               {searchTerm && (
                 <span className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-200">
@@ -199,26 +189,26 @@ const UnitsSection = ({ property }: Props) => {
                 </span>
               )}
             </div>
-            
-            <div className="flex items-center gap-2 hidden lg:flex">
+
+            <div className="hidden lg:flex items-center gap-2">
               <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
                 <button
-                  onClick={() => setViewMode('grid')}
+                  onClick={() => setViewMode("grid")}
                   className={`p-1.5 rounded-md transition-colors ${
-                    viewMode === 'grid' 
-                      ? 'bg-white shadow-sm text-blue-600' 
-                      : 'text-gray-400 hover:text-gray-600'
+                    viewMode === "grid"
+                      ? "bg-white shadow-sm text-blue-600"
+                      : "text-gray-400 hover:text-gray-600"
                   }`}
                   title="Grid view"
                 >
                   <Grid3X3 className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => setViewMode('list')}
+                  onClick={() => setViewMode("list")}
                   className={`p-1.5 rounded-md transition-colors ${
-                    viewMode === 'list' 
-                      ? 'bg-white shadow-sm text-blue-600' 
-                      : 'text-gray-400 hover:text-gray-600'
+                    viewMode === "list"
+                      ? "bg-white shadow-sm text-blue-600"
+                      : "text-gray-400 hover:text-gray-600"
                   }`}
                   title="List view"
                 >
@@ -228,20 +218,20 @@ const UnitsSection = ({ property }: Props) => {
             </div>
           </div>
 
-          {/* Units Grid/List */}
-          <div className={`p-4 ${
-            viewMode === 'grid' 
-              ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' 
-              : 'space-y-2'
-          }`}>
-            {rawUnits.map((unit) => (
-              <UnitRow
-                key={unit.id}
-                property={property}
-                unit={unit}
-              />
-            ))}
-          </div>
+          {/* Units Grid */}
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4">
+              {rawUnits.map((unit) => (
+                <UnitRow key={unit.id} property={property} unit={unit} variant="grid" />
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {rawUnits.map((unit) => (
+                <UnitRow key={unit.id} property={property} unit={unit} variant="list" />
+              ))}
+            </div>
+          )}
 
           {/* Pagination */}
           <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">

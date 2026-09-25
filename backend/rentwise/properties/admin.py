@@ -104,9 +104,8 @@ class ChargeAdmin(admin.ModelAdmin):
     search_fields = (
         "tenancy__unit__name",
         "tenancy__unit__property__name",
-        "tenancy__unit__property__owner__business_profile__company_name",
+        "tenancy__unit__property__business__company_name",
         "charge_type__name",
-        "tenancy__unit__property__owner__name",
     )
     list_display = (
         "tenancy",
@@ -121,7 +120,7 @@ class ChargeAdmin(admin.ModelAdmin):
 admin.site.register(ChargeType)
 @admin.register(UnitPayment)
 class UnitPaymentAdmin(admin.ModelAdmin):
-    search_fields = ("tenancy__unit__name", "tenancy__unit__property__name", "tenancy__unit__property__owner__name", "tenancy__unit__property__owner__email")
+    search_fields = ("tenancy__unit__name", "tenancy__unit__property__name", "tenancy__unit__property__business__company_name")
     list_display = (
         "tenancy__unit__property__name",
         "tenancy__unit__name",

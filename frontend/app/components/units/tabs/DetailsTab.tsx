@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import {
     UserPlus, Shield, ChevronRight, Clock, UserRoundX,
-    AlertTriangle,
+    AlertTriangle, Pencil, Check, X as XIcon
 } from "lucide-react";
 import { Property } from "@/app/src/types/Types";
 import TenantCard from "../TenantCard";
@@ -13,7 +13,7 @@ import { DetailsTabSkeleton } from "../../skeletons/UnitDetailsTabSkeleton";
 import { useUnitTenants } from "@/app/hooks/queries/useUnitDetailQueries";
 import { useToast } from "@/app/providers/ToastProvider";
 import ConfirmModal from "../../modals/ConfirmModal";
-import { useRemoveRoommate, useVacateUnit } from "@/app/hooks/mutations/useTenantMutations";
+import { useUpdateTenancyBillingStart, useRemoveRoommate, useVacateUnit } from "@/app/hooks/mutations/useTenantMutations";
 
 interface DetailsTabProps {
     property: Property | null;
@@ -25,10 +25,16 @@ const DetailsTab = ({ unit, property }: DetailsTabProps) => {
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalTenant, setModalTenant] = useState<any | null>(null);
+    const [errors, setErrors] = useState<Record<string, string[]>>({});
 
     const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
     const [isRemoveRoommateModalOpen, setIsRemoveRoommateModalOpen] = useState(false);
     const [isVacateModalOpen, setIsVacateModalOpen] = useState(false);
+
+    const [isEditingBilling, setIsEditingBilling] = useState(false);
+    const [billingDraft, setBillingDraft] = useState<string>("");
+    const [isBillingConfirmOpen, setIsBillingConfirmOpen] = useState(false);
+    const updateBillingStart = useUpdateTenancyBillingStart();
 
     const {
         data: tenantData,
@@ -37,6 +43,7 @@ const DetailsTab = ({ unit, property }: DetailsTabProps) => {
         refetch: refetchTenants,
     } = useUnitTenants(unitId);
 
+    const BillingstartDate = tenantData?.tenancyBillingStart ?? null;
     const tenants = tenantData?.tenants ?? [];
 
     const removeRoommate = useRemoveRoommate();
@@ -75,6 +82,55 @@ const DetailsTab = ({ unit, property }: DetailsTabProps) => {
             setIsVacateModalOpen(false);
         } catch (error) {
             console.error('Failed to vacate unit:', error);
+        }
+    };
+
+    const toInputDate = (value: string | null | undefined) => {
+        if (!value) return "";
+        return String(value).slice(0, 10); // Slice first 10 characters if ISO string
+    };
+
+    const openBillingEdit = () => {
+        setBillingDraft(toInputDate(BillingstartDate));
+        setIsEditingBilling(true);
+    };
+
+    const cancelBillingEdit = () => {
+        setIsEditingBilling(false);
+        setBillingDraft("");
+    };
+
+    const confirmBillingSave = async () => {
+        if (!unitId || !property || !billingDraft) return;
+
+        if (billingDraft === toInputDate(BillingstartDate)) {
+            setIsBillingConfirmOpen(false);
+            setIsEditingBilling(false);
+            showToast("No Changes", "No changes were made to the billing start date.", "warning");
+            return;
+        }
+        
+        try {
+            const res = await updateBillingStart.mutateAsync({
+                unitId,
+                propertyId: property.id,
+                billingStartDate: billingDraft,
+            });
+            console.log(res)
+            if (res.success) {
+                showToast(
+                    "Billing start updated",
+                    "The billing start date has been saved.",
+                    "success",
+                );
+                setIsBillingConfirmOpen(false);
+                setIsEditingBilling(false);
+            } else {
+                setErrors({ general: [res.detail || "Failed to update billing start"] });
+                showToast("Error","Failed to update billing start", "error");
+            }
+        } catch (error) {
+            console.error("Failed to update billing start:", error);
         }
     };
 
@@ -120,6 +176,49 @@ const DetailsTab = ({ unit, property }: DetailsTabProps) => {
                                 {tenantList.length}{' '}
                                 {tenantList.length === 1 ? 'Occupant' : 'Occupants'}
                             </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {isEditingBilling ? (
+                                <>
+                                    <input
+                                        type="date"
+                                        value={billingDraft}
+                                        onChange={(e) => setBillingDraft(e.target.value)}
+                                        className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                    <button
+                                        onClick={() => setIsBillingConfirmOpen(true)}
+                                        disabled={!billingDraft || updateBillingStart.isPending}
+                                        title="Save billing start date"
+                                        className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={cancelBillingEdit}
+                                        title="Cancel"
+                                        className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
+                                    >
+                                        <XIcon className="w-4 h-4" />
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-xs text-slate-500">
+                                        {BillingstartDate
+                                            ? `Billing starts ${new Date(BillingstartDate).toDateString()}`
+                                            : "Billing start not set"}
+                                    </span>
+                                    <button
+                                        onClick={openBillingEdit}
+                                        title="Edit billing start date"
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                                    >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                </>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -202,6 +301,36 @@ const DetailsTab = ({ unit, property }: DetailsTabProps) => {
                 setIsRemoveRoommateModalOpen(false);
                 setSelectedTenantId(null);
             }}
+            />
+
+            <ConfirmModal
+                isOpen={isBillingConfirmOpen}
+                icon={
+                    errors.general ? (
+                        <AlertTriangle size={24} className="text-red-500" />
+                    ) : (
+                        <AlertTriangle size={24} className="text-amber-500" />
+                    )
+                }
+                title={
+                    errors.general
+                        ? "Billing Start Date Cannot Be Changed"
+                        : "Update Billing Start Date?"
+                }
+                message={
+                    errors.general
+                        ? errors.general
+                        : "Rent charges will be recalculated from the new billing start date."
+                }
+                message2={
+                    errors.general
+                        ? "Please contact support to correct this tenancy's billing history."
+                        : "Existing rent charges before the new date will be voided, and any payments against them will become tenant credit."
+                }
+                confirmText={errors.general ? "Close" : "Save Date"}
+                isLoading={!errors.general && updateBillingStart.isPending}
+                onConfirm={errors.general ? () => setIsBillingConfirmOpen(false) : confirmBillingSave}
+                onClose={() => setIsBillingConfirmOpen(false)}
             />
         </div>
     );

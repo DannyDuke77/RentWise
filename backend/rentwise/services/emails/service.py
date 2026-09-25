@@ -7,9 +7,7 @@ from .templates import EmailTemplate, EmailTemplates
 logger = logging.getLogger(__name__)
 
 
-class EmailService:
-    """Service for sending emails using Resend"""
-    
+class EmailService:    
     @staticmethod
     def send(
         to: str,
@@ -25,7 +23,7 @@ class EmailService:
                 "subject": template.subject,
                 "html": template.html,
             })
-            
+
             logger.info("Email sent successfully to %s - response: %s", to, response)
             return True
             
@@ -35,10 +33,9 @@ class EmailService:
     
     @staticmethod
     def send_tenant_invitation(invitation) -> bool:
-        """Send tenant invitation email"""
         invitation_url = (
-            f"{settings.TENANT_PORTAL_URL}"
-            f"/accept-invitation/{invitation.token}"
+            f"{settings.PUBLIC_PORTAL_URL}"
+            f"/accept-invitation/tenant/{invitation.token}"
         )
         
         template = EmailTemplates.tenant_invitation(
@@ -51,10 +48,9 @@ class EmailService:
 
     @staticmethod
     def send_business_invitation(invitation) -> bool:
-        """Send business invitation email"""
         invitation_url = (
-            f"{settings.LANDLORD_PORTAL_URL}"
-            f"/accept-invitation/{invitation.token}"
+            f"{settings.PUBLIC_PORTAL_URL}"
+            f"/accept-invitation/business/{invitation.token}"
         )
 
         template = EmailTemplates.business_invitation(

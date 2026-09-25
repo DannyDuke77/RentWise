@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
-from rest_framework import status
+from rest_framework import status, generics
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
@@ -11,8 +11,8 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from .models import Business, BusinessMembership, BusinessInvitation
-from .permissions import IsBusinessMember
+from .models import User, Business, BusinessMembership, BusinessInvitation
+from .permissions import HasBusinessContext
 from .serializers import BusinessSerializer, UserSettingsSerializer, BusinessInvitationSerializer, BusinessMembershipSerializer
 from .services import (
     create_business,
@@ -23,7 +23,6 @@ from .services import (
     change_business_member_role,
     remove_business_member,
     get_business_dashboard,
-    get_dashboard_trends
 )
 
 class Pagination(PageNumberPagination):
@@ -57,21 +56,19 @@ class CurrentUserView(APIView):
             "portal_access": get_user_portal_access(request.user),
         })
     
-class UserSettingsView(APIView):
+class UserSettingsView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        """Get current user's settings"""
-        serializer = UserSettingsSerializer(request.user)
-        return Response(serializer.data)
-    
-    def patch(self, request):
-        """Update current user's settings"""
-        serializer = UserSettingsSerializer(request.user, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    serializer_class = UserSettingsSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        return Response(
+            {"success": True, "message": "Settings updated successfully"},
+            status=status.HTTP_200_OK,
+        )
     
 class BusinessViewSet(ModelViewSet):
     serializer_class = BusinessSerializer
@@ -79,8 +76,11 @@ class BusinessViewSet(ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["list", "create"]:
-            return [IsAuthenticated()]
-        return [IsBusinessMember()]
+            permission_classes = [IsAuthenticated]
+        else:
+            permission_classes = [HasBusinessContext]
+
+        return [permission() for permission in permission_classes]
 
     def get_queryset(self):
         return Business.objects.filter(memberships__user=self.request.user).distinct()
@@ -94,7 +94,9 @@ class BusinessViewSet(ModelViewSet):
         serializer.instance = business
 
     def perform_update(self, serializer):
-        business = self.get_object()
+        business_id = self.request.headers.get("X-Business-ID")
+
+        business = get_object_or_404(Business, id=business_id, memberships__user=self.request.user,)
 
         if not BusinessMembership.objects.filter(
             business=business,
@@ -107,15 +109,19 @@ class BusinessViewSet(ModelViewSet):
 
     @action(detail=True, methods=["get"], url_path="dashboard")
     def dashboard(self, request, id=None):
-        business = self.get_object()
+        business_id = request.headers.get("X-Business-ID")
+
+        business = get_object_or_404(Business, id=business_id, memberships__user=request.user)
         return Response(
             get_business_dashboard(business),
             status=status.HTTP_200_OK,
         )
     
-    @action(detail=True, methods=["get", "post"], url_path="invitations")
+    @action(detail=False, methods=["get", "post"], url_path="invitations")
     def invitations(self, request, id=None):
-        business = self.get_object()
+        business_id = request.headers.get("X-Business-ID")
+
+        business = get_object_or_404(Business, id=business_id, memberships__user=request.user)
 
         if request.method == "GET":
             invitations = BusinessInvitation.objects.filter(business=business, accepted_at__isnull=True, cancelled_at__isnull=True).order_by("-created_at")
@@ -160,9 +166,11 @@ class BusinessViewSet(ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    @action(detail=True, methods=["delete"], url_path=r"invitations/(?P<invitation_id>[^/.]+)",)
+    @action(detail=False, methods=["delete"], url_path=r"invitations/(?P<invitation_id>[^/.]+)",)
     def cancel_invitation(self, request, id=None, invitation_id=None):
-        business = self.get_object()
+        business_id = request.headers.get("X-Business-ID")
+
+        business = get_object_or_404(Business, id=business_id, memberships__user=request.user)
 
         if not BusinessMembership.objects.filter(business=business, user=request.user, role="owner").exists():
             raise PermissionDenied(
@@ -189,9 +197,11 @@ class BusinessViewSet(ModelViewSet):
             "message": "Invitation cancelled successfully."
         }, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], url_path=r"invitations/(?P<invitation_id>[^/.]+)/resend")
+    @action(detail=False, methods=["post"], url_path=r"invitations/(?P<invitation_id>[^/.]+)/resend")
     def resend_invitation(self, request, id=None, invitation_id=None):
-        business = self.get_object()
+        business_id = request.headers.get("X-Business-ID")
+
+        business = get_object_or_404(Business, id=business_id, memberships__user=request.user)
 
         if not BusinessMembership.objects.filter(business=business, user=request.user, role="owner",).exists():
             raise PermissionDenied(
@@ -220,9 +230,11 @@ class BusinessViewSet(ModelViewSet):
             }
         )
 
-    @action(detail=True, methods=["get"], url_path="members")
+    @action(detail=False, methods=["get"], url_path="members")
     def members(self, request, id=None):
-        business = self.get_object()
+        business_id = request.headers.get("X-Business-ID")
+
+        business = get_object_or_404(Business, id=business_id, memberships__user=request.user)
 
         memberships = (
             BusinessMembership.objects
@@ -234,17 +246,19 @@ class BusinessViewSet(ModelViewSet):
         paginator = Pagination()
         page = paginator.paginate_queryset(memberships, request, view=self)
         if page is not None:
-            serializer = BusinessMembershipSerializer(page, many=True)
+            serializer = BusinessMembershipSerializer(page, many=True, context={"request": request})
             return paginator.get_paginated_response(serializer.data)
 
 
-        serializer = BusinessMembershipSerializer(memberships, many=True)
+        serializer = BusinessMembershipSerializer(memberships, many=True, context={"request": request})
 
         return Response(serializer.data)
 
-    @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<membership_id>[^/.]+)")
+    @action(detail=False, methods=["patch", "delete"], url_path=r"members/(?P<membership_id>[^/.]+)")
     def manage_member(self, request, id=None, membership_id=None):
-        business = self.get_object()
+        business_id = request.headers.get("X-Business-ID")
+
+        business = get_object_or_404(Business, id=business_id, memberships__user=request.user)
 
         if not BusinessMembership.objects.filter(business=business, user=request.user, role="owner").exists():
             raise PermissionDenied(
@@ -308,8 +322,13 @@ class BusinessInvitationView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        email_has_account = User.objects.filter(
+            email__iexact=invitation.email
+        ).exists()
+
         return Response({
             "valid": True,
+            "account_exists": email_has_account,
             "email": invitation.email,
             "role": invitation.role,
             "business": {

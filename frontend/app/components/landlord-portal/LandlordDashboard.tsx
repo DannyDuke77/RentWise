@@ -53,9 +53,9 @@ const relativeTime = (iso: string) => {
 
 export default function LandlordDashboard() {
   const { activeBusiness } = useBusiness();
-  const { data, isLoading, isError, refetch, isFetching } = useDashboard();
+  const { data, isPending, isError, refetch, isFetching } = useDashboard();
 
-  if (isLoading) return <DashboardSkeleton />;
+  if (isPending) return <DashboardSkeleton />;
   if (isError || !data) return <DashboardError onRetry={refetch} />;
 
   const { kpis } = data;
@@ -262,7 +262,7 @@ function OverdueRentPanel({
       action={{ label: "View all", href: "/units" }}
     >
       {units.length === 0 ? (
-        <EmptyRow icon={UserCheck} message="Everyone's paid up. Nice." />
+        <EmptyRow icon={Wallet} message="No units with overdue rent." />
       ) : (
         <ul className="divide-y divide-slate-100">
           {units.map((row) => (
@@ -426,6 +426,12 @@ function RecentChargesPanel({
                   {c.status}
                 </span>
               </div>
+              <Link
+                href={`/properties/${c.property.id}/units/${c.unit.id}/?tab=charges`}
+                className="w-9 h-9 rounded-lg bg-slate-50 text-slate-600 flex items-center justify-center shrink-0"
+              >
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 shrink-0" />
+              </Link>
             </li>
           ))}
         </ul>
@@ -546,7 +552,7 @@ function Panel({
             className="text-xs font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 shrink-0"
           >
             {action.label}
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ArrowUpRight className="w-3.5 h-3.5" />
           </Link>
         )}
       </div>
@@ -576,7 +582,7 @@ function EmptyRow({
 
 function DashboardSkeleton() {
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-8 max-w-7xl mx-auto animate-pulse">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-8 mx-auto animate-pulse">
       <div className="h-20 bg-slate-100 rounded-2xl" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (

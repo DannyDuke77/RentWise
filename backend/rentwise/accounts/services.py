@@ -1,14 +1,3 @@
-"""
-Business-level services.
-
-Includes:
-  - Business CRUD (create_business)
-  - Membership / invitation flows
-  - Portal access resolution
-  - Landlord dashboard aggregation (single-request snapshot)
-  - Dashboard trends (month-bucketed collections)
-"""
-
 from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
@@ -16,21 +5,19 @@ from decimal import Decimal
 from django.db.models import Sum, Count, Q, F, DecimalField, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from accounts.models import Business, BusinessMembership, BusinessInvitation
 from accounts.validators import normalize_kenyan_phone
 from properties.serializers import PropertyShortSerializer, UnitListSerializer
+from services.emails.service import EmailService
 
 # ═════════════════════════════════════════════════════════════
 # USERS
 # ═════════════════════════════════════════════════════════════
 
 def create_user(*, name, email, password, phone_number=None, address=None, avatar=None):
-    """
-    Create a new user. Kept as a service so the registration serializer
-    doesn't need to know about the user model's creation details.
-    """
     from accounts.models import User
 
     user = User.objects.create_user(
@@ -49,16 +36,12 @@ def create_user(*, name, email, password, phone_number=None, address=None, avata
 
 
 def get_user_portal_access(user):
-    """
-    Return which portals this user can access, based on their memberships
-    and user_type. Used by login serializers and the current-user view.
-    """
     has_landlord_membership = BusinessMembership.objects.filter(
         user=user,
     ).exists()
 
     is_landlord = user.user_type == "landlord" or has_landlord_membership
-    is_tenant = user.user_type == "tenant" or hasattr(user, "tenant_profile")
+    is_tenant = hasattr(user, "tenant_profile")
     is_admin = user.user_type == "admin" or user.is_superuser
 
     return {
@@ -66,11 +49,6 @@ def get_user_portal_access(user):
         "tenant": is_tenant,
         "admin": is_admin,
     }
-
-
-# ═════════════════════════════════════════════════════════════
-# BUSINESS
-# ═════════════════════════════════════════════════════════════
 
 def create_business(*, user, **business_data):
     """
@@ -87,18 +65,7 @@ def create_business(*, user, **business_data):
 
     return business
 
-
-# ═════════════════════════════════════════════════════════════
-# INVITATIONS
-# ═════════════════════════════════════════════════════════════
-
 def create_business_invitation(*, business, email, role="staff"):
-    """
-    Create (or refresh) an invitation for the given email.
-    If an unaccepted, uncancelled invitation already exists, resend it.
-    """
-    from datetime import timedelta
-
     existing = BusinessInvitation.objects.filter(
         business=business,
         email__iexact=email,
@@ -118,75 +85,66 @@ def create_business_invitation(*, business, email, role="staff"):
         expires_at=timezone.now() + timedelta(days=7),
     )
 
-    # TODO: send invitation email
+    transaction.on_commit(
+        lambda: EmailService.send_business_invitation(invitation)
+    )
     return invitation
 
 
 def resend_business_invitation(invitation):
-    """
-    Extend an existing invitation's expiry and resend the email.
-    """
-    from datetime import timedelta
-
     invitation.expires_at = timezone.now() + timedelta(days=7)
     invitation.save(update_fields=["expires_at"])
 
-    # TODO: send invitation email
+    transaction.on_commit(
+        lambda: EmailService.send_business_invitation(invitation)
+    )
     return invitation
 
 
-def accept_business_invitation(*, token, password):
-    """
-    Accept an invitation by token. Creates the user if they don't exist,
-    otherwise links the existing user to the business.
-    Returns (user, business).
-    """
+def accept_business_invitation(*, token, password=None, user=None):
     from accounts.models import User
+    from django.contrib.auth.password_validation import validate_password
 
-    invitation = BusinessInvitation.objects.select_related("business").filter(
-        token=token
-    ).first()
+    invitation = BusinessInvitation.objects.select_related("business").filter(token=token).first()
 
     if not invitation:
         raise ValidationError({"detail": "Invalid invitation token."})
-
     if invitation.is_accepted:
         raise ValidationError({"detail": "This invitation has already been accepted."})
-
     if invitation.is_cancelled:
         raise ValidationError({"detail": "This invitation has been cancelled."})
-
     if invitation.is_expired:
         raise ValidationError({"detail": "This invitation has expired."})
 
-    user = User.objects.filter(email__iexact=invitation.email).first()
+    existing_user = User.objects.filter(email__iexact=invitation.email).first()
 
-    if user is None:
-        # Create the user
+    if existing_user:
+        if user is None or not user.is_authenticated:
+            raise ValidationError({
+                "account": ["An account already exists for this email. Please sign in to accept this invitation."]
+            })
+        if user.pk != existing_user.pk:
+            raise ValidationError({
+                "account": ["Please sign in using the account associated with this invitation."]
+            })
+        final_user = user
+    else:
+        if not password:
+            raise ValidationError({"password": ["Password is required."]})
+        validate_password(password)
         name = invitation.email.split("@")[0]
-        user = User.objects.create_user(
-            name=name,
-            email=invitation.email,
-            password=password,
-            user_type="landlord",
+        final_user = User.objects.create_user(
+            name=name, email=invitation.email, password=password, user_type="landlord",
         )
 
-    # Link the user to the business
     BusinessMembership.objects.get_or_create(
-        business=invitation.business,
-        user=user,
-        defaults={"role": invitation.role},
+        business=invitation.business, user=final_user, defaults={"role": invitation.role},
     )
 
     invitation.accepted_at = timezone.now()
     invitation.save(update_fields=["accepted_at"])
 
-    return user, invitation.business
-
-
-# ═════════════════════════════════════════════════════════════
-# MEMBERS
-# ═════════════════════════════════════════════════════════════
+    return final_user, invitation.business
 
 def change_business_member_role(*, membership, role):
     """
@@ -325,6 +283,7 @@ def _get_recent_charges(business, limit=5):
         Charge.objects
         .filter(tenancy__unit__property__business=business)
         .select_related("charge_type", "tenancy", "tenancy__unit", "tenancy__unit__property")
+        .exclude(accrual_type="rent")
         .order_by("-created_at")[:limit]
     )
 
@@ -485,11 +444,19 @@ def get_business_dashboard(business):
         change_pct = None
 
     # ── Overdue — active tenancies with a positive balance ─
+    from django.db.models import Prefetch
+    from properties.models import TenancyMember
     active_tenancies = (
         Tenancy.objects
         .filter(unit__property__business=business, is_active=True)
         .select_related("unit", "unit__property")
-        .prefetch_related("tenants")
+        .prefetch_related(
+            Prefetch(
+                "tenancy_members",
+                queryset=TenancyMember.objects.filter(is_active=True).select_related("tenant"),
+                to_attr="active_members",
+            )
+        )
     )
 
     overdue = []
@@ -500,11 +467,11 @@ def get_business_dashboard(business):
             bal = Decimal("0.00")
 
         if bal > 0:
-            primary_tenant = t.tenants.first()
+            names = [m.tenant.full_name for m in t.active_members]
             overdue.append({
                 "unit": UnitListSerializer(t.unit).data,
                 "property": PropertyShortSerializer(t.unit.property).data,
-                "tenant_name": primary_tenant.full_name if primary_tenant else None,
+                "tenant_name": ", ".join(names) if names else None,
                 "amount_due": float(bal),
                 "days_overdue": (today - t.start_date).days if t.start_date else 0,
             })

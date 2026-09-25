@@ -129,10 +129,10 @@ const BusinessDetails = () => {
         payload,
       });
 
-      if (response?.id) {
+      if (response.success) {
         showToast(
           "Business Updated!",
-          "Your business profile has been saved successfully.",
+          "Your business profile has been updated successfully.",
           "success"
         );
 

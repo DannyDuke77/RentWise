@@ -15,6 +15,7 @@ from .models import MpesaConfiguration
 from .serializers import MpesaConfigurationSerializer, MpesaPaymentSerializer
 from .services.mpesa_callback_service import process_mpesa_callback
 from .services.payment_service import initiate_mpesa_payment
+from .services.exceptions import MpesaNotConfigured, MpesaDisabled, MpesaInitiationFailed
 
 @csrf_exempt
 def mpesa_callback(request):
@@ -130,16 +131,26 @@ class InitiateMpesaPaymentView(APIView):
             "/api/v1/payments/callback/"
         )
 
-        mpesa_transaction = initiate_mpesa_payment(
-            tenancy=tenancy,
-            phone_number=data["phone_number"],
-            amount=data["amount"],
-            category=data["category"],
-            notes=data.get("notes", ""),
-            account_reference=tenancy.unit.name,
-            transaction_description=f"RentWise payment - {tenancy.unit.property.name} - {tenancy.unit.name}",
-            callback_url=callback_url,
-        )
+        try:
+            mpesa_transaction = initiate_mpesa_payment(
+                tenancy=tenancy,
+                phone_number=data["phone_number"],
+                amount=data["amount"],
+                category=data["category"],
+                notes=data.get("notes", ""),
+                account_reference=tenancy.unit.name,
+                transaction_description=(
+                    f"RentWise payment - "
+                    f"{tenancy.unit.property.name} - {tenancy.unit.name}"
+                ),
+                callback_url=callback_url,
+            )
+        except MpesaNotConfigured as exc:
+            return Response({"detail": str(exc)}, status=400)
+        except MpesaDisabled as exc:
+            return Response({"detail": str(exc)}, status=409)
+        except MpesaInitiationFailed as exc:
+            return Response({"detail": str(exc)}, status=502)
 
         return Response({
             "success": True,

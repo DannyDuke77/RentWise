@@ -18,7 +18,6 @@ export const queryKeys = {
     // Unit
     units: () => ['units'] as const,
     unit: (unitId: string) => ['unit', unitId] as const,
-    unitDetails: (unitId?: string | null) => ['unit-detail', unitId] as const,
     unitTenants: (unitId?: string | null) => ['unit-tenants', unitId] as const,
     unitPayments: (unitId: string, page?: number, pageSize?: number, search?: string, filterMethod?: string, filterDate?: string) => ['unit-payments', unitId, page, pageSize, search, filterMethod, filterDate] as const,
 

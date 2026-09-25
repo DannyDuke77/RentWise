@@ -38,7 +38,7 @@ const UnitModal = () => {
         }
     }, [isOpen, isEditing, unit]);
 
-    // ✅ Get allowed status transitions with reasons
+    // Get allowed status transitions with reasons
     const getAllowedStatuses = () => {
         if (!isEditing || !unit) {
             // Creating new unit - only vacant and maintenance allowed
@@ -116,7 +116,6 @@ const UnitModal = () => {
             return;
         }
 
-        // ✅ Check if status transition is allowed
         const allowedStatuses = getAllowedStatuses();
         if (!allowedStatuses[status]?.allowed) {
             setErrors({
@@ -142,7 +141,7 @@ const UnitModal = () => {
                     payload: payload
                 });
 
-                if (response?.id || response?.status === 200) {
+                if (response.success) {
                     unitModal.close();
                     showToast('Unit Updated!', 'Your unit has been updated successfully.', 'success');
                 } else {

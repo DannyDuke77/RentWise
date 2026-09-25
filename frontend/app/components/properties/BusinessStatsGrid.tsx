@@ -13,9 +13,9 @@ import StatCard from "@/app/components/ui/StatCard";
 interface BusinessStats {
   total_properties: number;
   total_units: number;
-  occupied: number;
-  vacant: number;
-  maintenance: number;
+  total_occupied: number;
+  total_vacant: number;
+  total_maintenance: number;
   occupancy_rate: number;
 }
 
@@ -47,7 +47,7 @@ const BusinessStatsGrid = ({ stats, isPending }: Props) => {
     {
       key: "occupied",
       title: "Occupied",
-      value: stats?.occupied ?? 0,
+      value: stats?.total_occupied ?? 0,
       icon: UserCheck,
       color: "text-emerald-600",
       bg: "bg-emerald-50",
@@ -56,7 +56,7 @@ const BusinessStatsGrid = ({ stats, isPending }: Props) => {
     {
       key: "vacant",
       title: "Vacant",
-      value: stats?.vacant ?? 0,
+      value: stats?.total_vacant ?? 0,
       icon: UserMinus,
       color: "text-amber-600",
       bg: "bg-amber-50",
@@ -65,7 +65,7 @@ const BusinessStatsGrid = ({ stats, isPending }: Props) => {
     {
       key: "maintenance",
       title: "Maintenance",
-      value: stats?.maintenance ?? 0,
+      value: stats?.total_maintenance ?? 0,
       icon: Wrench,
       color: "text-rose-600",
       bg: "bg-rose-50",

@@ -8,10 +8,6 @@ if (!API_URL) {
   );
 };
 
-type RequestOptions = {
-  businessId?: string | null;
-};
-
 let activeBusinessId: string | null = null;
 
 export function setApiBusinessId(id: string | null) {

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import apiService from '@/app/services/apiService';
 import { FileText, X } from 'lucide-react';
+import { useToast } from '@/app/providers/ToastProvider';
 
 interface PropertyAuditModalProps {
     propertyId: string;
@@ -21,6 +22,8 @@ const PropertyAuditModal: React.FC<PropertyAuditModalProps> = ({
     const [range, setRange] = useState({ start: today, end: today });
     const [loading, setLoading] = useState(false);
 
+    const { showToast } = useToast();
+
     const handleDownload = async () => {
         setLoading(true);
         const url = `/api/properties/${propertyId}/audit-report/?start_date=${range.start}&end_date=${range.end}`;
@@ -35,9 +38,14 @@ const PropertyAuditModal: React.FC<PropertyAuditModalProps> = ({
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(blobUrl);
+
+            setTimeout(() => {
+                showToast('Success', 'Report generated successfully', 'success');
+            }, 1000);
             onClose();
         } catch (error) {
-            alert("Failed to generate report. Please try again.");
+            showToast('Error', 'Failed to generate report. Please try again.', 'error');
+            onClose();
         } finally {
             setLoading(false);
         }

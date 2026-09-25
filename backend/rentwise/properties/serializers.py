@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from .models import ChangeLog, Property, Unit, Tenant, UnitPayment, Tenancy, Charge, ChargeType
 from accounts.validators import normalize_kenyan_phone
 
@@ -44,12 +45,12 @@ class UnitDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['property']
 
+    def _get_active_tenancy(self, obj):
+        tenancies = list(obj.tenancies.all())
+        return tenancies[0] if tenancies else None
+    
     def get_tenant_names(self, obj):
-        """
-        Dumb Transformer: Extracts strings from the active prefetch chain.
-        """
-        all_tenancies = list(obj.tenancies.all())
-        active_tenancy = all_tenancies[0] if all_tenancies else None
+        active_tenancy = self._get_active_tenancy(obj)
         if active_tenancy:
             return ", ".join([
                 member.tenant.full_name 
@@ -59,26 +60,30 @@ class UnitDetailSerializer(serializers.ModelSerializer):
         return ""
 
     def get_tenancy_id(self, obj):
-        tenancy = obj.tenancies.filter(is_active=True).first()
+        tenancy = self._get_active_tenancy(obj)
         return str(tenancy.id) if tenancy else None
 
     def get_balance(self, obj):
-        tenancy = obj.tenancies.filter(is_active=True).first()
+        tenancy = self._get_active_tenancy(obj)
+        if not tenancy:
+            return None
+        return float(tenancy.balance)
+
+    def get_deposit(self, obj):
+        tenancy = self._get_active_tenancy(obj)
         if not tenancy:
             return None
         try:
-            return float(tenancy.calculate_balance())
+            return float(tenancy.get_deposit_held_prefetched())
         except Exception:
             return None
 
-    def get_deposit(self, obj):
-        tenancy = obj.tenancies.filter(is_active=True).first()
+    
+    def get_balance(self, obj):
+        tenancy = self._get_active_tenancy(obj)
         if not tenancy:
             return None
-        try:
-            return float(tenancy.get_deposit_held())
-        except Exception:
-            return None
+        return float(tenancy.balance)
 
 class TenantSerializer(serializers.ModelSerializer):
     units = serializers.SerializerMethodField()
@@ -192,11 +197,12 @@ class UnitPaymentSerializer(serializers.ModelSerializer):
     tenancy_start = serializers.SerializerMethodField()
     unit = serializers.SerializerMethodField()
     property = serializers.SerializerMethodField()
+    business = serializers.SerializerMethodField()
 
     class Meta:
         model = UnitPayment
         fields = [
-            "id", "tenancy", "tenancy_start", "unit", "property", "amount_paid",
+            "id", "tenancy", "tenancy_start", "unit", "property", "business", "amount_paid",
             "payment_method", "type", "category", "source", "paid_on", "month", "year", "reference", "notes", "created_at",
         ]
         read_only_fields = ["id", "source", "created_at"]
@@ -209,6 +215,14 @@ class UnitPaymentSerializer(serializers.ModelSerializer):
 
     def get_property(self, obj):
         return PropertyShortSerializer(obj.tenancy.unit.property).data
+
+    def get_business(self, obj):
+        from accounts.serializers import BusinessShortSerializer
+        request = self.context.get("request")
+        return BusinessShortSerializer(
+            obj.tenancy.unit.property.business,
+            context={"request": request},
+        ).data
 
 class UnitPaymentCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -268,17 +282,64 @@ class UnitPaymentCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Year must be between 2000 and 2100.")
         return value
 
-class TenancySerializer(serializers.ModelSerializer):
-    tenants = TenantSerializer(many=True)
+class TenantMeSerializer(serializers.ModelSerializer):
+    tenancies = serializers.SerializerMethodField()
+    pending_charges = serializers.SerializerMethodField()
 
     class Meta:
-        model = Tenancy
-        fields = [
-            "id", "tenants", "unit", "start_date", "end_date",
-            "billing_start_date", "monthly_rent", "carried_arrears", "is_active"
-        ]
-        read_only_fields = ["id"]
+        model = Tenant
+        fields = ["id", "full_name", "email", "phone", "tenancies", "pending_charges"]
 
+    def get_tenancies(self, serializer_instance):
+        active_tenancies = self.context.get("active_tenancies", [])
+        return TenancyDetailSerializer(
+            active_tenancies,
+            many=True,
+            context=self.context,
+        ).data
+
+    def get_pending_charges(self, serializer_instance):
+        pending_charges = self.context.get("pending_charges", [])
+        return ChargeListSerializer(
+            pending_charges,
+            many=True,
+            context=self.context,
+        ).data
+
+
+class TenancyDetailSerializer(serializers.ModelSerializer):
+    unit = serializers.CharField(source="unit.name", read_only=True)
+    property = serializers.CharField(source="unit.property.name", read_only=True)
+    balance = serializers.SerializerMethodField()
+    deposit_held = serializers.SerializerMethodField()
+    mpesa_available = serializers.SerializerMethodField()
+    mpesa_status = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Tenancy
+        fields = ["id", "unit", "property", "monthly_rent", "balance", "deposit_held", "mpesa_available", "mpesa_status", "start_date", "billing_start_date", "is_active", "created_at"]
+
+    def get_balance(self, obj):
+        return str(obj.calculate_balance())
+
+    def get_deposit_held(self, obj):
+        return str(obj.get_deposit_held())
+
+    def get_mpesa_available(self, obj):
+        business = obj.unit.property.business
+        config = getattr(business, "mpesa_configuration", None)
+        if config is None:
+            return False
+        return config.is_active
+
+    def get_mpesa_status(self, obj):
+        config = getattr(obj.unit.property.business, "mpesa_configuration", None)
+        if config is None:
+            return "not_configured"
+        if not config.is_active:
+            return "disabled"
+        return "active"
+    
 class ChargeTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChargeType
@@ -308,7 +369,7 @@ class ChargeSerializer(serializers.ModelSerializer):
         read_only_fields = ['status']
 
     def get_charge_type_name(self, obj):
-        return obj.charge_type.name
+        return obj.charge_type.name if obj.charge_type else "Unknown"
 
     def get_unit(self, obj):
         return UnitListSerializer(obj.tenancy.unit).data

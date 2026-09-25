@@ -19,6 +19,8 @@ import {
   useRemoveBusinessMember,
 } from "@/app/hooks/mutations/useBusinessMutations";
 import { useToast } from "@/app/providers/ToastProvider";
+import Image from "next/image";
+import RefreshButton from "@/app/components/ui/RefreshButton";
 
 const TeamTab = () => {
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -38,6 +40,7 @@ const TeamTab = () => {
         data: members,
         isLoading: membersLoading,
         isError,
+        refetch: refetchMembers,
     } = useBusinessMembers(activeBusinessId, membersPage, membersPageSize);
 
     const {
@@ -275,7 +278,7 @@ const TeamTab = () => {
 
             {/* Members */}
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
                     <div className="flex items-center gap-2">
                         <Users className="w-5 h-5 text-blue-600" />
                         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
@@ -283,6 +286,7 @@ const TeamTab = () => {
                         </h3>
                         <span className="text-xs text-gray-400">({membersCount})</span>
                     </div>
+                    <RefreshButton refetch={refetchMembers} isFetching={membersLoading} showLabel={false} />
                 </div>
 
                 {teamMembers.length === 0 ? (
@@ -298,10 +302,21 @@ const TeamTab = () => {
                                 className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                             >
                                 <div className="flex items-center gap-4 min-w-0">
-                                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-sm font-semibold text-blue-600">
-                                            {member.name?.charAt(0)?.toUpperCase() ?? "?"}
-                                        </span>
+                                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                        {member.avatar ? (
+                                            <Image
+                                                src={member.avatar}
+                                                alt={member.name ?? "Member avatar"}
+                                                width={40}
+                                                height={40}
+                                                className="w-full h-full object-cover"
+                                                unoptimized
+                                            />
+                                        ) : (
+                                            <span className="text-sm font-semibold text-blue-600">
+                                                {member.name?.charAt(0)?.toUpperCase() ?? "?"}
+                                            </span>
+                                        )}
                                     </div>
 
                                     <div className="min-w-0">

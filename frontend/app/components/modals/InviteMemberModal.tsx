@@ -56,11 +56,7 @@ const InviteMemberModal = ({
     setErrors({});
 
     if (email.trim() === "") {
-      showToast(
-        "Email required",
-        "Enter the email address of the person you want to invite.",
-        "error"
-      );
+      showToast("Email required", "Enter the email address of the person you want to invite.", "error");
       setErrors({ email: ["Email address is required"] });
       return;
     }
@@ -74,11 +70,7 @@ const InviteMemberModal = ({
         role,
       });
 
-      showToast(
-        "Invitation sent",
-        `An invitation has been sent to ${email.trim()}.`,
-        "success"
-      );
+      showToast("Invitation sent", `An invitation has been sent to ${email.trim()}.`, "success");
 
       onClose();
     } catch (error: any) {

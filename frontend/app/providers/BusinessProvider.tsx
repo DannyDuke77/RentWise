@@ -20,66 +20,50 @@ const BusinessContext = createContext<BusinessContextType | undefined>(
 
 export function BusinessProvider({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const [isLandlordPortal, setIsLandlordPortal] = useState(false);
+    const [isLandlordPortal, setIsLandlordPortal] = useState<boolean | null>(null);
 
     useEffect(() => {
         setIsLandlordPortal(
-            window.location.hostname ===
-                process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST
+            window.location.hostname === process.env.NEXT_PUBLIC_LANDLORD_PORTAL_HOST
         );
     }, []);
 
     const isAuthRoute = pathname.startsWith("/auth");
-    const shouldFetchBusinesses = isLandlordPortal && !isAuthRoute;
+    const shouldFetchBusinesses = isLandlordPortal === true && !isAuthRoute;
 
-    const { data, isLoading } = useBusinesses(shouldFetchBusinesses);
+    const { data, isLoading: isBusinessesLoading } = useBusinesses(shouldFetchBusinesses);
 
-    // Stable reference — new array identity only when `data` changes
     const businesses = useMemo(() => {
         if (Array.isArray(data)) return data;
         return data?.results ?? [];
     }, [data]);
 
-    const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
+    const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(() =>
+        typeof window !== "undefined" ? localStorage.getItem("activeBusinessId") : null
+    );
+
+    const activeBusinessId = useMemo(() => {
+        if (!businesses.length) return null;
+        if (selectedBusinessId && businesses.some((b: any) => b.id === selectedBusinessId)) {
+        return selectedBusinessId;
+        }
+        return businesses[0].id;
+    }, [businesses, selectedBusinessId]);
 
     const activeBusiness = businesses.find((b: any) => b.id === activeBusinessId) ?? null;
+    const activeBusinessRole = activeBusiness?.membership_role ?? null;
 
     useEffect(() => {
         setApiBusinessId(activeBusinessId);
     }, [activeBusinessId]);
 
-    const activeBusinessRole = activeBusiness?.membership_role ?? null;
-
-    // Reconciliation effect — no `activeBusinessId` in deps
-    useEffect(() => {
-        if (!businesses.length) return;
-
-        setActiveBusinessId((current) => {
-            // Keep the current selection if it still exists
-            if (current && businesses.some((b: any) => b.id === current)) {
-                return current;
-            }
-
-            // Try the saved ID
-            const savedBusinessId = localStorage.getItem("activeBusinessId");
-            if (
-                savedBusinessId &&
-                businesses.some((b: any) => b.id === savedBusinessId)
-            ) {
-                return savedBusinessId;
-            }
-
-            // Fall back to the first
-            return businesses[0].id;
-        });
-    }, [businesses]);
-
-    // Persist selection
-    useEffect(() => {
+     useEffect(() => {
         if (activeBusinessId) {
             localStorage.setItem("activeBusinessId", activeBusinessId);
         }
     }, [activeBusinessId]);
+
+    const isLoading = isLandlordPortal === null || (shouldFetchBusinesses && isBusinessesLoading);
 
     return (
         <BusinessContext.Provider
@@ -88,7 +72,7 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
                 activeBusiness,
                 activeBusinessId,
                 activeBusinessRole,
-                setActiveBusinessId,
+                setActiveBusinessId: setSelectedBusinessId,
                 isLoading,
             }}
         >

@@ -75,7 +75,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def avatar_url(self):
         if self.avatar:
             return f'{settings.WEBSITE_URL}{self.avatar.url}'
-        return f'{settings.WEBSITE_URL}/static/default-avatar.png'
+        return None
     
     def clean(self):
         super().clean()
@@ -168,6 +168,9 @@ class BusinessInvitation(models.Model):
     cancelled_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
     @property
     def is_accepted(self):

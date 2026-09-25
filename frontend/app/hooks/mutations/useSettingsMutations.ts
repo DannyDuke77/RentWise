@@ -7,7 +7,7 @@ export function useUpdateUserProfile() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (payload: FormData | Record<string, any>) =>
-            apiService.patch('/api/auth/settings/user-settings/', payload),
+            apiService.patch('/api/auth/settings/', payload),
         onSuccess: (data) => {
             queryClient.setQueryData(queryKeys.userProfile(), data);
         },

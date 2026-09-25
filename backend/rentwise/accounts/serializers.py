@@ -20,13 +20,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         portal = self.initial_data.get("portal_type")
 
-        if portal not in {"tenant", "landlord", "admin"}:
+        if portal not in {"public", "tenant", "landlord", "admin"}:
             raise AuthenticationFailed("Invalid portal.")
 
         data = super().validate(attrs)
 
         user = self.user
         portal_access = get_user_portal_access(user)
+
+        if portal == "public":
+            data["portal_access"] = portal_access
+            return data
 
         if portal == "tenant" and not portal_access["tenant"]:
             raise AuthenticationFailed(
@@ -115,22 +119,36 @@ class CustomRegisterSerializer(RegisterSerializer):
             avatar=self.validated_data.get("avatar"),
         )
     
-class UserDetailSerializer(serializers.ModelSerializer):
-    avatar_url = serializers.SerializerMethodField(read_only=True)
-    
-    class Meta:
-        model = User
-        fields = ('id', 'name', 'email', 'phone_number', 'address', 'avatar_url')
-    
-    def get_avatar_url(self, obj):
-        return obj.avatar_url() if obj.avatar else None
-    
 class UserSettingsSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ["name", "email", "password", "phone_number", "address"]
+        fields = ["name", "email", "password", "phone_number", "address", "avatar"]
+
+    def validate_email(self, value):
+        if self.instance and value != self.instance.email:
+            raise serializers.ValidationError("Email cannot be changed.")
+        return value
+
+    def validate_avatar(self, value):
+        max_size = 2 * 1024 * 1024  # 2 MB
+
+        if value.size > max_size:
+            raise serializers.ValidationError(
+                "Avatar file too large. Maximum size is 2MB."
+            )
+
+        img = Image.open(value)
+        max_width = 2000
+        max_height = 2000
+
+        if img.width > max_width or img.height > max_height:
+            raise serializers.ValidationError(
+                "Avatar image dimensions too large."
+            )
+
+        return value
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
@@ -141,7 +159,12 @@ class UserSettingsSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         instance.save()
         return instance
-    
+
+class BusinessShortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Business
+        fields = ["id", "company_name", "email", "phone", "address", "logo", "currency"]
+
 class BusinessSerializer(serializers.ModelSerializer):
     membership_role = serializers.SerializerMethodField()
 
@@ -189,8 +212,9 @@ class BusinessMembershipSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source="user.id", read_only=True)
     name = serializers.CharField(source="user.name", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
+    avatar = serializers.ImageField(source="user.avatar", read_only=True)
 
     class Meta:
         model = BusinessMembership
-        fields = ["id", "user_id", "name", "email", "role", "joined_at",]
-        read_only_fields = ["id", "user_id", "name", "email", "joined_at",]
+        fields = ["id", "user_id", "name", "email", "role", "avatar", "joined_at",]
+        read_only_fields = ["id", "user_id", "name", "email", "avatar", "joined_at",]

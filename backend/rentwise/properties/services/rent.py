@@ -22,32 +22,6 @@ def _prefetch_units(property_obj):
         .filter(property=property_obj, is_active=True)
         .prefetch_related(Prefetch("tenancies", queryset=tenancy_queryset))
     )
-
-def _calculate_tenancy_balance(tenancy, as_of):
-    billing_start = tenancy.billing_start_date or tenancy.start_date
-
-    if as_of < billing_start:
-        total_rent_due = Decimal("0.00")
-    else:
-        months_elapsed = ((as_of.year - billing_start.year) * 12
-            + (as_of.month - billing_start.month) + 1)
-        total_rent_due = Decimal(months_elapsed) * tenancy.monthly_rent
-
-    total_charges = sum(
-        (c.amount for c in tenancy.charges.all() if c.status != "waived"),
-        Decimal("0.00"),
-    )
-
-    # Only "rent" category payments count against the rent ledger — deposits
-    # are tracked separately and must never look like a rent payment.
-    total_paid = sum(
-        (p.amount_paid if p.type == "payment" else -p.amount_paid
-         for p in tenancy.payments.all() if p.category == "rent"),
-        Decimal("0.00"),
-    )
-
-    return total_rent_due + total_charges - total_paid
-
 def _compute_unit_rent_status(unit, tenancy, payments_this_month, as_of):
     if not tenancy:
         return {
@@ -57,6 +31,17 @@ def _compute_unit_rent_status(unit, tenancy, payments_this_month, as_of):
             "status": "vacant",
         }
 
+    billing_start = tenancy.get_effective_billing_start()
+    if hasattr(billing_start, "date"):
+        billing_start = billing_start.date()
+    if as_of < billing_start:
+        return {
+            "rent": tenancy.monthly_rent,
+            "paid": Decimal("0.00"),
+            "balance": Decimal("0.00"),
+            "status": "not_billed",
+        }
+
     this_month_paid = Decimal("0.00")
     for p in payments_this_month:
         if p.type == "payment":
@@ -64,7 +49,7 @@ def _compute_unit_rent_status(unit, tenancy, payments_this_month, as_of):
         elif p.type == "refund":
             this_month_paid -= p.amount_paid
 
-    total_balance = _calculate_tenancy_balance(tenancy, as_of)
+    total_balance = tenancy.calculate_balance()
 
     if total_balance <= 0:
         status = "paid"
@@ -79,7 +64,6 @@ def _compute_unit_rent_status(unit, tenancy, payments_this_month, as_of):
         "balance": total_balance,
         "status": status,
     }
-
 
 def _build_units_data(units, year, month):
     as_of = timezone.now().date()
@@ -140,6 +124,16 @@ def _build_units_data(units, year, month):
         else:
             tenant_names = ""
 
+        
+        rent_status_payload = {
+            "rent": float(rent_status["rent"]),
+            "paid": float(rent_status["paid"]),
+            "balance": float(rent_status["balance"]),
+            "status": rent_status["status"],
+        }
+        if rent_status["status"] == "not_billed":
+            rent_status_payload["billing_start"] = str(tenancy.get_effective_billing_start())
+
         units_payload.append({
             "id": str(unit.id),
             "name": unit.name,
@@ -148,12 +142,7 @@ def _build_units_data(units, year, month):
             "floor": unit.floor,
             "monthly_rent": float(unit.monthly_rent),
             "tenant_names": tenant_names,
-            "rent_status": {
-                "rent": float(rent_status["rent"]),
-                "paid": float(rent_status["paid"]),
-                "balance": float(rent_status["balance"]),
-                "status": rent_status["status"],
-            },
+            "rent_status": rent_status_payload,
         })
 
     summary = {

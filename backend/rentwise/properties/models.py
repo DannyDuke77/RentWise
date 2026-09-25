@@ -139,6 +139,9 @@ class Tenancy(models.Model):
     monthly_rent = models.DecimalField(max_digits=10, decimal_places=2)
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # + = arrears, - = credit
 
+    first_month_rent = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -159,53 +162,38 @@ class Tenancy(models.Model):
     def get_effective_billing_start(self):
         return self.billing_start_date or self.start_date
 
-    def calculate_balance(self, up_to_date=None, start_from=None):
-        """
-        Calculates the tenancy balance up to a specific date.
-        Balance = Rent Due + Charges - Payments + Refund adjustments
-        """
-
-        if up_to_date is None:
-            up_to_date = timezone.now().date()
-
-        billing_start = self.get_effective_billing_start()
-        actual_start = start_from if start_from and start_from > billing_start else billing_start
-
-        if up_to_date < actual_start:
-            total_rent_due = Decimal("0.00")
-        else:
-            # 1. Calculate Rent Due
-            months_elapsed = ((up_to_date.year - actual_start.year) * 12
-                + (up_to_date.month - actual_start.month) + 1)
-            total_rent_due = Decimal(months_elapsed) * self.monthly_rent
-
-        # 2. Calculate Charges
-        total_charges = sum((c.amount for c in self.charges.filter(created_at__date__lte=up_to_date) if c.status != "waived"), Decimal("0.00"))
-
-        # 3. Calculate Payments & Refunds
-        payments_query = self.payments.filter(paid_on__date__lte=up_to_date, category="rent")
-
-        total_paid = sum((p.amount_paid if p.type == "payment" else -p.amount_paid for p in payments_query), Decimal("0.00"))
-
-        # 4. Final Balance
-        return total_rent_due + total_charges - total_paid
+    def calculate_balance(self):
+        total_charges = sum(
+            (c.amount for c in self.charges.all() if c.status != "waived"),
+            Decimal("0.00"),
+        )
+        total_paid = sum(
+            (p.amount_paid if p.type == "payment" else -p.amount_paid
+            for p in self.payments.filter(category="rent")),
+            Decimal("0.00"),
+        )
+        return total_charges - total_paid
 
     def get_deposit_held(self):
-        """
-        Total security deposit currently held for this tenancy, independent
-        of the rent balance. Refund-type deposit entries subtract from it.
-        """
         deposit_payments = self.payments.filter(category="deposit")
         return sum(
             (p.amount_paid if p.type == "payment" else -p.amount_paid for p in deposit_payments),
             Decimal("0.00"),
         )
 
+    def get_deposit_held_prefetched(self):
+        if hasattr(self, "deposit_payments"):
+            return sum(
+                (p.amount_paid if p.type == "payment" else -p.amount_paid for p in self.deposit_payments),
+                Decimal("0.00"),
+            )
+        return self.get_deposit_held()
+
 class TenancyMember(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenancy = models.ForeignKey(Tenancy, on_delete=models.CASCADE, related_name='tenancy_members')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='tenancy_members')
-    joined_at = models.DateTimeField(auto_now_add=True)
+    joined_at = models.DateTimeField(auto_now_add=True)    
     left_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
@@ -243,6 +231,12 @@ class UnitPayment(models.Model):
     paid_on = models.DateTimeField(default=timezone.now)
     payment_method = models.CharField(max_length=30, choices=PAYMENT_CHOICES)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    mpesa_transaction = models.ForeignKey(
+        "payments.MpesaTransaction",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="unit_payments",
+    )
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='payment')
     reference = models.CharField(max_length=100, blank=True, null=True)
     notes = models.TextField(blank=True)
@@ -274,20 +268,29 @@ class ChargeType(models.Model):
 
 
 class Charge(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('waived', 'Waived'),
+    ]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenancy = models.ForeignKey(Tenancy, on_delete=models.CASCADE, related_name="charges")
-    charge_type = models.ForeignKey(ChargeType, on_delete=models.SET_NULL, null=True)
+    charge_type = models.ForeignKey(ChargeType, on_delete=models.SET_NULL, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.CharField(max_length=255, blank=True)
-    status = models.CharField(
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
+    accrual_type = models.CharField(
         max_length=20,
-        choices=[
-            ("pending", "Pending"),
-            ("paid", "Paid"),
-            ("waived", "Waived"),
-        ],
-        default="pending"
+        null=True,
+        blank=True,
+        choices=[("rent", "Rent Accrual")],
     )
+    period = models.DateField(null=True,blank=True,)
+
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_reason = models.CharField(max_length=255, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

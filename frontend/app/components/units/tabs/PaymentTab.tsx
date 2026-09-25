@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     Receipt, Info, ArrowUpRight, ArrowDownLeft,
     TrendingUp, TrendingDown, CheckCircle2, Clock,
@@ -14,9 +14,8 @@ import { useUnitPayments } from "@/app/hooks/queries/useUnitDetailQueries";
 import { useDebounce } from "@/app/hooks/useDebounce";
 import { usePaymentMutation } from "@/app/hooks/mutations/usePaymentMutations";
 import Pagination from "@/app/components/ui/Pagination";
-import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import { useToast } from "@/app/providers/ToastProvider";
-import { PaymentModal, PaymentModalMode, PaymentFormPayload } from "@/app/components/modals/PaymentModal";
+import { PaymentModal, PaymentFormPayload } from "@/app/components/modals/PaymentModal";
 import { RefundModal } from "@/app/components/modals/RefundModal";
 import StatCard from "@/app/components/ui/PaymentTabStatCard";
 import { SearchInput } from '@/app/components/ui/SearchInput';
@@ -28,6 +27,7 @@ import { useBusiness } from "@/app/providers/BusinessProvider";
 import apiService from "@/app/services/apiService";
 import PaymentTabSkeleton from "../../skeletons/UnitPaymentTabSkeleton";
 import TableSkeleton from "../../skeletons/TableSkeleton";
+import CustomTooltip from "../../ui/CustomTooltip";
 
 interface PaymentTabProps {
     property: Property;
@@ -37,7 +37,7 @@ interface PaymentTabProps {
 const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     if (!unit) return null;
 
-    const { activeBusinessId, activeBusiness } = useBusiness();
+    const { activeBusiness } = useBusiness();
     const today = useToday();
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     const isOccupied = unit.status === 'occupied';
@@ -52,24 +52,17 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedSearch = useDebounce(searchTerm, 500);
 
-    // Single modal state (view / edit / create)
+    // View / Edit modal
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState<PaymentModalMode>('view');
     const [modalPayment, setModalPayment] = useState<Payment | null>(null);
+    const [startInEdit, setStartInEdit] = useState(false);
     const [editErrors, setEditErrors] = useState<Record<string, string[]>>({});
 
-    // Create-mode controlled form state
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-    const [amount, setAmount] = useState("");
-    const [paymentCategory, setPaymentCategory] = useState<"rent" | "deposit">("rent");
-    const [paymentMethod, setPaymentMethod] = useState("");
-    const [reference, setReference] = useState("");
-    const [notes, setNotes] = useState("");
-    const [paymentDate, setPaymentDate] = useState(today.toISOString().split('T')[0]);
+    // Create modal
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [createErrors, setCreateErrors] = useState<Record<string, string[]>>({});
-    const [message, setMessage] = useState("");
 
-    // Refund modal state
+    // Refund modal
     const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
     const [refundAmount, setRefundAmount] = useState(0);
     const [refundMethod, setRefundMethod] = useState("");
@@ -86,11 +79,6 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         deletePaymentMutation,
         updatePaymentMutation,
     } = usePaymentActions();
-
-    const handleSearchChange = (value: string) => {
-        setSearchTerm(value);
-        setPage(1);
-    };
 
     const handleMethodChange = (value: string) => {
         setFilterMethod(value);
@@ -120,7 +108,6 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     const paymentMutation = usePaymentMutation();
 
     const rawPayments: Payment[] = paymentsData?.payments ?? [];
-
     const totalCount = paymentsData?.count ?? 0;
     const balance = paymentsData?.balance ?? 0;
     const depositHeld = paymentsData?.depositHeld ?? 0;
@@ -138,7 +125,57 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
     const isValidMpesa = (ref: string) => /^[A-Z0-9]{10}$/.test(ref);
     const refundCap = refundCategory === "deposit" ? depositHeld : summary.credit;
 
-    // CREATE flow
+    // VIEW / EDIT payment
+    const openPayment = (payment: Payment, edit = false) => {
+        setModalPayment(payment);
+        setStartInEdit(edit);
+        setEditErrors({});
+        setIsModalOpen(true);
+    };
+
+    const closePaymentModal = () => {
+        setIsModalOpen(false);
+        setModalPayment(null);
+        setStartInEdit(false);
+        setEditErrors({});
+    };
+
+    const handleUpdateSubmit = async (payload: PaymentFormPayload) => {
+        if (!modalPayment) return;
+
+        try {
+            const response = await updatePaymentMutation.mutateAsync({
+                paymentId: modalPayment.id,
+                unitId: unit.id,
+                propertyId: property.id,
+                payload,
+                targetMonth: new Date(modalPayment.paid_on).getMonth() + 1,
+                targetYear: new Date(modalPayment.paid_on).getFullYear(),
+            });
+
+            if (response.success || response.id) {
+                showToast('Payment Updated', 'Payment updated successfully', 'success');
+                closePaymentModal();
+            } else {
+                setEditErrors(response.errors || response);
+            }
+        } catch (error: any) {
+            console.error('Error updating payment:', error);
+            setEditErrors(error.response?.data || { general: ['Failed to update payment'] });
+        }
+    };
+
+    // CREATE payment
+    const openCreateModal = () => {
+        setCreateErrors({});
+        setIsCreateModalOpen(true);
+    };
+
+    const closeCreateModal = () => {
+        setIsCreateModalOpen(false);
+        setCreateErrors({});
+    };
+
     const handleCreateSubmit = async (payload: PaymentFormPayload) => {
         setCreateErrors({});
 
@@ -189,8 +226,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
 
             if (response.success) {
                 showToast("Payment Recorded!", `Payment of ${payload.amount_paid} recorded successfully`, "success");
-                resetCreateForm();
-                setIsPaymentModalOpen(false);
+                closeCreateModal();
             } else {
                 setCreateErrors(response);
                 showToast("Payment Failed!", 'Please check the form for errors', "error");
@@ -198,72 +234,6 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         } catch (error: any) {
             console.error(error);
             setCreateErrors(error.response?.data || error.response || {});
-        }
-    };
-
-    const resetCreateForm = () => {
-        setAmount("");
-        setPaymentCategory("rent");
-        setPaymentMethod("");
-        setReference("");
-        setNotes("");
-        setPaymentDate(today.toISOString().split("T")[0]);
-        setMessage("");
-        setCreateErrors({});
-    };
-
-    const openCreateModal = () => {
-        resetCreateForm();
-        setIsPaymentModalOpen(true);
-    };
-
-    // VIEW / EDIT flow
-    const openView = (payment: Payment) => {
-        setModalPayment(payment);
-        setModalMode('view');
-        setEditErrors({});
-        setIsModalOpen(true);
-    };
-
-    const openEdit = (payment: Payment) => {
-        setModalPayment(payment);
-        setModalMode('edit');
-        setEditErrors({});
-        setIsModalOpen(true);
-    };
-
-    const closePaymentModal = () => {
-        setIsModalOpen(false);
-        setModalPayment(null);
-        setEditErrors({});
-    };
-
-    const handleEnableEdit = () => {
-        setModalMode('edit');
-    };
-
-    const handleUpdateSubmit = async (payload: PaymentFormPayload) => {
-        if (!modalPayment) return;
-
-        try {
-            const response = await updatePaymentMutation.mutateAsync({
-                paymentId: modalPayment.id,
-                unitId: unit.id,
-                propertyId: property.id,
-                payload,
-                targetMonth: new Date(modalPayment.paid_on).getMonth() + 1,
-                targetYear: new Date(modalPayment.paid_on).getFullYear(),
-            });
-
-            if (response.success || response.id) {
-                showToast('Payment Updated', 'Payment updated successfully', 'success');
-                closePaymentModal();
-            } else {
-                setEditErrors(response.errors || response);
-            }
-        } catch (error: any) {
-            console.error('Error updating payment:', error);
-            setEditErrors(error.response?.data || { general: ['Failed to update payment'] });
         }
     };
 
@@ -355,9 +325,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
 
         try {
             const blob = await apiService.getBlob(
-                `/api/payments/export/?${params.toString()}`,
-                { businessId: activeBusinessId }
-            );
+                `/api/payments/export/?${params.toString()}`);
 
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -365,8 +333,11 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
             a.download = `payments_${new Date().toISOString().split("T")[0]}.csv`;
             a.click();
             URL.revokeObjectURL(url);
-
-            showToast("Success", "Export downloaded", "success");
+            
+            setTimeout(() => {
+                showToast("Success", "Export generated", "success");
+            }, 1000);
+            
         } catch (error) {
             console.error(error);
             showToast("Error", "Export failed", "error");
@@ -382,7 +353,9 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         try {
             const ok = await generateReceiptPDF(payment, payment.property, payment.unit, activeBusiness);
             if (ok) {
-                showToast("Success", "Receipt downloaded", "success");
+                setTimeout(() => {
+                    showToast("Success", "Receipt generated", "success");
+                }, 1000);
             } else {
                 showToast("Error", "Failed to generate receipt", "error");
             }
@@ -410,7 +383,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         );
     }
 
-    if (isPaymentsPending) return <PaymentTabSkeleton />;
+    if (isPaymentsPending && !searchTerm && !filterMethod && !filterDate) return <PaymentTabSkeleton />;
 
     return (
         <div className="space-y-8 md:px-2 py-4">
@@ -424,13 +397,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                         Payment Management
                     </h1>
                 </div>
-                <div className="flex items-center gap-3">
-                    <RefreshButton isFetching={isPaymentsFetching} refetch={refetchPayments} />
-                    <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-full shadow-sm">
-                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Live</span>
-                    </div>
-                </div>
+                <RefreshButton isFetching={isPaymentsFetching} refetch={refetchPayments} />
             </div>
 
             {/* Billing Notice */}
@@ -476,7 +443,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                                 <span className="text-sm text-gray-400">Monthly Rent:</span>
                                 <span className="text-white font-bold text-lg">KES {monthlyRent.toLocaleString()}</span>
                             </div>
-                            {summary.charges > 0 && (
+                            {summary.charges && (
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm text-gray-400">Charges:</span>
                                     <span className="text-rose-400 font-bold text-lg">KES {summary.charges.toLocaleString()}</span>
@@ -516,7 +483,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                     value={`KES ${summary.arrears.toLocaleString()}`}
                     icon={<ArrowUpRight className="w-5 h-5" />}
                     color="rose"
-                    subtitle={summary.charges > 0 ? `Includes charges: KES ${summary.charges.toLocaleString()}` : undefined}
+                    subtitle={summary.charges ? `Includes charges: KES ${summary.charges.toLocaleString()}` : undefined}
                 />
                 <StatCard
                     label="Credit Balance"
@@ -567,6 +534,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                             <FileSpreadsheet className="w-4 h-4" />
                             Export Ledger CSV
                         </button>
+                        <RefreshButton isFetching={isPaymentsFetching} refetch={refetchPayments} showLabel={false} />
                     </div>
                 </div>
             </div>
@@ -582,7 +550,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                        <SearchInput onSearchChange={handleSearchChange} />
+                        <SearchInput onSearchChange={setSearchTerm} />
 
                         <select
                             className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
@@ -613,107 +581,105 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                     </div>
                 </div>
 
-                <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 sticky top-0 z-10 border-b-4 border-gray-100">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Paid On</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Reference</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {isPaymentsFetching ? (
-                                    <tr>
-                                        <td colSpan={5} className="">
-                                            <TableSkeleton cols={5} rows={rawPayments.length} rowSize="h-8" headerVisible={false} />
-                                        </td>
-                                    </tr>
-                                ) : rawPayments.length > 0 ? rawPayments.map((payment: Payment) => (
-                                    <tr key={payment.id} className="hover:bg-gray-300/20 transition-colors group">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-medium text-gray-700">
-                                                {new Date(payment.paid_on).toLocaleDateString("en-GB", {
-                                                    day: "2-digit",
-                                                    month: "short",
-                                                    year: "numeric",
-                                                })}
-                                            </div>
-                                            <p className="text-xs text-gray-500">
-                                                {new Date(payment.paid_on).toLocaleTimeString("en-US", {
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                    hour12: true,
-                                                })}
-                                            </p>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="font-mono text-sm font-bold text-gray-700 uppercase">
-                                                {payment.reference || 'N/A'}
-                                            </div>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-xs font-medium text-gray-500 capitalize">{payment.payment_method}</span>
-                                                {payment.category === 'deposit' && (
-                                                    <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded font-bold uppercase">Deposit</span>
-                                                )}
-                                                {payment.type === 'refund' && (
-                                                    <span className="text-[10px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded font-bold uppercase">Refund</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm text-gray-600 max-w-xs truncate">
-                                                {payment.notes || <span className="text-gray-400 italic">No notes</span>}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                                            <div className={`text-lg font-bold ${
-                                                payment.type === "refund" ? "text-rose-600" : "text-emerald-600"
-                                            }`}>
-                                                {payment.type === "refund" ? "−" : "+"} KES {Number(payment.amount_paid).toLocaleString()}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <PaymentActionsMenu
-                                                    payment={payment}
-                                                    onGenerateReceipt={handleGenerateReceipt}
-                                                    onView={openView}
-                                                    onEdit={openEdit}
-                                                    onDelete={handleDeleteClick}
-                                                    showEdit={payment.source !== "stk"}
-                                                />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )) : (
-                                    <tr>
-                                        <td colSpan={6} className="px-6 py-20 text-center">
-                                            <div className="flex flex-col items-center gap-3">
-                                                <div className="p-5 bg-gray-100 rounded-2xl">
-                                                    <Receipt className="w-12 h-12 text-gray-300" strokeWidth={1.5} />
-                                                </div>
-                                                <p className="text-gray-500 font-medium text-lg">No transactions found</p>
-                                                <p className="text-sm text-gray-400">Record a payment to get started</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                {isPaymentsPending ? (
+                    <TableSkeleton />
+                ) : rawPayments.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-24 text-center">
+                        <div className="w-24 h-24 bg-gradient-to-br from-blue-50 to-blue-200 rounded-3xl flex items-center justify-center mb-6 shadow-xl offset-4">
+                            <Wallet className="w-12 h-12 text-blue-600 animate-bounce" strokeWidth={1.5} />
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-700 mb-2">{searchTerm || filterMethod || filterDate ? "No Results Found" : "No Payments Recorded"}</h3>
+                        <p className="text-gray-400">{searchTerm || filterMethod || filterDate ? "Please try a different search term." : "Record a payment to start tracking your payments."}</p>
                     </div>
+                ) : (
+                    <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 sticky top-0 z-10 border-b-4 border-gray-100">
+                                    <tr>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Paid On</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Reference</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {rawPayments.map((payment: Payment) => (
+                                        <tr key={payment.id} className="hover:bg-gray-300/20 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm font-medium text-gray-700">
+                                                    {new Date(payment.paid_on).toLocaleDateString("en-GB", {
+                                                        day: "2-digit",
+                                                        month: "short",
+                                                        year: "numeric",
+                                                    })}
+                                                </div>
+                                                <p className="text-xs text-gray-500">
+                                                    {new Date(payment.paid_on).toLocaleTimeString("en-US", {
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                        hour12: true,
+                                                    })}
+                                                </p>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-mono text-sm font-bold text-gray-700 uppercase">
+                                                    {payment.reference || 'N/A'}
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-xs font-medium text-gray-500 capitalize">{payment.payment_method}</span>
+                                                    {payment.category === 'deposit' && (
+                                                        <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded font-bold uppercase">Deposit</span>
+                                                    )}
+                                                    {payment.type === 'refund' && (
+                                                        <span className="text-[10px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded font-bold uppercase">Refund</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 relative group">
+                                                <div className="text-sm text-gray-600 max-w-xs truncate">
+                                                    {payment.notes || <span className="text-gray-400 italic">No notes</span>}
+                                                </div>
+                                                <div className="absolute top-8 right-1/2 bottom-0 left-0 pointer-events-none">
+                                                    {payment.notes && payment.notes.length > 0 && (
+                                                        <CustomTooltip message={payment.notes} />
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className={`text-lg font-bold ${
+                                                    payment.type === "refund" ? "text-rose-600" : "text-emerald-600"
+                                                }`}>
+                                                    {payment.type === "refund" ? "-" : "+"} KES {Number(payment.amount_paid).toLocaleString()}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <PaymentActionsMenu
+                                                        payment={payment}
+                                                        onGenerateReceipt={handleGenerateReceipt}
+                                                        onEdit={(p) => openPayment(p, true)}
+                                                        onDelete={handleDeleteClick}
+                                                        showEdit={payment.source !== "stk"}
+                                                    />
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
 
-                    <Pagination
-                        page={page}
-                        pageSize={pageSize}
-                        totalCount={totalCount}
-                        onPageChange={setPage}
-                        onPageSizeChange={setPageSize}
-                    />
-                </div>
+                        <Pagination
+                            page={page}
+                            pageSize={pageSize}
+                            totalCount={totalCount}
+                            onPageChange={setPage}
+                            onPageSizeChange={setPageSize}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Tips */}
@@ -738,45 +704,28 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                 </div>
             </div>
 
-            {/* CREATE modal (controlled state) */}
-            <PaymentModal
-                isOpen={isPaymentModalOpen}
-                onClose={() => {
-                    setIsPaymentModalOpen(false);
-                    resetCreateForm();
-                }}
-                onSubmit={handleCreateSubmit}
-                mode="create"
-                isPending={paymentMutation.isPending}
-                errors={createErrors}
-                isValidMpesa={isValidMpesa}
-                paymentCategory={paymentCategory}
-                setPaymentCategory={setPaymentCategory}
-                amount={amount}
-                setAmount={setAmount}
-                paymentMethod={paymentMethod}
-                setPaymentMethod={setPaymentMethod}
-                reference={reference}
-                setReference={setReference}
-                paymentDate={paymentDate}
-                setPaymentDate={setPaymentDate}
-                notes={notes}
-                setNotes={setNotes}
-                message={message}
-                setMessage={setMessage}
-            />
-
-            {/* VIEW / EDIT modal (self-managed state) */}
+            {/* View / Edit payment modal */}
             <PaymentModal
                 isOpen={isModalOpen}
                 onClose={closePaymentModal}
                 onSubmit={handleUpdateSubmit}
-                mode={modalMode}
+                payment={modalPayment}
+                startInEdit={startInEdit}
                 isPending={updatePaymentMutation.isPending}
                 errors={editErrors}
                 isValidMpesa={isValidMpesa}
-                payment={modalPayment}
-                onEnableEdit={handleEnableEdit}
+            />
+
+            {/* Create payment modal */}
+            <PaymentModal
+                isOpen={isCreateModalOpen}
+                onClose={closeCreateModal}
+                onSubmit={handleCreateSubmit}
+                payment={null}
+                createMode
+                isPending={paymentMutation.isPending}
+                errors={createErrors}
+                isValidMpesa={isValidMpesa}
             />
 
             {/* Delete modal */}

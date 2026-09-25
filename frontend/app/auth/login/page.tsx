@@ -105,11 +105,16 @@ const Login = () => {
             const userId = decoded.user_id ?? decoded.sub;
 
             await handleLogin(userId, response.access, response.refresh);
-
+            
             const next = searchParams.get('next');
 
-            if (next) {
+            if (next && next.startsWith('/')) {
                 router.push(next);
+                return;
+            }
+
+            if (portalType === 'public') {
+                router.push('/');
                 return;
             }
 

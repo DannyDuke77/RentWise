@@ -4,12 +4,16 @@ import { useState } from "react";
 import {
   Receipt, Calendar, Home, HandCoins, CardSim, Landmark,
   CircleDollarSign, Info, AlertCircle,
+  FileDown,
 } from "lucide-react";
 import { useTenantPayments } from "@/app/hooks/queries/useTenantPaymentsQueries";
-import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import Pagination from "@/app/components/ui/Pagination";
 import TenantPaymentsSkeleton from "@/app/components/skeletons/TenantPaymentsSkeleton";
-
+import PaymentActionsMenu from "@/app/components/payments/PaymentsActionsMenu";
+import { generateReceiptPDF } from "@/app/src/utils/receiptService";
+import { useToast } from "@/app/providers/ToastProvider";
+import { Payment } from "@/app/src/types/Types";
+import { useBusiness } from "@/app/providers/BusinessProvider";
 
 const getPaymentMethodIcon = (method: string) => {
   switch (method?.toLowerCase()) {
@@ -50,6 +54,8 @@ export default function TenantPaymentsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  const { showToast } = useToast();
+
   const { data, isPending, isError, isFetching } = useTenantPayments(
     page,
     pageSize
@@ -57,6 +63,23 @@ export default function TenantPaymentsPage() {
 
   const payments = data?.results ?? [];
   const count = data?.count ?? 0;
+
+  const handleGenerateReceipt = async (payment: Payment) => {
+
+    try {
+        const ok = await generateReceiptPDF(payment, payment.property, payment.unit, payment.business);
+        if (ok) {
+            setTimeout(() => {
+                showToast("Success", "Receipt generated", "success");
+            }, 1000);
+        } else {
+            showToast("Error", "Failed to generate receipt", "error");
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Error", "Failed to generate receipt", "error");
+    }
+};
 
   if (isPending) {
     return <TenantPaymentsSkeleton />;
@@ -143,8 +166,11 @@ export default function TenantPaymentsPage() {
                 <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Reference
                 </th>
-                <th className="text-right py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Amount (KES)
+                </th>
+                <th className="text-center py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Receipt
                 </th>
               </tr>
             </thead>
@@ -249,7 +275,7 @@ export default function TenantPaymentsPage() {
                       )}
                     </td>
 
-                    <td className="py-4 px-6 text-right whitespace-nowrap">
+                    <td className="py-4 px-6 whitespace-nowrap">
                       <span
                         className={`font-bold text-lg ${
                           payment.type === "refund"
@@ -264,6 +290,15 @@ export default function TenantPaymentsPage() {
                         })}
                       </span>
                     </td>
+
+                    <td className="px-6 py-4 flex justify-center">
+                      <button 
+                        onClick={() => handleGenerateReceipt(payment)} 
+                        className="p-2 text-gray-600 hover:text-gray-900 transition-all duration-200"
+                      >
+                        <FileDown />
+                      </button>
+                  </td>
                   </tr>
                 ))
               )}

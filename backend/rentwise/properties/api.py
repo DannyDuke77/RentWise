@@ -8,25 +8,30 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from django.db.models import Q, Prefetch, Sum, Count
+from django.db.models import Q, Prefetch, Sum, Count, OuterRef, Subquery, DecimalField
 from django.shortcuts import get_object_or_404
 from datetime import datetime
+from django.db import transaction
 
 from .serializers import (
     PropertySerializer, UnitDetailSerializer, TenantSerializer, 
     UnitPaymentCreateSerializer, UnitPaymentSerializer, ChargeStatusUpdateSerializer, ChangeLogSerializer,
-    ChargeSerializer, ChargeListSerializer, ChargeTypeSerializer, ChargeCreateSerializer
+    ChargeSerializer, TenantMeSerializer, ChargeTypeSerializer, ChargeCreateSerializer
 )
 from .models import Property, TenantInvitation, Unit, Tenant, UnitPayment, Tenancy, Charge, ChargeType, TenancyMember, ChangeLog
 
 from accounts.permissions import IsBusinessMember, HasBusinessContext
-from accounts.models import Business
+from accounts.models import User, Business
+from accounts.validators import normalize_kenyan_phone
+
+from payments.models import MpesaConfiguration
 
 # Services
 from .services.reports import get_property_audit_data, generate_property_audit_pdf
 from .services.payment_service import process_payment, get_payment_analytics
 from .services.charge_service import update_charge_status
-from .services.tenancy_service import accept_tenant_invitation, vacate_unit, add_tenant_or_roommate_to_unit, remove_roommate_from_unit
+from .services.balance import recompute_tenancy_balance
+from .services.tenancy_service import accept_tenant_invitation, update_tenant, vacate_unit, add_tenant_or_roommate_to_unit, remove_roommate_from_unit, update_tenancy_billing_date
 from .services.unit_service import update_unit
 from .services.rent import get_property_dashboard, get_property_units
 from .services.export import stream_payments_csv
@@ -211,10 +216,10 @@ class UnitViewSet(ModelViewSet):
             property__business__memberships__user=self.request.user,
         )
 
-        # Filters
         property_id = self.request.query_params.get("property")
         status_filter = self.request.query_params.get("status")
         search = self.request.query_params.get("search")
+        rent_status = self.request.query_params.get("rent_status")
 
         if property_id:
             queryset = queryset.filter(property_id=property_id)
@@ -230,6 +235,22 @@ class UnitViewSet(ModelViewSet):
                 Q(tenancies__tenancy_members__tenant__phone__icontains=search)
             ).distinct()
 
+        if rent_status:
+            active_balance = Tenancy.objects.filter(
+                unit=OuterRef("pk"), is_active=True
+            ).values("balance")[:1]
+
+            queryset = queryset.annotate(
+                active_balance=Subquery(active_balance, output_field=DecimalField())
+            )
+
+            if rent_status == "arrears":
+                queryset = queryset.filter(active_balance__gt=0)
+            elif rent_status == "credit":
+                queryset = queryset.filter(active_balance__lt=0)
+            elif rent_status == "settled":
+                queryset = queryset.filter(active_balance=0)
+
         if self.action in ["list", "retrieve"]:
             queryset = queryset.prefetch_related(
                 Prefetch(
@@ -240,7 +261,12 @@ class UnitViewSet(ModelViewSet):
                         Prefetch(
                             "tenancy_members",
                             queryset=TenancyMember.objects.filter(is_active=True).select_related("tenant"),
-                        )
+                        ),
+                        Prefetch(
+                            "payments",
+                            queryset=UnitPayment.objects.filter(category="deposit"),
+                            to_attr="deposit_payments",
+                        ),
                     ),
                 )
             )
@@ -282,75 +308,62 @@ class UnitViewSet(ModelViewSet):
             "message": "Property ID query parameter is required for rent-status view queries."
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['get', 'post'], url_path='payments')
+    @action(detail=True, methods=['get'], url_path='payments')
     def manage_payments(self, request, id=None):
         unit = self.get_object()
         tenancy = unit.tenancies.filter(is_active=True).first()
 
         if not tenancy:
             return Response({
-                "payments": [],
                 "balance": 0.0,
                 "deposit_held": 0.0,
                 "monthly_rent": 0.0,
                 "status": unit.status,
                 "charges": 0.0,
-                "charge_details": []
+                "payments": [],
             })
 
-        if request.method == 'GET':
-            payments = tenancy.payments.all().order_by("-created_at")
+        payments = tenancy.payments.all().order_by("-created_at")
 
-            search = request.query_params.get("search")
-            payment_method = request.query_params.get("payment_method")
-            filter_date = request.query_params.get("filter_date")
-            
-            if search:
-                payments = payments.filter(
-                    Q(reference__icontains=search) |
-                    Q(payment_method__icontains=search) |
-                    Q(notes__icontains=search) |
-                    Q(amount_paid__icontains=search)
-                )
-            
-            if payment_method:
-                payments = payments.filter(payment_method=payment_method)
-            
-            if filter_date:
-                payments = payments.filter(paid_on__date=filter_date)
-            
-            paginator = Pagination()
-            paginated_payments = paginator.paginate_queryset(payments, request)
+        search = request.query_params.get("search")
+        payment_method = request.query_params.get("payment_method")
+        filter_date = request.query_params.get("filter_date")
 
-            serialized_payments = UnitPaymentSerializer(paginated_payments, many=True).data
+        if search:
+            payments = payments.filter(
+                Q(reference__icontains=search) | 
+                Q(notes__icontains=search)
+            )
 
-            current_balance = tenancy.calculate_balance()
-            deposit_held = tenancy.get_deposit_held()
-            charges = tenancy.charges.filter(status="pending").order_by("-created_at")
-            
-            response_data = ({
-                "payments": serialized_payments,
-                "balance": float(current_balance),
-                "deposit_held": float(deposit_held),
-                "monthly_rent": float(tenancy.monthly_rent),
-                "status": "arrears" if current_balance > 0 else "credit" if current_balance < 0 else "settled",
-                "charges": float(sum([c.amount for c in charges])),
-                "charge_details": ChargeListSerializer(charges, many=True).data
-            })
+        if payment_method:
+            payments = payments.filter(payment_method=payment_method)
 
-            return paginator.get_paginated_response(response_data)
+        if filter_date:
+            payments = payments.filter(paid_on__date=filter_date)
 
-        if request.method in ['POST']:
-            serializer = UnitPaymentCreateSerializer(payment, data=request.data, partial=(request.method == 'PATCH'))
-            serializer.is_valid(raise_exception=True)
+        paginator = Pagination()
+        paginated_payments = paginator.paginate_queryset(payments, request)
+        if paginated_payments is None:
+            paginated_payments = payments
+        serialized_payments = UnitPaymentSerializer(paginated_payments, many=True).data
 
-            new_balance = process_payment(tenancy, serializer.validated_data)
+        current_balance = tenancy.calculate_balance()
+        deposit_held = tenancy.get_deposit_held()
+        charges = tenancy.charges.filter(status="pending", accrual_type__isnull=True).order_by("-created_at")
+        total_charges = charges.aggregate(total=Sum("amount"))["total"] or 0.0
 
-            return Response({
-                "success": True,
-                "balance": float(new_balance),
-            }, status=status.HTTP_201_CREATED)
-
+        return Response({
+            "count": paginator.page.paginator.count,
+            "next": paginator.get_next_link(),
+            "previous": paginator.get_previous_link(),
+            "balance": float(current_balance),
+            "deposit_held": float(deposit_held),
+            "monthly_rent": float(tenancy.monthly_rent),
+            "status": "arrears" if current_balance > 0 else "credit" if current_balance < 0 else "settled",
+            "charges": float(total_charges),
+            "payments": serialized_payments,
+        })
+        
     @action(detail=True, methods=['get'], url_path='change-logs')
     def change_logs(self, request, id=None):
         unit = self.get_object()
@@ -437,7 +450,34 @@ class TenantViewSet(ModelViewSet):
             queryset = queryset.filter(full_name__icontains=query)
         return queryset
 
-    @action(detail=False, methods=['get', 'post'], url_path='unit/(?P<unit_id>[^/.]+)')
+    def update(self, request, *args, **kwargs):
+        tenant = self.get_object()
+
+        serializer = self.get_serializer(tenant, data=request.data, partial=False,)
+        serializer.is_valid(raise_exception=True)
+
+        tenant = update_tenant(tenant, serializer.validated_data,)
+
+        return Response(
+            self.get_serializer(tenant).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+    def partial_update(self, request, *args, **kwargs):
+        tenant = self.get_object()
+
+        serializer = self.get_serializer(tenant, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        tenant = update_tenant(tenant, serializer.validated_data)
+
+        return Response(
+            self.get_serializer(tenant).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['get', 'post', 'patch'], url_path='unit/(?P<unit_id>[^/.]+)')
     def unit_tenants(self, request, unit_id=None):
         unit = get_object_or_404(Unit, id=unit_id, property__business__memberships__user=request.user)
 
@@ -451,15 +491,18 @@ class TenantViewSet(ModelViewSet):
             serializer = TenantSerializer([member.tenant for member in active_members], many=True)
             return Response({
                 "tenancy_id": tenancy.id,
+                "tenancy_billing_start_date": tenancy.get_effective_billing_start(),
                 "tenants": serializer.data
             }, status=status.HTTP_200_OK)
 
         if request.method == 'POST':
             billing_start_date = request.data.get('billing_start_date')
+            first_month_rent = request.data.get('first_month_rent')
             tenancy, tenant, is_roommate = add_tenant_or_roommate_to_unit(
                 unit=unit, 
                 data=request.data, 
-                billing_start_date=billing_start_date
+                billing_start_date=billing_start_date,
+                first_month_rent=first_month_rent
             )
             
             message = "Roommate added successfully" if is_roommate else "Tenant added successfully"
@@ -471,6 +514,19 @@ class TenantViewSet(ModelViewSet):
                 "tenancy_id": tenancy.id,
                 "tenant_id": tenant.id
             }, status=status.HTTP_201_CREATED)
+
+        if request.method == 'PATCH':
+            tenancy = Tenancy.objects.filter(unit=unit, is_active=True).first()
+            if not tenancy:
+                return Response({"detail": "No active tenancy found for this unit."}, status=status.HTTP_400_BAD_REQUEST)
+
+            update_tenancy_billing_date(tenancy, request.data)
+
+            return Response({
+                "success": True,
+                "message": "Billing start date updated successfully",
+                "tenancy_id": tenancy.id,
+            }, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], url_path='invitation/(?P<token>[^/.]+)')
     def invitation(self, request, token=None):
@@ -487,10 +543,15 @@ class TenantViewSet(ModelViewSet):
         if tenant.user:
             return Response({"detail": "This tenant already has an account."}, status=status.HTTP_400_BAD_REQUEST)
 
+        email_has_account = User.objects.filter(
+            email__iexact=invitation.email
+        ).exists()
+
         return Response({
             "valid": True,
             "email": invitation.email,
             "full_name": tenant.full_name,
+            "account_exists": email_has_account,
         })
 
     @action(detail=False, methods=['post'], url_path='invitation/(?P<token>[^/.]+)/accept')
@@ -498,22 +559,28 @@ class TenantViewSet(ModelViewSet):
         password = request.data.get("password")
         password_confirm = request.data.get("password_confirm")
 
-        if not password:
-            return Response({"detail": "Password is required."}, status=status.HTTP_400_BAD_REQUEST)
-
         if password != password_confirm:
-            return Response({"detail": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Passwords do not match."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
-            user, tenant = accept_tenant_invitation(token=token, password=password)
+            user, tenant = accept_tenant_invitation(
+                token=token,
+                password=password,
+                user=request.user if request.user.is_authenticated else None,
+            )
         except ValidationError as e:
-            return Response({"detail": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "detail": e.detail
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
             "success": True,
-            "message": "Invitation accepted successfully. You can now log in.",
+            "message": "Invitation accepted successfully.",
             "user_id": user.id,
-            "tenant_id": tenant.id
+            "tenant_id": tenant.id,
         }, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['post'], url_path='unit/(?P<unit_id>[^/.]+)/vacate')
@@ -554,39 +621,53 @@ class TenantViewSet(ModelViewSet):
 
 class TenantMeView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = TenantMeSerializer
 
     def get(self, request):
-        tenant = get_object_or_404(Tenant.objects.select_related("user"), user=request.user,)
+        tenant = get_object_or_404(
+            Tenant.objects.select_related("user"),
+            user=request.user,
+        )
 
-        tenancies = (
+        active_tenancies = (
             Tenancy.objects
             .filter(
                 tenancy_members__tenant=tenant,
                 tenancy_members__is_active=True,
                 is_active=True,
             )
-            .select_related("unit", "unit__property")
+            .select_related(
+                "unit",
+                "unit__property",
+                "unit__property__business",
+                "unit__property__business__mpesa_configuration",
+            )
         )
 
-        return Response({
-            "id": str(tenant.id),
-            "full_name": tenant.full_name,
-            "email": tenant.email,
-            "phone": tenant.phone,
-            "tenancies": [
-                {
-                    "id": str(tenancy.id),
-                    "unit": tenancy.unit.name,
-                    "property": tenancy.unit.property.name,
-                    "monthly_rent": str(tenancy.monthly_rent),
-                    "balance": str(tenancy.calculate_balance()),
-                    "deposit_held": str(tenancy.get_deposit_held()),
-                    "start_date": tenancy.start_date,
-                    "billing_start_date": tenancy.billing_start_date,
-                }
-                for tenancy in tenancies
-            ],
-        })
+        pending_charges = (
+            Charge.objects
+            .filter(
+                tenancy__tenancy_members__tenant=tenant,
+                tenancy__tenancy_members__is_active=True,
+                tenancy__is_active=True,
+                status="pending",
+            )
+            .select_related(
+                "tenancy",
+                "tenancy__unit",
+                "tenancy__unit__property",
+            )
+            .exclude(accrual_type="rent")
+        )
+
+        serializer = TenantMeSerializer(
+            tenant,
+            context={
+                "active_tenancies": active_tenancies,
+                "pending_charges": pending_charges
+            }
+        )
+        return Response(serializer.data)
 
 class PaymentViewSet(ModelViewSet):
     permission_classes = [HasBusinessContext]
@@ -676,18 +757,16 @@ class PaymentViewSet(ModelViewSet):
         if payment.source == "stk":
             return Response({
                 "success": False,
-                "errors": {
-                    "detail": "M-Pesa STK payments cannot be edited. Delete and re-record instead."
-                },
+                "errors": {"detail": "M-Pesa STK payments cannot be edited. Delete and re-record instead."},
             }, status=status.HTTP_400_BAD_REQUEST)
+
         tenancy = payment.tenancy
-        
         serializer = self.get_serializer(payment, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated_payment = serializer.save()
-        
-        new_balance = tenancy.calculate_balance()
-        
+
+        new_balance = recompute_tenancy_balance(tenancy)
+
         return Response({
             "success": True,
             "id": str(updated_payment.id),
@@ -701,16 +780,14 @@ class PaymentViewSet(ModelViewSet):
         if payment.source == "stk":
             return Response({
                 "success": False,
-                "errors": {
-                    "detail": "M-Pesa STK payments cannot be deleted. Record an offsetting refund instead."
-                },
+                "errors": {"detail": "M-Pesa STK payments cannot be deleted. Record an offsetting refund instead."},
             })
-        
+
         tenancy = payment.tenancy
         payment.delete()
-        
-        new_balance = tenancy.calculate_balance()
-        
+
+        new_balance = recompute_tenancy_balance(tenancy)
+
         return Response({
             "success": True,
             "message": "Payment deleted successfully",
@@ -808,6 +885,8 @@ class ChargeViewSet(ModelViewSet):
         ).filter(
             tenancy__unit__property__business_id=business_id,
             tenancy__unit__property__business__memberships__user=self.request.user
+        ).exclude(
+            accrual_type="rent"
         )
     
         tenancy_id = self.request.query_params.get('tenancy')

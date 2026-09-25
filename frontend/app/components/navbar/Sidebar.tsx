@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
-import LogoutButton from "../LogoutButton";
+import LogoutButton from "../navigation/LogoutButton";
 import { useBusiness } from "@/app/providers/BusinessProvider";
 import { useToast } from "@/app/providers/ToastProvider";
 import {
@@ -13,6 +13,7 @@ import {
   ChevronLeft, ChevronDown, Menu, X, User, HandCoins, PanelLeftClose, PanelLeftOpen
 } from "lucide-react"
 import { Business } from "@/app/src/types/Types";
+import CustomTooltip from "../ui/CustomTooltip";
 
 interface SidebarProps {
   appUser: any,
@@ -43,7 +44,10 @@ const PORTAL_LABELS = {
   admin: "ADMIN",
 } as const;
 
-const EXCLUDED_PATHS = ['/accept-invitation'];
+const EXCLUDED_PATHS = [
+  '/accept-invitation', 
+  process.env.NEXT_PUBLIC_MAIN_SITE_URL
+].filter((path): path is string => Boolean(path));
 
 const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
   const pathname = usePathname();
@@ -404,9 +408,10 @@ const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
 
                   {/* Tooltip for collapsed sidebar */}
                   {!isOpen && (
-                    <span className="absolute top-1/2 -translate-y-1/2 ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity duration-300 z-50 shadow-lg">
-                      {item.label}
-                    </span>
+                    <div className="ml-auto absolute top-1/2 -translate-y-1/2">
+                      <CustomTooltip message={item.label} />
+                    </div>
+                    
                   )}
                 </Link>
               );
@@ -414,11 +419,11 @@ const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
           </nav>
         </div>
 
-        {/* ===== FOOTER (shrink-0, pinned) ===== */}
-        <div className="shrink-0 border-t border-gray-700/50 bg-gray-800/95 backdrop-blur-sm p-4">
+        {/* ===== FOOTER ===== */}
+        <div className="border-t border-gray-700 p-4 flex flex-col gap-2">
           {/* User Info */}
           {isOpen && (
-            <div className="mb-4 px-3">
+            <div className="px-3">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-500 rounded-full flex items-center justify-center">
                   <User className="w-5 h-5 text-white" />
@@ -436,25 +441,8 @@ const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
           )}
 
           {/* Logout Button */}
-          <div className={`flex items-center ${
-            isOpen ? "gap-3" : "justify-center"
-          }`}>
-            <LogoutButton
-              className={`${
-                isOpen
-                  ? "w-full py-3 bg-gradient-to-r from-gray-700 to-gray-600 text-white font-medium rounded-xl hover:from-gray-600 hover:to-gray-500 transition-all duration-300 shadow-lg"
-                  : "p-3 bg-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-700 rounded-xl transition-all duration-300"
-              } flex items-center ${
-                isOpen ? "justify-center gap-2" : "justify-center"
-              }`}
-            />
-
-            {/* Tooltip for collapsed sidebar */}
-            {!isOpen && (
-              <span className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity duration-300 z-50 shadow-lg">
-                Sign Out
-              </span>
-            )}
+          <div className="">
+            <LogoutButton isOpen={isOpen} />
           </div>
         </div>
       </aside>

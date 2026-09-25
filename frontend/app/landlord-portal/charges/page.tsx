@@ -284,7 +284,7 @@ const ChargesPage = () => {
                                 </tr>
                             ) : (
                                 charges.map((charge: Charge) => (
-                                    <tr key={charge.id} className="hover:bg-blue-50/30 transition-colors">
+                                    <tr key={charge.id} className="hover:bg-gray-300/20 transition-colors">
                                         <td className="py-4 px-6 whitespace-nowrap">
                                             <div>
                                                 <p className="font-medium text-gray-900">{charge.unit.name}</p>

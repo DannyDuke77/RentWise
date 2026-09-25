@@ -45,13 +45,7 @@ const BusinessGate = ({ children }: { children: React.ReactNode }) => {
 
   if (isBusinesslessRoute) return <>{children}</>;
 
-  if (isLoading) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <LoadingSpinner size="lg" label="Loading..." />
-      </div>
-    );
-  }
+  if (isLoading) return <>{children}</>
 
   if (!activeBusinessId) {
     return (

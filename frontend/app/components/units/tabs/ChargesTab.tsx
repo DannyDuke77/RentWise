@@ -117,13 +117,11 @@ const ChargesTab = ({ unit, tenancyId }: ChargesTabProps) => {
         try {
             const response = await createCharge.mutateAsync(formData);
 
-            if (response.id) {
+            if (response.tenancy) {
                 setFormData({ charge_type: "", amount: "", description: "" });
-
                 showToast('Charge Created!', 'Your charge has been created successfully.', 'success');
             } else {
                 setErrors(response);
-                console.log("Creation failed", response);
                 showToast('Failed to create', 'Please check the form for errors.', 'error');
             }
         } catch (error) {

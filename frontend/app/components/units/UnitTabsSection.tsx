@@ -1,20 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import TabHeader from "./TabHeader";
 import DetailsTab from "@/app/components/units/tabs/DetailsTab";
 import PaymentTab from "@/app/components/units/tabs/PaymentTab";
 import ChargesTab from "@/app/components/units/tabs/ChargesTab";
 import LogsTab from "@/app/components/units/tabs/LogsTab";
-import ConfirmModal from "@/app/components/modals/ConfirmModal";
-import { AlertTriangle, Save } from "lucide-react";
-import { useUnitTenants } from "@/app/hooks/queries/useUnitDetailQueries";
-import { useUpdateUnit } from "@/app/hooks/mutations/useUnitMutations";
-import { useRemoveRoommate, useVacateUnit } from "@/app/hooks/mutations/useTenantMutations";
 import BackButton from "@/app/components/navigation/BackButton";
 import { Property } from "@/app/src/types/Types";
-import { useToast } from "@/app/providers/ToastProvider";
 
 type TabKey = 'details' | 'payments' | 'charges' | 'logs';
 

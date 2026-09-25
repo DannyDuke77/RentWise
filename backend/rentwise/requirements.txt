@@ -5,6 +5,10 @@ sqlparse==0.5.5              # SQL parsing (used by Django)
 tzdata==2025.3               # Timezone database (required on some systems)
 django-extensions==4.1
 
+# Background tasks
+celery
+redis
+
 # Security
 cryptography==50.0.1         # Cryptographic library
 

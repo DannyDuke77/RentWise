@@ -94,7 +94,8 @@ def process_mpesa_callback(data):
             "reference": receipt_number,
             "notes": mpesa_transaction.notes,
         },
-        source="stk"
+        source="stk",
+        mpesa_transaction=mpesa_transaction
     )
 
     return mpesa_transaction

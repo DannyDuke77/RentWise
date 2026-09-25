@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
     CreditCard, Shield, Info, AlertCircle, Calendar,
     CheckCircle2, X, MousePointer, ChevronDown, Edit, Lock
@@ -8,8 +8,7 @@ import {
 import Modal from "@/app/components/ui/Modal";
 import { Payment } from "@/app/src/types/Types";
 import { useToday } from "@/app/src/utils/timeStore";
-
-export type PaymentModalMode = 'create' | 'edit' | 'view';
+import Toggle from "../ui/Toggle";
 
 export interface PaymentFormPayload {
     amount_paid: number;
@@ -23,131 +22,70 @@ export interface PaymentFormPayload {
 interface PaymentModalProps {
     isOpen: boolean;
     onClose: () => void;
-    mode: PaymentModalMode;
+    payment: Payment | null;
+    /** When true, the modal opens as a fresh "New Payment" form. */
+    createMode?: boolean;
+    /** When true (and not in createMode), the modal opens in edit mode. */
+    startInEdit?: boolean;
     isPending: boolean;
     errors: Record<string, string[]>;
     isValidMpesa: (ref: string) => boolean;
-    payment?: Payment | null;
-
-    /**
-     * Called when the user submits in create or edit mode.
-     * For 'create', payload contains the newly entered values.
-     * For 'edit', payload contains the edited values (including this payment's id via `payment`).
-     */
     onSubmit: (payload: PaymentFormPayload) => void;
-
-    // Controlled props — only used in 'create' mode.
-    // In 'edit'/'view' modes the modal owns its form state, seeded from `payment`.
-    paymentCategory?: "rent" | "deposit";
-    setPaymentCategory?: (category: "rent" | "deposit") => void;
-    amount?: string;
-    setAmount?: (value: string) => void;
-    paymentMethod?: string;
-    setPaymentMethod?: (value: string) => void;
-    reference?: string;
-    setReference?: (value: string) => void;
-    paymentDate?: string;
-    setPaymentDate?: (value: string) => void;
-    notes?: string;
-    setNotes?: (value: string) => void;
-    message?: string;
-    setMessage?: (value: string) => void;
-
-    /** Notifies parent when the user enables editing from view mode. */
-    onEnableEdit?: () => void;
 }
 
 export const PaymentModal = ({
     isOpen,
     onClose,
-    mode,
+    payment,
+    createMode = false,
+    startInEdit = false,
     isPending,
     errors,
     isValidMpesa,
-    payment,
     onSubmit,
-
-    paymentCategory: controlledCategory,
-    setPaymentCategory: setControlledCategory,
-    amount: controlledAmount,
-    setAmount: setControlledAmount,
-    paymentMethod: controlledMethod,
-    setPaymentMethod: setControlledMethod,
-    reference: controlledReference,
-    setReference: setControlledReference,
-    paymentDate: controlledDate,
-    setPaymentDate: setControlledDate,
-    notes: controlledNotes,
-    setNotes: setControlledNotes,
-    message: controlledMessage,
-    setMessage: setControlledMessage,
-
-    onEnableEdit,
 }: PaymentModalProps) => {
     const today = useToday();
 
-    const [internalCategory, setInternalCategory] = useState<"rent" | "deposit">("rent");
-    const [internalAmount, setInternalAmount] = useState("");
-    const [internalMethod, setInternalMethod] = useState("");
-    const [internalReference, setInternalReference] = useState("");
-    const [internalDate, setInternalDate] = useState("");
-    const [internalNotes, setInternalNotes] = useState("");
-    const [internalMessage, setInternalMessage] = useState("");
-
+    const [category, setCategory] = useState<"rent" | "deposit">("rent");
+    const [amount, setAmount] = useState("");
+    const [method, setMethod] = useState("");
+    const [reference, setReference] = useState("");
+    const [date, setDate] = useState("");
+    const [notes, setNotes] = useState("");
+    const [message, setMessage] = useState("");
     const [editEnabled, setEditEnabled] = useState(false);
 
-    const isControlled = mode === 'create';
-
-    const category = isControlled ? (controlledCategory ?? "rent") : internalCategory;
-    const amount = isControlled ? (controlledAmount ?? "") : internalAmount;
-    const method = isControlled ? (controlledMethod ?? "") : internalMethod;
-    const reference = isControlled ? (controlledReference ?? "") : internalReference;
-    const date = isControlled ? (controlledDate ?? "") : internalDate;
-    const notes = isControlled ? (controlledNotes ?? "") : internalNotes;
-    const message = isControlled ? (controlledMessage ?? "") : internalMessage;
-
-    const setCategory = isControlled ? setControlledCategory : setInternalCategory;
-    const setAmount = isControlled ? setControlledAmount : setInternalAmount;
-    const setMethod = isControlled ? setControlledMethod : setInternalMethod;
-    const setReference = isControlled ? setControlledReference : setInternalReference;
-    const setDate = isControlled ? setControlledDate : setInternalDate;
-    const setNotes = isControlled ? setControlledNotes : setInternalNotes;
-    const setMessage = isControlled ? setControlledMessage : setInternalMessage;
-
-    // Controlled state sync
+    // Seed state when the modal opens or the target payment changes.
     useEffect(() => {
-        if (!isOpen || isControlled || !payment) return;
+        if (!isOpen) return;
 
-        setInternalAmount(String(payment.amount_paid ?? ''));
-        setInternalCategory((payment.category as "rent" | "deposit") ?? 'rent');
-        setInternalMethod(payment.payment_method ?? '');
-        setInternalReference(payment.reference ?? '');
-        setInternalDate(payment?.paid_on ? payment.paid_on.slice(0, 16) : '');
-        setInternalNotes(payment.notes ?? '');
-        setInternalMessage('');
-        setEditEnabled(mode === 'edit');
-    }, [isOpen, isControlled, payment, mode]);
+        if (createMode) {
+            setAmount("");
+            setCategory("rent");
+            setMethod("");
+            setReference("");
+            setDate(today.toISOString().slice(0, 16));
+            setNotes("");
+            setMessage("");
+            setEditEnabled(true);
+            return;
+        }
 
-    const isReadOnly = mode === 'view' && !editEnabled;
-    const isEditing = mode === 'edit' || (mode === 'view' && editEnabled);
+        if (!payment) return;
 
-    const handleToggleEdit = useCallback(() => {
-        const next = !editEnabled;
-        setEditEnabled(next);
-        if (next) onEnableEdit?.();
-    }, [editEnabled, onEnableEdit]);
+        setAmount(String(payment.amount_paid ?? ""));
+        setCategory((payment.category as "rent" | "deposit") ?? "rent");
+        setMethod(payment.payment_method ?? "");
+        setReference(payment.reference ?? "");
+        setDate(payment.paid_on ? payment.paid_on.slice(0, 16) : "");
+        setNotes(payment.notes ?? "");
+        setMessage("");
+        setEditEnabled(startInEdit);
+    }, [isOpen, payment, createMode, startInEdit, today]);
+
+    const isReadOnly = !editEnabled;
 
     const handleClose = () => {
-        if (isControlled) {
-            // Reset create-mode form on close
-            setAmount?.('');
-            setCategory?.('rent');
-            setMethod?.('');
-            setReference?.('');
-            setNotes?.('');
-            setDate?.(today.toISOString().split('T')[0]);
-            setMessage?.('');
-        }
         setEditEnabled(false);
         onClose();
     };
@@ -156,64 +94,90 @@ export const PaymentModal = ({
         e.preventDefault();
         if (isReadOnly) return;
 
-        const payload: PaymentFormPayload = {
+        onSubmit({
             amount_paid: Number(amount) || 0,
             payment_method: method,
             reference,
             category,
             notes: notes.trim(),
             paid_on: date,
-        };
-
-        onSubmit(payload);
+        });
     };
 
-    const getTitle = () => {
-        if (mode === 'create') return 'New Payment';
-        if (mode === 'edit') return 'Edit Payment';
-        return editEnabled ? 'Edit Payment' : 'Payment Details';
-    };
+    if (!payment && !createMode) return null;
+
+    const title = createMode
+        ? "New Payment"
+        : editEnabled
+        ? "Edit Payment"
+        : "Payment Details";
 
     const content = (
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
             {/* Mode banner */}
-            {mode !== 'create' && payment && (
-                <div className={`flex items-start justify-between gap-3 p-3 border rounded-xl ${
-                    isReadOnly
-                        ? 'bg-gray-50 border-gray-200'
-                        : 'bg-blue-50 border-blue-200'
-                }`}>
-                    <div className="flex items-start gap-3">
-                        {isReadOnly ? (
-                            <Lock className="w-5 h-5 text-gray-500 mt-0.5" />
-                        ) : (
-                            <Edit className="w-5 h-5 text-blue-600 mt-0.5" />
-                        )}
-                        <div>
-                            <p className={`text-sm font-medium ${isReadOnly ? 'text-gray-700' : 'text-blue-800'}`}>
-                                {isReadOnly ? 'Read-only view' : 'Editing Payment'}
+            {!createMode && payment && (
+                <div
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 border rounded-xl transition-all duration-200 ${
+                        isReadOnly
+                            ? "bg-slate-50 border-slate-200/80 shadow-xs"
+                            : "bg-blue-50/60 border-blue-200 shadow-xs"
+                    }`}
+                >
+                    {/* Left Side: Icon & Metadata */}
+                    <div className="flex items-start gap-3 min-w-0">
+                        <div
+                            className={`p-2 rounded-lg shrink-0 ${
+                                isReadOnly
+                                    ? "bg-slate-200/60 text-slate-600"
+                                    : "bg-blue-100 text-blue-700"
+                            }`}
+                        >
+                            {isReadOnly ? (
+                                <Lock className="w-4 h-4" />
+                            ) : (
+                                <Edit className="w-4 h-4" />
+                            )}
+                        </div>
+
+                        <div className="space-y-0.5 min-w-0">
+                            <p
+                                className={`text-sm font-semibold leading-tight ${
+                                    isReadOnly ? "text-slate-800" : "text-blue-950"
+                                }`}
+                            >
+                                {isReadOnly ? "Read-Only Mode" : "Editing Payment"}
                             </p>
-                            <p className={`text-xs ${isReadOnly ? 'text-gray-500' : 'text-blue-600'}`}>
-                                Reference: <span className="font-mono">{payment.reference || 'N/A'}</span>
-                                {' • '}
-                                Date: {new Date(payment.paid_on).toLocaleDateString()}
-                            </p>
+
+                            <div
+                                className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ${
+                                    isReadOnly ? "text-slate-500" : "text-blue-800/80"
+                                }`}
+                            >
+                                <span className="truncate">
+                                    Ref:{" "}
+                                    <span className="font-mono font-medium text-slate-700">
+                                        {payment.reference || "N/A"}
+                                    </span>
+                                </span>
+                                <span className="text-slate-300">•</span>
+                                <span>
+                                    Date: {new Date(payment.paid_on).toLocaleDateString()}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
-                    {mode === 'view' && (
-                        <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
-                            <input
-                                type="checkbox"
-                                checked={editEnabled}
-                                onChange={handleToggleEdit}
-                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">
-                                Enable editing
-                            </span>
-                        </label>
-                    )}
+                    {/* Right Side: Toggle Control */}
+                    <label className="flex items-center justify-between sm:justify-end gap-2.5 cursor-pointer select-none shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
+                        <span
+                            className={`text-xs font-semibold tracking-wide uppercase ${
+                                isReadOnly ? "text-slate-600" : "text-blue-700"
+                            }`}
+                        >
+                            {isReadOnly ? "Enable editing" : "Editing"}
+                        </span>
+                        <Toggle checked={editEnabled} onChange={setEditEnabled} />
+                    </label>
                 </div>
             )}
 
@@ -223,7 +187,7 @@ export const PaymentModal = ({
                 <div className="grid grid-cols-2 gap-3">
                     <button
                         type="button"
-                        onClick={() => !isReadOnly && setCategory?.("rent")}
+                        onClick={() => !isReadOnly && setCategory("rent")}
                         disabled={isReadOnly}
                         className={`flex items-center justify-center gap-2 p-3.5 rounded-lg text-sm font-bold border-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                             category === "rent"
@@ -236,7 +200,7 @@ export const PaymentModal = ({
                     </button>
                     <button
                         type="button"
-                        onClick={() => !isReadOnly && setCategory?.("deposit")}
+                        onClick={() => !isReadOnly && setCategory("deposit")}
                         disabled={isReadOnly}
                         className={`flex items-center justify-center gap-2 p-3.5 rounded-lg text-sm font-bold border-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                             category === "deposit"
@@ -272,14 +236,14 @@ export const PaymentModal = ({
                             disabled={isReadOnly}
                             className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl outline-none transition-all text-gray-800 font-bold disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed ${
                                 errors.amount_paid
-                                    ? 'border-rose-400 bg-rose-50/30 focus:ring-4 focus:ring-rose-200'
-                                    : 'bg-gray-50 border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100'
+                                    ? "border-rose-400 bg-rose-50/30 focus:ring-4 focus:ring-rose-200"
+                                    : "bg-gray-50 border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                             }`}
                             value={amount}
-                            onChange={e => setAmount?.(e.target.value)}
+                            onChange={(e) => setAmount(e.target.value)}
                         />
                     </div>
-                    {errors.amount_paid && errors.amount_paid.length > 0 && (
+                    {errors.amount_paid?.[0] && (
                         <p className="text-sm font-semibold text-rose-500 flex items-center gap-1.5">
                             <AlertCircle className="w-4 h-4" />
                             {errors.amount_paid[0]}
@@ -299,11 +263,11 @@ export const PaymentModal = ({
                             disabled={isReadOnly}
                             className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl outline-none transition-all appearance-none text-sm font-bold text-gray-800 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed ${
                                 errors.payment_method
-                                    ? 'border-rose-400 bg-rose-50/30 focus:ring-4 focus:ring-rose-200'
-                                    : 'border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100'
+                                    ? "border-rose-400 bg-rose-50/30 focus:ring-4 focus:ring-rose-200"
+                                    : "border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                             }`}
                             value={method}
-                            onChange={e => setMethod?.(e.target.value)}
+                            onChange={(e) => setMethod(e.target.value)}
                         >
                             <option value="">Select Method</option>
                             <option value="mpesa">M-Pesa</option>
@@ -313,7 +277,7 @@ export const PaymentModal = ({
                         <ChevronDown className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
 
-                    {errors.payment_method && errors.payment_method.length > 0 && (
+                    {errors.payment_method?.[0] && (
                         <p className="text-sm font-semibold text-rose-500 flex items-center gap-1.5">
                             <AlertCircle className="w-4 h-4" />
                             {errors.payment_method[0]}
@@ -322,31 +286,31 @@ export const PaymentModal = ({
                 </div>
 
                 {(method === "mpesa" || method === "bank") && (
-                    <div className="md:col-span-2 space-y-1.5 animate-in fade-in duration-200">
+                    <div className="md:col-span-2 space-y-1.5">
                         <label className="text-sm font-bold text-gray-600 flex justify-between">
                             <span>Reference Code <span className="text-rose-500">*</span></span>
                             {method === "mpesa" && reference && (
-                                <span className={isValidMpesa(reference) ? 'text-emerald-600' : 'text-rose-500'}>
-                                    {isValidMpesa(reference) ? '✓ Valid' : '✗ Invalid (10 chars)'}
+                                <span className={isValidMpesa(reference) ? "text-emerald-600" : "text-rose-500"}>
+                                    {isValidMpesa(reference) ? "✓ Valid" : "✗ Invalid (10 chars)"}
                                 </span>
                             )}
                         </label>
                         <input
                             type="text"
-                            placeholder={method === 'mpesa' ? "e.g. RQB7TX890Z" : "Bank Reference"}
+                            placeholder={method === "mpesa" ? "e.g. RQB7TX890Z" : "Bank Reference"}
                             maxLength={10}
                             disabled={isReadOnly}
                             className={`w-full p-3 border-2 rounded-xl outline-none transition-all text-sm font-mono uppercase disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed ${
-                                method === 'mpesa' && reference
+                                method === "mpesa" && reference
                                     ? isValidMpesa(reference)
-                                        ? 'border-emerald-400 bg-emerald-50/30 focus:ring-4 focus:ring-emerald-200'
-                                        : 'border-rose-400 bg-rose-50/30 focus:ring-4 focus:ring-rose-200'
-                                    : 'border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100'
+                                        ? "border-emerald-400 bg-emerald-50/30 focus:ring-4 focus:ring-emerald-200"
+                                        : "border-rose-400 bg-rose-50/30 focus:ring-4 focus:ring-rose-200"
+                                    : "border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                             }`}
                             value={reference}
-                            onChange={e => setReference?.(e.target.value.toUpperCase().trim())}
+                            onChange={(e) => setReference(e.target.value.toUpperCase().trim())}
                         />
-                        {errors.reference && (
+                        {errors.reference?.[0] && (
                             <p className="text-sm font-semibold text-rose-500 flex items-center gap-1.5">
                                 <AlertCircle className="w-4 h-4" />
                                 {errors.reference[0]}
@@ -366,7 +330,7 @@ export const PaymentModal = ({
                             disabled={isReadOnly}
                             className="w-full pl-12 pr-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                             value={date}
-                            onChange={e => setDate?.(e.target.value)}
+                            onChange={(e) => setDate(e.target.value)}
                         />
                     </div>
                 </div>
@@ -378,7 +342,7 @@ export const PaymentModal = ({
                         disabled={isReadOnly}
                         className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl outline-none resize-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                         value={notes}
-                        onChange={e => setNotes?.(e.target.value)}
+                        onChange={(e) => setNotes(e.target.value)}
                         placeholder="Optional notes..."
                     />
                 </div>
@@ -392,7 +356,7 @@ export const PaymentModal = ({
                     </div>
                     <button
                         type="button"
-                        onClick={() => setMessage?.('')}
+                        onClick={() => setMessage("")}
                         className="p-1 hover:bg-emerald-100 rounded-lg transition-colors"
                     >
                         <X className="w-4 h-4 text-emerald-600" />
@@ -406,7 +370,7 @@ export const PaymentModal = ({
                     onClick={handleClose}
                     className="flex-1 py-3.5 text-sm font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
                 >
-                    {isReadOnly ? 'Close' : 'Cancel'}
+                    {isReadOnly ? "Close" : "Cancel"}
                 </button>
                 {!isReadOnly && (
                     <button
@@ -417,10 +381,12 @@ export const PaymentModal = ({
                         {isPending ? (
                             <span className="flex items-center justify-center gap-3">
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                {isEditing ? 'Updating...' : 'Processing...'}
+                                {createMode ? "Processing..." : "Updating..."}
                             </span>
+                        ) : createMode ? (
+                            `Confirm ${category === "deposit" ? "Deposit" : "Payment"}`
                         ) : (
-                            isEditing ? 'Update Payment' : `Confirm ${category === 'deposit' ? 'Deposit' : 'Payment'}`
+                            "Update Payment"
                         )}
                     </button>
                 )}
@@ -432,7 +398,7 @@ export const PaymentModal = ({
         <Modal
             isOpen={isOpen}
             close={handleClose}
-            label={getTitle()}
+            label={title}
             content={content}
             maxWidth="max-w-2xl"
         />

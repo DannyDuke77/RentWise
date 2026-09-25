@@ -9,7 +9,6 @@ import {
 import usePaymentVisualizationModal from "@/app/hooks/usePaymentMetricsModal";
 import PaymentVisualizationModal from "@/app/components/modals/PaymentVisualizationModal";
 import { usePaymentAnalytics, usePropertyPaymentAnalytics } from "@/app/hooks/queries/usePaymentsQueries";
-import LoadingSpinner from '../ui/LoadingSpinner';
 import RefreshButton from '../ui/RefreshButton';
 import { useBusiness } from '@/app/providers/BusinessProvider';
 import PaymentAnalyticsSkeleton from '../skeletons/PaymentAnalyticsSkeleton';

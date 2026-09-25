@@ -17,13 +17,14 @@ import Link from "next/link";
 import { useDebounce } from "@/app/hooks/useDebounce";
 import { SearchInput } from '@/app/components/ui/SearchInput';
 import { useFilterWithPagination } from "@/app/hooks/useFilterWithPagination";
-import { PaymentFormPayload, PaymentModal, PaymentModalMode } from "@/app/components/modals/PaymentModal";
+import { PaymentFormPayload, PaymentModal } from "@/app/components/modals/PaymentModal";
 import PaymentActionsMenu from "@/app/components/payments/PaymentsActionsMenu";
 import PaymentDeleteModal from "@/app/components/payments/PaymentDeleteModal";
 import { usePaymentActions } from "@/app/hooks/usePaymentsActions";
 import { useBusiness } from "@/app/providers/BusinessProvider";
 import apiService from "@/app/services/apiService";
 import PaymentsPageSkeleton from "@/app/components/skeletons/PaymentsPageSkeleton";
+import TableSkeleton from "@/app/components/skeletons/TableSkeleton";
 
 const currency = (n: number | null, code = "KES") =>
   n === null
@@ -51,12 +52,11 @@ const PaymentsPage = () => {
 
     const [pageSize, setPageSize] = useState(10);
     const { showToast } = useToast();
-    const [isLoadingReceipt, setIsLoadingReceipt] = useState(false);
-    const { activeBusinessId, activeBusiness } = useBusiness();
+    const { activeBusiness } = useBusiness();
 
     // Modal state — single modal handles view/edit
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState<PaymentModalMode>('view');
+    const [startInEdit, setStartInEdit] = useState(false);
     const [modalPayment, setModalPayment] = useState<Payment | null>(null);
     const [editErrors, setEditErrors] = useState<Record<string, string[]>>({});
 
@@ -134,7 +134,7 @@ const PaymentsPage = () => {
             a.click();
             URL.revokeObjectURL(url);
 
-            showToast("Success", "Export downloaded", "success");
+            showToast("Success", "Export generated", "success");
         } catch (error) {
             console.error(error);
             showToast("Error", "Export failed", "error");
@@ -147,45 +147,27 @@ const PaymentsPage = () => {
             return;
         }
 
-        setIsLoadingReceipt(true);
-
-        try {
-            const ok = await generateReceiptPDF(payment, payment.property, payment.unit, activeBusiness);
-
-            if (ok) {
-                showToast("Success", "Receipt downloaded", "success");
-            } else {
-                showToast("Error", "Failed to generate receipt", "error");
-            }
-        } finally {
-            setIsLoadingReceipt(false);
+        const ok = await generateReceiptPDF(payment, payment.property, payment.unit, activeBusiness);
+        if (ok) {
+            showToast("Success", "Receipt generated", "success");
+        } else {
+            showToast("Error", "Failed to generate receipt", "error");
         }
     };
 
-    // --- Modal handlers ---
-    const openView = (payment: Payment) => {
+    // VIEW / EDIT payment
+    const openPayment = (payment: Payment, edit = false) => {
         setModalPayment(payment);
-        setModalMode('view');
+        setStartInEdit(edit);
         setEditErrors({});
         setIsModalOpen(true);
     };
 
-    const openEdit = (payment: Payment) => {
-        setModalPayment(payment);
-        setModalMode('edit');
-        setEditErrors({});
-        setIsModalOpen(true);
-    };
-
-    const closeModal = () => {
+    const closePaymentModal = () => {
         setIsModalOpen(false);
         setModalPayment(null);
+        setStartInEdit(false);
         setEditErrors({});
-    };
-
-    const handleEnableEdit = () => {
-        // Called when the user checks "Enable editing" inside the view modal.
-        setModalMode('edit');
     };
 
     const handleUpdateSubmit = async (payload: PaymentFormPayload) => {
@@ -203,7 +185,7 @@ const PaymentsPage = () => {
 
         if (response.success || response.id) {
             showToast('Payment Updated', 'Payment updated successfully', 'success');
-            closeModal();
+            closePaymentModal();
         } else {
             setEditErrors(response.errors || response);
         }
@@ -213,8 +195,10 @@ const PaymentsPage = () => {
     }
 };
 
-    if (paymentsLoading) {
-        return <PaymentsPageSkeleton />;
+    if (paymentsLoading && !searchTerm && !paymentMethod && !filterType && !filterDate) {
+        return (
+            <PaymentsPageSkeleton />
+        );
     }
 
     return (
@@ -239,8 +223,7 @@ const PaymentsPage = () => {
                     </div>
                 </div>
 
-                {/* Payment Stats */}
-                <PaymentAnalytics label={`${activeBusiness?.company_name} Payments Analytics`} />
+                <PaymentAnalytics label={`${activeBusiness?.company_name || ""} Payments Analytics`} />
 
                 {/* Table Container */}
                 <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
@@ -312,34 +295,33 @@ const PaymentsPage = () => {
                             </button>
                         </div>
                     </div>
-
-                    {/* Table */}
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gray-50/80 border-b border-gray-200">
-                                <tr>
-                                {["Property", "Tenancy Start", "Amount", "Method", "Category", "Type", "Paid On", "Reference"].map(
-                                    (label, i) => (
-                                    <th
-                                        key={i}
-                                        className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider"
-                                    >
-                                        {label}
-                                    </th>
-                                    )
-                                )}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {rawPayments.length === 0 ? (
+                    
+                    {paymentsLoading ? (
+                        <TableSkeleton rows={10} cols={5} />
+                    ) : rawPayments.length === 0 ? (
+                        <div className="px-6 py-4 text-center text-gray-600">
+                            {searchTerm ? `No payments found for "${searchTerm}".` : "No payments found."}
+                        </div>
+                    ): (                 
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50/80 border-b border-gray-200">
                                     <tr>
-                                        <td colSpan={9} className="py-12 text-center text-gray-500">
-                                            {searchTerm ? `No payments found for "${searchTerm}".` : "No payments found."}
-                                        </td>
+                                    {["Property", "Tenancy Start", "Amount", "Method", "Category", "Type", "Paid On", "Reference"].map(
+                                        (label, i) => (
+                                        <th
+                                            key={i}
+                                            className="text-left py-4 px-6 text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                                        >
+                                            {label}
+                                        </th>
+                                        )
+                                    )}
                                     </tr>
-                                ) : (
-                                    rawPayments.map((payment: Payment) => (
-                                        <tr key={payment.id} className="hover:bg-blue-50/30 transition-all duration-200 hover:shadow-sm">
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {rawPayments.map((payment: Payment) => (
+                                        <tr key={payment.id} className="hover:bg-gray-300/20 transition-all duration-200">
                                             <td className="py-4 px-6">
                                                 <div className="flex items-center">
                                                     <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center mr-3">
@@ -417,8 +399,7 @@ const PaymentsPage = () => {
                                                     <PaymentActionsMenu
                                                         payment={payment}
                                                         onGenerateReceipt={handleGenerateReceipt}
-                                                        onView={openView}
-                                                        onEdit={openEdit}
+                                                        onEdit={(p) => openPayment(p, true)}
                                                         onDelete={handleDeleteClick}
                                                         showEdit={payment.source !== "stk"}
                                                     />
@@ -434,10 +415,12 @@ const PaymentsPage = () => {
                                             </td>
                                         </tr>
                                     ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                    
 
                     {/* Pagination */}
                     <Pagination
@@ -451,14 +434,13 @@ const PaymentsPage = () => {
                     {/* Modals */}
                     <PaymentModal
                         isOpen={isModalOpen}
-                        onClose={closeModal}
+                        onClose={closePaymentModal}
                         onSubmit={handleUpdateSubmit}
-                        mode={modalMode}
+                        payment={modalPayment}
+                        startInEdit={startInEdit}
                         isPending={updatePaymentMutation.isPending}
                         errors={editErrors}
                         isValidMpesa={isValidMpesa}
-                        payment={modalPayment}
-                        onEnableEdit={handleEnableEdit}
                     />
 
                     <PaymentDeleteModal

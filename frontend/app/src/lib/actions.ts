@@ -2,12 +2,16 @@
 
 import { cookies } from "next/headers";
 
-const DEBUG = process.env.NODE_ENV !== 'production';
-
 const accessTokenMaxAge =
     process.env.NODE_ENV === 'production'
         ? 60 * 60 * 1   // 1 hour in production
         : 60 * 60 * 24; // 24 hours in development
+
+const COOKIE_DOMAIN = 
+    process.env.NODE_ENV === 'production'
+        ? '.rentwise.com'
+        : '.rentwise.localhost';
+
 
 export async function handleLogin(userId: string, accessToken: string, refreshToken: string) {
     const requestCookies = await cookies();
@@ -16,27 +20,28 @@ export async function handleLogin(userId: string, accessToken: string, refreshTo
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 24 * 7, // 7 days
-        path: '/'
+        path: '/',
+        domain: COOKIE_DOMAIN
     });
 
     requestCookies.set('session_access_token', accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         maxAge: accessTokenMaxAge,
-        path: '/'
+        path: '/',
+        domain: COOKIE_DOMAIN
     });
 
     requestCookies.set('session_refresh_token', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 24 * 7, // 7 days
-        path: '/'
+        path: '/',
+        domain: COOKIE_DOMAIN
     });
 
-    if (DEBUG) {
         console.log('handleLogin: Access token set:', accessToken);
         console.log('handleLogin: Refresh token set:', refreshToken);
-    }
 }
 
 /** Clears all auth cookies */
@@ -47,27 +52,28 @@ export async function resetAuthCookies() {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         path: '/',
+        domain: COOKIE_DOMAIN
     };
 
     requestCookies.set('session_userid', '', options);
     requestCookies.set('session_access_token', '', options);
     requestCookies.set('session_refresh_token', '', options);
 
-    if (DEBUG) console.log('Auth cookies reset');
+    console.log('Auth cookies reset');
 }
 
 /** Refresh access token using the refresh token */
 export async function handleRefresh() {
-    if (DEBUG) console.log('Refreshing tokens...');
+    console.log('Refreshing tokens...');
 
     const refreshToken = await getRefreshToken();
 
     if (!refreshToken) {
-        if (DEBUG) console.log('No refresh token available, skipping refresh.');
+        console.log('No refresh token available, skipping refresh.');
         return null; // stop if no refresh token
     }
 
-    if (DEBUG) console.log('Refresh token found:', refreshToken);
+    console.log('Refresh token found:', refreshToken);
 
     try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/token/refresh/`, {
@@ -81,7 +87,7 @@ export async function handleRefresh() {
 
         const json = await response.json();
 
-        if (DEBUG) console.log('Refresh response:', json);
+        console.log('Refresh response:', json);
 
         if (json.access) {
             const requestCookies = await cookies();
@@ -92,16 +98,17 @@ export async function handleRefresh() {
                 secure: process.env.NODE_ENV === 'production',
                 maxAge: 60 * 60, // 1 hour
                 path: '/',
+                domain: COOKIE_DOMAIN
             });
 
             return accessToken;
         } else {
-            if (DEBUG) console.log('No access token in refresh response, resetting cookies');
+            console.log('No access token in refresh response, resetting cookies');
             resetAuthCookies();
             return null;
         }
     } catch (error) {
-        if (DEBUG) console.error('Error refreshing token:', error);
+        console.error('Error refreshing token:', error);
         resetAuthCookies();
         return null;
     }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import apiService from '@/app/services/apiService';
+import { useToast } from '@/app/providers/ToastProvider';
 
 interface CustomReportModalProps {
   propertyId: string;
@@ -12,6 +13,8 @@ const CustomReportModal: React.FC<CustomReportModalProps> = ({ propertyId, prope
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [loading, setLoading] = useState(false);
+
+  const { showToast } = useToast();
 
   const handleDownload = async () => {
     setLoading(true);
@@ -28,9 +31,14 @@ const CustomReportModal: React.FC<CustomReportModalProps> = ({ propertyId, prope
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+
+      setTimeout(() => {
+        showToast('Success', 'Report generated successfully', 'success');
+      }, 1000);
       onClose();
     } catch (error) {
-      alert("Failed to generate report. Please try again.");
+      showToast('Error', 'Failed to generate report. Please try again.', 'error');
+      onClose();
       console.error(error);
     } finally {
       setLoading(false);

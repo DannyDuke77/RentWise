@@ -17,6 +17,8 @@ import Link from "next/link";
 import CustomTooltip from "@/app/components/ui/CustomTooltip";
 import StatCard from "@/app/components/ui/StatCard";
 import TableSkeleton from "@/app/components/skeletons/TableSkeleton";
+import TenantPaymentsSkeleton from "@/app/components/skeletons/TenantPaymentsSkeleton";
+import TenantPortalSkeleton from "@/app/components/skeletons/TenantPortalSkeleton";
 
 // Helper functions for tenancy display
 const getUniqueProperties = (tenancies: any[]) => {
@@ -148,6 +150,10 @@ const TenantsPage = () => {
     </span>
   );
 
+  if (isTenantsPending && !searchTerm && !filterMethod) return (
+    <TenantPortalSkeleton />
+  );
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-8">
       {/* Header */}
@@ -192,207 +198,211 @@ const TenantsPage = () => {
         />
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <SearchInput
-              onSearchChange={setSearchTerm}
-            />
-          </div>
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+        {/* Table Header */}
+        <div className="px-6 py-4 lg:flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+            <div>
+                <h2 className="text-lg font-semibold text-gray-800">Tenants</h2>
+                <p className="text-sm text-gray-600 mt-1">Showing {rawTenants.length} of {totalCount} tenants</p>
+            </div>
 
-          <div className="relative min-w-[140px]">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <select
-              className="w-full pl-10 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 hover:bg-white appearance-none cursor-pointer transition"
-              value={filterMethod}
-              onChange={e => setFilterMethod(e.target.value)}
-            >
-              <option value="">All Statuses</option>
-              <option value="True">Active</option>
-              <option value="False">Inactive</option>
-            </select>
-          </div>
-
-          {(searchTerm || filterMethod) && (
-            <button
-              onClick={() => { setSearchTerm(""); setFilterMethod(""); }}
-              className="inline-flex items-center justify-center px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition flex-shrink-0"
-            >
-              <X className="w-5 h-5 mr-2" />
-              Clear
-            </button>
-          )}
+            <div className="sm:flex sm:items-center mt-6 lg:mt-0 gap-4 space-y-4 sm:space-y-0">
+                <SearchInput onSearchChange={(value) => {
+                    setSearchTerm(value);
+                }} />
+            
+                <div className="relative min-w-[140px]">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    className="w-full pl-10 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 hover:bg-white appearance-none cursor-pointer transition"
+                    value={filterMethod}
+                    onChange={e => setFilterMethod(e.target.value)}
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="True">Active</option>
+                    <option value="False">Inactive</option>
+                  </select>
+                </div>
+                {(searchTerm || filterMethod) && (
+                  <button
+                    onClick={() => { setSearchTerm(""); setFilterMethod(""); }}
+                    className="inline-flex items-center justify-center px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition flex-shrink-0"
+                  >
+                    <X className="w-5 h-5 mr-2" />
+                    Clear
+                  </button>
+                )}
+            </div>
         </div>
-      </div>
 
-      {/* Table */}
-      {isTenantsPending ? (
-        <TableSkeleton rows={10} cols={5} />
-      ) : rawTenants.length === 0 ? (
-        <div className="bg-gray-50 border-2 border-dashed rounded-2xl p-20 text-center">
-          <UserIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No tenants found.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50/80 border-b border-gray-200">
-                <tr>
-                  {['Tenant', 'Contact', 'Status', 'Properties', 'Actions'].map((label, i) => (
-                    <th key={i} className="text-left py-3.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {rawTenants.map((tenant) => {
-                  const active = isActive(tenant);
-                  const expanded = expandedRows.has(tenant.id);
-                  const countDisplay = getTenancyCountDisplay(tenant.tenancies);
+        {/* Table */}
+        {isTenantsPending ? (
+          <TableSkeleton rows={10} cols={5} />
+        ) : rawTenants.length === 0 ? (
+          <div className="bg-gray-50 border-2 border-dashed rounded-2xl p-20 text-center">
+            <UserIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500">No tenants found.</p>
+          </div>
+        ) : (
+          <div className="bg-white border border-gray-200 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50/80 border-b border-gray-200">
+                  <tr>
+                    {['Tenant', 'Contact', 'Status', 'Properties', 'Actions'].map((label, i) => (
+                      <th key={i} className="text-left py-3.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {rawTenants.map((tenant) => {
+                    const active = isActive(tenant);
+                    const expanded = expandedRows.has(tenant.id);
+                    const countDisplay = getTenancyCountDisplay(tenant.tenancies);
 
-                  return (
-                    <Fragment key={tenant.id}>
-                      {/* Main Row */}
-                      <tr className={`hover:bg-blue-50/30 transition-colors ${expanded ? 'bg-blue-50/20' : ''}`}>
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-sm font-bold text-blue-600 flex-shrink-0">
-                              {tenant.full_name.charAt(0).toUpperCase()}
+                    return (
+                      <Fragment key={tenant.id}>
+                        {/* Main Row */}
+                        <tr className={`hover:bg-gray-300/20 transition-colors ${expanded ? 'bg-blue-50/20' : ''}`}>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-sm font-bold text-blue-600 flex-shrink-0">
+                                {tenant.full_name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{tenant.full_name}</p>
+                                {tenant.email && <p className="text-xs text-gray-500">{tenant.email}</p>}
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-900">{tenant.full_name}</p>
-                              {tenant.email && <p className="text-xs text-gray-500">{tenant.email}</p>}
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <PhoneIcon className="w-4 h-4 text-gray-400" />
+                              {tenant.phone}
                             </div>
-                          </div>
-                        </td>
+                            <p className="text-xs text-gray-400 mt-1">ID: {tenant.id_number}</p>
+                          </td>
 
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <PhoneIcon className="w-4 h-4 text-gray-400" />
-                            {tenant.phone}
-                          </div>
-                          <p className="text-xs text-gray-400 mt-1">ID: {tenant.id_number}</p>
-                        </td>
+                          <td className="py-3.5 px-4">
+                            <StatusBadge active={active} />
+                          </td>
 
-                        <td className="py-3.5 px-4">
-                          <StatusBadge active={active} />
-                        </td>
+                          <td className="py-3.5 px-4 max-w-[200px]">
+                            <TenancyCell tenancies={tenant.tenancies} />
+                          </td>
 
-                        <td className="py-3.5 px-4 max-w-[200px]">
-                          <TenancyCell tenancies={tenant.tenancies} />
-                        </td>
+                          <td className="py-3.5 px-4">
+                            <button
+                              onClick={() => toggleRow(tenant.id)}
+                              className="p-1.5 flex items-center gap-1 text-gray-500 hover:text-gray-600 text-sm hover:bg-gray-100 rounded-lg transition-all duration-300"
+                            >
+                              <ChevronRight 
+                                className={`w-4 h-4 transition-transform duration-300 ${
+                                  expanded ? 'rotate-90' : ''
+                                }`}
+                              /> View
+                            </button>
+                          </td>
+                        </tr>
 
-                        <td className="py-3.5 px-4">
-                          <button
-                            onClick={() => toggleRow(tenant.id)}
-                            className="p-1.5 flex items-center gap-1 text-gray-500 hover:text-gray-600 text-sm hover:bg-gray-100 rounded-lg transition-all duration-300"
-                          >
-                            <ChevronRight 
-                              className={`w-4 h-4 transition-transform duration-300 ${
-                                expanded ? 'rotate-90' : ''
-                              }`}
-                            /> View
-                          </button>
-                        </td>
-                      </tr>
-
-                      {/* Expanded Row */}
-                      <tr className="bg-blue-50/5">
-                        <td colSpan={5} className="px-0 py-0 overflow-hidden">
-                          <div 
-                            className={`
-                              transition-all duration-300 ease-in-out
-                              ${expanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}
-                            `}
-                          >
-                            <div className="px-4 py-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
-                                {/* Personal Info */}
-                                <div className="space-y-3">
-                                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                                    <UserIcon className="w-4 h-4 text-blue-500" />
-                                    Personal Information
-                                  </h4>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {[
-                                      ['Full Name', tenant.full_name],
-                                      ['ID Number', tenant.id_number],
-                                      ['Phone', tenant.phone],
-                                      ['Email', tenant.email || '—'],
-                                      ['Member Since', formatDate(tenant.created_at), 'col-span-2']
-                                    ].map(([label, value, colSpan]) => (
-                                      <div key={label} className={`bg-gray-50 p-3 rounded-lg ${colSpan || ''}`}>
-                                        <p className="text-xs text-gray-500">{label}</p>
-                                        <p className={`text-sm font-medium text-gray-900 ${label === 'ID Number' ? 'font-mono' : ''}`}>
-                                          {value}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                {/* Occupancy History */}
-                                <div className="space-y-3">
-                                  <div>
+                        {/* Expanded Row */}
+                        <tr className="bg-blue-50/5">
+                          <td colSpan={5} className="px-0 py-0 overflow-hidden">
+                            <div 
+                              className={`
+                                transition-all duration-300 ease-in-out
+                                ${expanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}
+                              `}
+                            >
+                              <div className="px-4 py-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
+                                  {/* Personal Info */}
+                                  <div className="space-y-3">
                                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                                      <Building className="w-4 h-4 text-blue-500" />
-                                      Occupancy History
+                                      <UserIcon className="w-4 h-4 text-blue-500" />
+                                      Personal Information
                                     </h4>
-                                    {countDisplay && (
-                                      <p className="text-xs text-gray-500 mt-1 ml-6">
-                                        {countDisplay}
-                                      </p>
-                                    )}
-                                  </div>
-                                  
-                                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                                    {tenant.tenancies?.length ? tenant.tenancies.map(t => (
-                                      <div key={t.id} className={`flex items-center justify-between p-3 rounded-lg border ${
-                                        t.is_active ? 'bg-blue-50/50 border-blue-100' : 'bg-white border-gray-100'
-                                      }`}>
-                                        <div>
-                                          <div className="flex items-center gap-2">
-                                            <Building className={`h-4 w-4 ${t.is_active ? 'text-blue-500' : 'text-gray-400'}`} />
-                                            <p className={`text-sm font-medium ${t.is_active ? 'text-blue-900' : 'text-gray-700'}`}>
-                                              {t.property.name}
-                                            </p>
-                                          </div>
-                                          <p className="text-xs text-gray-500 ml-6">Unit {t.unit.name}</p>
-                                          <p className="text-xs text-gray-400 ml-6">
-                                            {formatDate(tenant.created_at)} — {t.end_date ? formatDate(t.end_date) : 'Present'}
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {[
+                                        ['Full Name', tenant.full_name],
+                                        ['ID Number', tenant.id_number],
+                                        ['Phone', tenant.phone],
+                                        ['Email', tenant.email || '—'],
+                                        ['Member Since', formatDate(tenant.created_at), 'col-span-2']
+                                      ].map(([label, value, colSpan]) => (
+                                        <div key={label} className={`bg-gray-50 p-3 rounded-lg ${colSpan || ''}`}>
+                                          <p className="text-xs text-gray-500">{label}</p>
+                                          <p className={`text-sm font-medium text-gray-900 ${label === 'ID Number' ? 'font-mono' : ''}`}>
+                                            {value}
                                           </p>
                                         </div>
-                                        {t.is_active && (
-                                          <Link
-                                            href={`/properties/${t.property.id}/units/${t.unit.id}`}
-                                            className="p-1.5 flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:underline text-sm hover:bg-gray-100 rounded-lg transition-all duration-300"
-                                          >
-                                            Go to unit <ArrowRight className="w-4 h-4" /> 
-                                          </Link>
-                                        )}
-                                        
-                                      </div>
-                                    )) : (
-                                      <p className="text-sm text-gray-500 text-center py-6">No tenancy history</p>
-                                    )}
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Occupancy History */}
+                                  <div className="space-y-3">
+                                    <div>
+                                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                        <Building className="w-4 h-4 text-blue-500" />
+                                        Occupancy History
+                                      </h4>
+                                      {countDisplay && (
+                                        <p className="text-xs text-gray-500 mt-1 ml-6">
+                                          {countDisplay}
+                                        </p>
+                                      )}
+                                    </div>
+                                    
+                                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                      {tenant.tenancies?.length ? tenant.tenancies.map(t => (
+                                        <div key={t.id} className={`flex items-center justify-between p-3 rounded-lg border ${
+                                          t.is_active ? 'bg-blue-50/50 border-blue-100' : 'bg-white border-gray-100'
+                                        }`}>
+                                          <div>
+                                            <div className="flex items-center gap-2">
+                                              <Building className={`h-4 w-4 ${t.is_active ? 'text-blue-500' : 'text-gray-400'}`} />
+                                              <p className={`text-sm font-medium ${t.is_active ? 'text-blue-900' : 'text-gray-700'}`}>
+                                                {t.property.name}
+                                              </p>
+                                            </div>
+                                            <p className="text-xs text-gray-500 ml-6">Unit {t.unit.name}</p>
+                                            <p className="text-xs text-gray-400 ml-6">
+                                              {formatDate(tenant.created_at)} — {t.end_date ? formatDate(t.end_date) : 'Present'}
+                                            </p>
+                                          </div>
+                                          {t.is_active && (
+                                            <Link
+                                              href={`/properties/${t.property.id}/units/${t.unit.id}`}
+                                              className="p-1.5 flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:underline text-sm hover:bg-gray-100 rounded-lg transition-all duration-300"
+                                            >
+                                              Go to unit <ArrowRight className="w-4 h-4" /> 
+                                            </Link>
+                                          )}
+                                          
+                                        </div>
+                                      )) : (
+                                        <p className="text-sm text-gray-500 text-center py-6">No tenancy history</p>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                      </tr>
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                          </td>
+                        </tr>
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <Pagination
         page={page}

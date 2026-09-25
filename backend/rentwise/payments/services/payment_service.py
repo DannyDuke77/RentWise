@@ -3,14 +3,23 @@ from django.utils import timezone
 
 from ..models import MpesaConfiguration, MpesaTransaction
 from .mpesa_service import MpesaService
-
+from .exceptions import MpesaDisabled, MpesaInitiationFailed, MpesaNotConfigured
 
 @transaction.atomic
-def initiate_mpesa_payment(*, tenancy, phone_number, amount, category, notes, account_reference, transaction_description, callback_url):
-    configuration = MpesaConfiguration.objects.get(
-        business=tenancy.unit.property.business,
-        is_active=True,
+def initiate_mpesa_payment(*, tenancy, phone_number, amount, category, notes, account_reference, transaction_description, callback_url,):
+    business = tenancy.unit.property.business
+
+    configuration = (
+        MpesaConfiguration.objects
+        .filter(business=business)
+        .first()
     )
+
+    if configuration is None:
+        raise MpesaNotConfigured()
+
+    if not configuration.is_active:
+        raise MpesaDisabled()
 
     mpesa_transaction = MpesaTransaction.objects.create(
         tenancy=tenancy,
@@ -23,7 +32,6 @@ def initiate_mpesa_payment(*, tenancy, phone_number, amount, category, notes, ac
 
     try:
         service = MpesaService(configuration)
-
         result = service.initiate_stk_push(
             phone_number=phone_number,
             amount=amount,
@@ -32,19 +40,11 @@ def initiate_mpesa_payment(*, tenancy, phone_number, amount, category, notes, ac
             callback_url=callback_url,
         )
 
-        mpesa_transaction.merchant_request_id = result.get(
-            "MerchantRequestID"
-        )
-        mpesa_transaction.checkout_request_id = result.get(
-            "CheckoutRequestID"
-        )
+        mpesa_transaction.merchant_request_id = result.get("MerchantRequestID")
+        mpesa_transaction.checkout_request_id = result.get("CheckoutRequestID")
         mpesa_transaction.save(
-            update_fields=[
-                "merchant_request_id",
-                "checkout_request_id",
-            ]
+            update_fields=["merchant_request_id", "checkout_request_id"]
         )
-
         return mpesa_transaction
 
     except Exception as exc:
@@ -52,11 +52,6 @@ def initiate_mpesa_payment(*, tenancy, phone_number, amount, category, notes, ac
         mpesa_transaction.result_description = str(exc)
         mpesa_transaction.completed_at = timezone.now()
         mpesa_transaction.save(
-            update_fields=[
-                "status",
-                "result_description",
-                "completed_at",
-            ]
+            update_fields=["status", "result_description", "completed_at"]
         )
-
-        raise
+        raise MpesaInitiationFailed() from exc

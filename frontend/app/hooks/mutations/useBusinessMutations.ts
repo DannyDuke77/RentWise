@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiService from '@/app/services/apiService';
 import { queryKeys } from '../queryKeys';
+import { useBusiness } from '@/app/providers/BusinessProvider';
 
 export function useCreateBusiness() {
     const queryClient = useQueryClient();
@@ -68,27 +69,31 @@ export function useUpdateBusiness() {
 
 export function useInviteBusinessMember() {
     const queryClient = useQueryClient();
-
+    const { activeBusinessId } = useBusiness();
     return useMutation({
-        mutationFn: ({ businessId, email, role, }: { businessId: string; email: string; role: "manager" | "staff"; }) =>
-            apiService.post(`/api/businesses/${businessId}/invitations/`, { email, role, }),
+      mutationFn: ({ businessId, email, role, }: { businessId: string; email: string; role: "manager" | "staff"; }) =>
+        apiService.post(`/api/businesses/invitations/`, { email, role, }),
 
-        onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.businessInvitations(variables.businessId), });
-        },
+      onSuccess: (_, variables) => {
+        queryClient.invalidateQueries({
+          queryKey: ['business-invitations', activeBusinessId],
+          exact: false
+        })
+      },
     });
 }
 
 export function useCancelBusinessInvitation() {
   const queryClient = useQueryClient();
-
+  const { activeBusinessId } = useBusiness();
   return useMutation({
     mutationFn: ({ businessId, invitationId, }: { businessId: string; invitationId: string; }) =>
-      apiService.delete(`/api/businesses/${businessId}/invitations/${invitationId}/`),
+      apiService.delete(`/api/businesses/invitations/${invitationId}/`),
 
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.businessInvitations(variables.businessId),
+        queryKey: ['business-invitations', activeBusinessId],
+        exact: false
       });
     },
   });
@@ -96,14 +101,14 @@ export function useCancelBusinessInvitation() {
 
 export function useResendBusinessInvitation() {
   const queryClient = useQueryClient();
-
+  const { activeBusinessId } = useBusiness();
   return useMutation({
     mutationFn: ({ businessId,  invitationId, }: { businessId: string; invitationId: string; }) => 
-        apiService.post(`/api/businesses/${businessId}/invitations/${invitationId}/resend/`, {}),
+        apiService.post(`/api/businesses/invitations/${invitationId}/resend/`, {}),
 
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['business-invitations', variables.businessId],
+        queryKey: ['business-invitations', activeBusinessId],
         exact: false
       });
     },
@@ -115,7 +120,7 @@ export function useUpdateBusinessMemberRole() {
 
   return useMutation({
     mutationFn: ({ businessId, membershipId, role,}: { businessId: string; membershipId: string; role: "manager" | "staff"; }) =>
-      apiService.patch(`/api/businesses/${businessId}/members/${membershipId}/`, { role }),
+      apiService.patch(`/api/businesses/members/${membershipId}/`, { role }),
 
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
