@@ -21,7 +21,7 @@ const TabHeader = ({ currentTab, setCurrentTab }: TabHeaderProps) => {
         },
         {
             id: 'payments' as const,
-            label: 'Payment',
+            label: 'Payments',
             icon: CreditCard,
             show: true,
         },

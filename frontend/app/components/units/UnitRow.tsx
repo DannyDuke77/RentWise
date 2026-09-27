@@ -1,17 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  User,
-  Home,
-  DollarSign,
-  Wrench,
-  UserCheck,
-  UserX,
-  MoreVertical,
-  Edit2,
-  Trash2,
-  AlertTriangle,
+import { User, Home, DollarSign, Wrench,UserCheck,
+  UserX, MoreVertical, Edit2, Trash2, AlertTriangle,
 } from "lucide-react";
 import { Menu, MenuButton, MenuItem, MenuItems, Transition } from "@headlessui/react";
 import ViewUnitButton from "../navigation/ViewUnitButton";
@@ -21,7 +12,7 @@ import { useUpdateUnit } from "@/app/hooks/mutations/useUnitMutations";
 import ConfirmModal from "@/app/components/modals/ConfirmModal";
 import { useToast } from "@/app/providers/ToastProvider";
 
-export type PaymentStatus = "unknown" | "paid" | "partial" | "unpaid" | "vacant" | "not_billed";
+export type PaymentStatus = "unknown" | "paid" | "partial" | "unpaid" | "vacant" | "not_billed" | "maintenance";
 
 interface UnitRowProps {
   property: Property;
@@ -36,21 +27,25 @@ const occupancyIcon = {
 };
 
 const paymentBadge: Record<PaymentStatus, string> = {
-  unknown: "bg-gray-100 text-gray-600 border-gray-200",
-  paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  partial: "bg-amber-50 text-amber-700 border-amber-200",
-  unpaid: "bg-rose-50 text-rose-700 border-rose-200",
-  vacant: "bg-gray-50 text-gray-400 border-gray-200 italic",
+  paid:       "bg-emerald-50 text-emerald-700 border-emerald-200",
+  partial:    "bg-amber-50 text-amber-700 border-amber-200",
+  unpaid:     "bg-rose-50 text-rose-700 border-rose-200",
   not_billed: "bg-blue-50 text-blue-700 border-blue-200 italic",
+  unknown:    "bg-gray-100 text-gray-600 border-gray-200",
+
+  vacant:      "bg-slate-50 text-slate-400 border-slate-200 italic",
+  maintenance: "bg-slate-100 text-slate-600 border-slate-300 italic",
 };
 
 const paymentText: Record<PaymentStatus, string> = {
-  unknown: "text-gray-500",
-  paid: "text-emerald-600",
-  partial: "text-amber-500",
-  unpaid: "text-rose-600",
-  vacant: "text-gray-400 italic font-normal",
+  paid:       "text-emerald-600",
+  partial:    "text-amber-500",
+  unpaid:     "text-rose-600",
   not_billed: "text-blue-500 italic font-normal",
+  unknown:    "text-gray-500",
+
+  vacant:      "text-slate-400 italic font-normal",
+  maintenance: "text-slate-500 italic font-normal",
 };
 
 const UnitRow: React.FC<UnitRowProps> = ({ property, unit, variant = "list" }) => {
@@ -63,12 +58,7 @@ const UnitRow: React.FC<UnitRowProps> = ({ property, unit, variant = "list" }) =
 
   const handleDeleteClick = () => {
     if (unit.status === "occupied") {
-      showToast(
-        "Unit Occupied!",
-        "Please vacate the tenant first before deleting the unit.",
-        "warning",
-        10000
-      );
+      showToast("Unit Occupied!", "Please vacate the tenant first before deleting the unit.", "warning", 10000);
       return;
     }
     setDeleteError(null);
@@ -84,7 +74,7 @@ const UnitRow: React.FC<UnitRowProps> = ({ property, unit, variant = "list" }) =
         payload: { is_active: false },
       });
       setIsDeleteModalOpen(false);
-      showToast(`Unit ${unit.name} Deleted!`, "Your unit has been deleted successfully.", "success");
+      showToast(`Unit ${unit.name} Deactivated!`, "Your unit has been deactivated successfully.", "success");
     } catch (error: any) {
       const backendMessage =
         error?.response?.data?.detail ||
@@ -100,7 +90,7 @@ const UnitRow: React.FC<UnitRowProps> = ({ property, unit, variant = "list" }) =
   const isMaintenance = unit.status === "maintenance";
   const isVacant = unit.status === "vacant";
 
-  const effectivePaymentStatus: PaymentStatus = isVacant ? "vacant" : paymentStatus;
+  const effectivePaymentStatus: PaymentStatus = isVacant ? "vacant" : isMaintenance ? "maintenance" : paymentStatus;
 
   return (
     <div
@@ -187,6 +177,7 @@ const UnitRow: React.FC<UnitRowProps> = ({ property, unit, variant = "list" }) =
               className={`inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide rounded-full border whitespace-nowrap text-xs px-3 py-1 ${paymentBadge[effectivePaymentStatus]}`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+              {}
               <span>{effectivePaymentStatus.replace("_", " ")}</span>
             </span>
           </div>
@@ -256,7 +247,7 @@ const UnitRow: React.FC<UnitRowProps> = ({ property, unit, variant = "list" }) =
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleConfirmDelete}
         isLoading={updateUnit.isPending}
-        title="Delete Unit"
+        title="Deactivate Unit"
         message="Remove this unit from your property?"
         message2="The unit will no longer appear in your active units."
         disableConfirm={updateUnit.isPending || deleteError !== null}

@@ -6,12 +6,11 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Q, Prefetch, Sum, Count, OuterRef, Subquery, DecimalField
 from django.shortcuts import get_object_or_404
 from datetime import datetime
-from django.db import transaction
 
 from .serializers import (
     PropertySerializer, UnitDetailSerializer, TenantSerializer, 
@@ -20,11 +19,9 @@ from .serializers import (
 )
 from .models import Property, TenantInvitation, Unit, Tenant, UnitPayment, Tenancy, Charge, ChargeType, TenancyMember, ChangeLog
 
-from accounts.permissions import IsBusinessMember, HasBusinessContext
-from accounts.models import User, Business
+from accounts.permissions import IsBusinessMember, HasBusinessContext, IsBusinessManagerOrOwner
+from accounts.models import User, Business, BusinessMembership
 from accounts.validators import normalize_kenyan_phone
-
-from payments.models import MpesaConfiguration
 
 # Services
 from .services.reports import get_property_audit_data, generate_property_audit_pdf
@@ -52,10 +49,24 @@ class Pagination(PageNumberPagination):
         }, status=status.HTTP_200_OK)
     
 class PropertyViewSet(ModelViewSet):
-    permission_classes = [HasBusinessContext]
     serializer_class = PropertySerializer
     pagination_class = Pagination
     lookup_field = "id"
+
+    def get_permissions(self):
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            permission_classes = [
+                IsAuthenticated,
+                HasBusinessContext,
+                IsBusinessManagerOrOwner,
+            ]
+        else:
+            permission_classes = [
+                IsAuthenticated,
+                HasBusinessContext,
+            ]
+
+        return [permission() for permission in permission_classes]
 
     def get_queryset(self):
         business_id = self.request.headers.get("X-Business-ID")
@@ -347,7 +358,7 @@ class UnitViewSet(ModelViewSet):
             paginated_payments = payments
         serialized_payments = UnitPaymentSerializer(paginated_payments, many=True).data
 
-        current_balance = tenancy.calculate_balance()
+        current_balance = tenancy.balance
         deposit_held = tenancy.get_deposit_held()
         charges = tenancy.charges.filter(status="pending", accrual_type__isnull=True).order_by("-created_at")
         total_charges = charges.aggregate(total=Sum("amount"))["total"] or 0.0
@@ -380,14 +391,9 @@ class UnitViewSet(ModelViewSet):
         if field_name:
             queryset = queryset.filter(field_name=field_name)
 
-        search = self.request.query_params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(changed_by__name__icontains=search) |
-                Q(field_name__icontains=search) |
-                Q(old_value__icontains=search) |
-                Q(new_value__icontains=search)
-            )
+        query = self.request.query_params.get('query')
+        if query:
+            queryset = queryset.filter(changed_by__name__icontains=query)
 
         page = self.paginate_queryset(queryset)
 
@@ -670,10 +676,24 @@ class TenantMeView(APIView):
         return Response(serializer.data)
 
 class PaymentViewSet(ModelViewSet):
-    permission_classes = [HasBusinessContext]
     pagination_class = Pagination
     lookup_field = 'id'
     serializer_class = UnitPaymentSerializer
+
+    def get_permissions(self):
+        if self.action in ["update", "partial_update", "destroy"]:
+            permission_classes = [
+                IsAuthenticated,
+                HasBusinessContext,
+                IsBusinessManagerOrOwner,
+            ]
+        else:
+            permission_classes = [
+                IsAuthenticated,
+                HasBusinessContext,
+            ]
+
+        return [permission() for permission in permission_classes]
 
     def get_queryset(self):
         business_id = self.request.headers.get("X-Business-ID")
@@ -980,11 +1000,6 @@ class ChangeLogViewSet(ReadOnlyModelViewSet):
         
         search = self.request.query_params.get('search')
         if search:
-            queryset = queryset.filter(
-                Q(changed_by__name__icontains=search) |
-                Q(field_name__icontains=search) |
-                Q(old_value__icontains=search) |
-                Q(new_value__icontains=search)
-            )
+            queryset = queryset.filter(changed_by__name__icontains=search)
         
         return queryset.order_by('-created_at')

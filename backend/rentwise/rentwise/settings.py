@@ -108,6 +108,8 @@ MPESA_ENCRYPTION_KEY = os.environ.get("MPESA_ENCRYPTION_KEY")
 if not MPESA_ENCRYPTION_KEY:
     raise ImproperlyConfigured("MPESA_ENCRYPTION_KEY environment variable is not set.")
 MPESA_CALLBACK_BASE_URL = os.environ.get("MPESA_CALLBACK_BASE_URL")
+MPESA_SANDBOX_URL=os.environ.get("MPESA_SANDBOX_URL")
+MPESA_LIVE_URL=os.environ.get("MPESA_LIVE_URL")
 
 # Application definition
 INSTALLED_APPS = [

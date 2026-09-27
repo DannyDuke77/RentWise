@@ -148,7 +148,7 @@ def _fmt_date(d):
             d = datetime.fromisoformat(d).date()
         except Exception:
             return d
-    return d.strftime("%d %b %Y") if hasattr(d, "strftime") else str(d)
+    return d.strftime("%d/%m/%Y") if hasattr(d, "strftime") else str(d)
 
 
 def _logo_flowable(business, width=18 * mm, height=18 * mm):
@@ -257,7 +257,7 @@ def _styles():
         ),
         "summaryLabel": ParagraphStyle(
             "summaryLabel", parent=ss["Normal"], fontName="Helvetica",
-            fontSize=9, leading=12, textColor=MUTED, alignment=TA_LEFT,
+            fontSize=8.5, leading=11, textColor=MUTED, alignment=TA_LEFT,
         ),
         "summaryValue": ParagraphStyle(
             "summaryValue", parent=ss["Normal"], fontName="Helvetica-Bold",
@@ -285,25 +285,42 @@ def _styles():
 def _draw_page(canvas, doc, property_obj, start_date, end_date):
     canvas.saveState()
     w, h = A4
+    left = 20 * mm
+    right = w - 20 * mm
 
     canvas.setStrokeColor(HAIRLINE)
     canvas.setLineWidth(0.5)
-    canvas.line(20 * mm, h - 12 * mm, w - 20 * mm, h - 12 * mm)
-    canvas.line(20 * mm, 16 * mm, w - 20 * mm, 16 * mm)
+    canvas.line(left, h - 12 * mm, right, h - 12 * mm)   # top rule
+    canvas.line(left, 16 * mm, right, 16 * mm)           # bottom rule
 
     canvas.setFont("Helvetica", 7)
     canvas.setFillColor(MUTED)
 
-    company = getattr(property_obj.business, "company_name", "") or ""
+    # ── Reference key ──
+    key_y = 20 * mm
+    canvas.setFont("Helvetica-Bold", 7)
+    canvas.drawString(left, key_y, "Reference key:")
+
+    key_x = left + canvas.stringWidth("Reference key: ", "Helvetica-Bold", 7)
+    canvas.setFont("Helvetica", 7)
     canvas.drawString(
-        20 * mm, 12 * mm,
-        f"{company}  ·  Statement of Financial Position  ·  "
-        f"{_fmt_date(start_date)} – {_fmt_date(end_date)}",
+        key_x, key_y,
+        "stk - M-Pesa STK push (receipt · phone)   ·   "
+        "mpesa - M-Pesa recorded manually   ·   "
+        "bank - bank transfer   ·   "
+        "cash - cash payment.",
     )
-    canvas.drawRightString(w - 20 * mm, 12 * mm, f"Page {doc.page}")
+
+    # ── Footer  ──
+    footer_y = 12 * mm
     canvas.drawString(
-        20 * mm, 8 * mm,
-        f"Generated {datetime.now().strftime('%d %b %Y %H:%M')} by Rentwise.",
+        left, footer_y,
+        f"{property_obj.name}  ·  {_fmt_date(start_date)} – {_fmt_date(end_date)}  ·  All amounts are in Ksh",
+    )
+    canvas.drawRightString(right, footer_y, f"Page {doc.page}")
+    canvas.drawString(
+        left, footer_y - 4 * mm,
+        f"Generated {datetime.now().strftime('%d %b %Y %H:%M')} by Rentwise  ·  Computer-generated — no signature required.",
     )
 
     canvas.restoreState()
@@ -332,9 +349,9 @@ def _build_letterhead(property_obj, start_date, end_date, s):
         )),
         Paragraph(property_obj.name, ParagraphStyle(
             "pname", parent=s["meta"], alignment=TA_RIGHT,
-            fontName="Helvetica-Bold", textColor=INK, fontSize=11, leading=14,
+            fontName="Helvetica-Bold", textColor=INK, fontSize=10, leading=13,
         )),
-        Paragraph(f"{_fmt_date(start_date)} – {_fmt_date(end_date)}", s["metaR"]),
+        Paragraph(f"{_fmt_date(start_date)} - {_fmt_date(end_date)}", s["metaR"]),
         Paragraph(getattr(property_obj, "location", "") or "", s["metaR"]),
     ]
 
@@ -399,9 +416,9 @@ def _build_ledger_table(ledger, s):
         Paragraph("UNIT", s["th"]),
         Paragraph("REFERENCE", s["th"]),
         Paragraph("CATEGORY", s["th"]),
-        Paragraph("CREDIT (KES)", s["thR"]),
-        Paragraph("DEBIT (KES)", s["thR"]),
-        Paragraph("BALANCE (KES)", s["thR"]),
+        Paragraph("CREDIT", s["thR"]),
+        Paragraph("DEBIT", s["thR"]),
+        Paragraph("BALANCE", s["thR"]),
     ]
     rows = [header]
     for t in ledger:
@@ -446,28 +463,6 @@ def _build_ledger_table(ledger, s):
     return t
 
 
-def _build_footer_block(property_obj, s):
-    left = [
-        Paragraph("Prepared by", s["sigLabel"]),
-        Spacer(1, 18),
-        Paragraph("____________________________", s["sigLine"]),
-        Paragraph("Authorised signatory", s["sigLabel"]),
-    ]
-    right = [
-        Paragraph("Received by", s["sigLabel"]),
-        Spacer(1, 18),
-        Paragraph("____________________________", s["sigLine"]),
-        Paragraph("Tenant / Representative", s["sigLabel"]),
-    ]
-    t = Table([[left, right]], colWidths=[89 * mm, 89 * mm])
-    t.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    return t
-
-
 # ============================================================
 # Entry point
 # ============================================================
@@ -492,10 +487,6 @@ def generate_property_audit_pdf(property_obj, audit_data, start_date, end_date):
     elements.append(HRFlowable(width="100%", thickness=0.75, color=INK, spaceAfter=10))
 
     elements.append(Paragraph("Statement of Financial Position", s["title"]))
-    elements.append(Paragraph(
-        f"{property_obj.name}  ·  {_fmt_date(start_date)} to {_fmt_date(end_date)}",
-        s["subtitle"],
-    ))
     elements.append(Spacer(1, 14))
 
     ledger = audit_data.get("ledger", []) or []
@@ -511,23 +502,12 @@ def generate_property_audit_pdf(property_obj, audit_data, start_date, end_date):
 
     elements.append(HRFlowable(width="100%", thickness=0.5, color=HAIRLINE, spaceAfter=8))
     elements.append(Paragraph(
-        "<b>Reference key:</b> "
-        "<b>stk_</b> M-Pesa STK push (receipt · phone)  ·  "
-        "<b>mpesa_</b> M-Pesa recorded manually  ·  "
-        "<b>bank_</b> bank transfer  ·  "
-        "<b>cash</b> cash payment.",
-        s["footer"],
-    ))
-    elements.append(Spacer(1, 6))
-    elements.append(Paragraph(
         "This statement is generated from the property management system and reflects all recorded "
         "transactions/payments within the stated period. Opening balance includes any "
         "amounts carried forward from prior periods. Balances are stated in Kenya Shillings (KES).",
         s["footer"],
     ))
     elements.append(Spacer(1, 22))
-
-    elements.append(_build_footer_block(property_obj, s))
 
     doc.build(
         elements,

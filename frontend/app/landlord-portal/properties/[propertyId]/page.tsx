@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from "next/navigation";
-import UnitsSection from "@/app/components/properties/UnitsSection";
+import UnitsSection from "@/app/components/units/UnitsSection";
 import PropertyRentSummary from "@/app/components/payments/MonthlyRentSummary";
 import LoadingSpinner from "@/app/components/ui/LoadingSpinner";
 import { useProperty } from "@/app/hooks/queries/usePropertyQueries";

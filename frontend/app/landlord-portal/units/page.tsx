@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Building2,
   Home,
@@ -47,16 +48,27 @@ const currency = (n: number | null, code = "KES") =>
 /* ─────────── page ─────────── */
 
 const UnitsPage = () => {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // URL-backed filters
+  const statusFilter = searchParams.get("status") ?? "";
+  const rentStatusFilter = searchParams.get("rent_status") ?? "";
+
+  // Local state for everything else
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [propertyFilter, setPropertyFilter] = useState("");
-  const [rentStatusFilter, setRentStatusFilter] = useState("");
 
   const debouncedSearch = useDebounce(searchTerm, 500);
   const effectiveSearch = debouncedSearch.trim();
+
+  // Reset to page 1 whenever any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [effectiveSearch, statusFilter, rentStatusFilter, propertyFilter, pageSize]);
 
   const { data: unitsData, isPending, isError } = useUnits(
     page,
@@ -70,29 +82,45 @@ const UnitsPage = () => {
   const totalCount = unitsData?.count ?? 0;
 
   const { data: statsData, isPending: isStatsPending } = usePropertiesStats();
-
   const { data: propertiesData } = useProperties(1, 100, "");
 
-    const propertyOptions = useMemo(
+  const propertyOptions = useMemo(
     () =>
-        (propertiesData?.results ?? []).map((p: { id: string; name: string }) => ({
+      (propertiesData?.results ?? []).map((p: { id: string; name: string }) => ({
         id: p.id,
         name: p.name,
-        })),
+      })),
     [propertiesData]
-    );
+  );
 
-  const hasActiveFilters = !!(searchTerm || statusFilter || propertyFilter || rentStatusFilter);
-  const clearFilters = () => {
-    setSearchTerm("");
-    setStatusFilter("");
-    setPropertyFilter("");
-    setRentStatusFilter("");
+  // ── URL helpers for the two URL-backed filters ──
+  const setUrlFilter = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  useEffect(() => {
-    setPage(1);
-  }, [effectiveSearch, statusFilter, propertyFilter, rentStatusFilter, pageSize]);
+  const hasActiveFilters = !!(
+    searchTerm ||
+    statusFilter ||
+    propertyFilter ||
+    rentStatusFilter
+  );
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setPropertyFilter("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("status");
+    params.delete("rent_status");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
   if (isError) {
     return (
@@ -126,79 +154,82 @@ const UnitsPage = () => {
 
       {/* Stats */}
       <BusinessStatsGrid stats={statsData} isPending={isStatsPending} />
-      
+
       <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
         {/* Table Header */}
         <div className="px-6 py-4 2xl:flex items-center justify-between space-y-4 2xl:space-y-0 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-            <div>
-                <h2 className="text-lg font-semibold text-gray-800">Units</h2>
-                <p className="text-sm text-gray-600 mt-1">Showing {rawUnits.length} of {totalCount} units</p>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">Units</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Showing {rawUnits.length} of {totalCount} units
+            </p>
+          </div>
+
+          <div className="lg:flex items-center mt-6 lg:mt-0 gap-4 space-y-4 lg:space-y-0">
+            <SearchInput
+              onSearchChange={setSearchTerm}
+              placeholder="Search by unit, property, or tenant..."
+            />
+
+            <div className="flex items-center gap-4">
+              <div className="relative min-w-[160px]">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <select
+                  className="w-full pl-10 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 hover:bg-white appearance-none cursor-pointer transition"
+                  value={propertyFilter}
+                  onChange={(e) => setPropertyFilter(e.target.value)}
+                >
+                  <option value="">All Properties</option>
+                  {propertyOptions.map((p: Property) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              <div className="relative min-w-[140px]">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <select
+                  className="w-full pl-10 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 hover:bg-white appearance-none cursor-pointer transition"
+                  value={rentStatusFilter}
+                  onChange={(e) => setUrlFilter("rent_status", e.target.value)}
+                >
+                  <option value="">All Rents Statuses</option>
+                  <option value="settled">Settled</option>
+                  <option value="credit">Credit</option>
+                  <option value="arrears">Arrears</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              <div className="relative min-w-[140px]">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <select
+                  className="w-full pl-10 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 appearance-none hover:bg-white cursor-pointer transition"
+                  value={statusFilter}
+                  onChange={(e) => setUrlFilter("status", e.target.value)}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="occupied">Occupied</option>
+                  <option value="vacant">Vacant</option>
+                  <option value="maintenance">Maintenance</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="inline-flex items-center justify-center px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition flex-shrink-0"
+                >
+                  <X className="w-5 h-5 mr-2" />
+                  Clear
+                </button>
+              )}
             </div>
-
-            <div className="lg:flex items-center mt-6 lg:mt-0 gap-4 space-y-4 lg:space-y-0">
-                <SearchInput
-                  onSearchChange={setSearchTerm}
-                  placeholder="Search by unit, property, or tenant..."
-                />
-                <div className="flex items-center gap-4">
-                  <div className="relative min-w-[160px]">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      className="w-full pl-10 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 hover:bg-white appearance-none cursor-pointer transition"
-                      value={propertyFilter}
-                      onChange={(e) => setPropertyFilter(e.target.value)}
-                    >
-                      <option value="">All Properties</option>
-                      {propertyOptions.map((p: Property) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
-
-                  <div className="relative min-w-[140px]">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      className="w-full pl-10 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 hover:bg-white appearance-none cursor-pointer transition"
-                      value={rentStatusFilter}
-                      onChange={(e) => setRentStatusFilter(e.target.value)}
-                    >
-                      <option value="">All Balances</option>
-                      <option value="settled">Settled</option>
-                      <option value="credit">Credit</option>
-                      <option value="arrears">Arrears</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
-
-                  <div className="relative min-w-[140px]">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      className="w-full pl-10 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 appearance-none hover:bg-whitecursor-pointer transition"
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                      <option value="">All Statuses</option>
-                      <option value="occupied">Occupied</option>
-                      <option value="vacant">Vacant</option>
-                      <option value="maintenance">Maintenance</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
-
-                  {hasActiveFilters && (
-                    <button
-                      onClick={clearFilters}
-                      className="inline-flex items-center justify-center px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition flex-shrink-0"
-                  >
-                      <X className="w-5 h-5 mr-2" />
-                      Clear
-                    </button>
-                  )}
-                </div>
-            </div>
+          </div>
         </div>
 
         {/* Table */}
@@ -212,7 +243,7 @@ const UnitsPage = () => {
             </p>
           </div>
         ) : (
-          <div className="bg-whiteborder border-gray-200 overflow-hidden shadow-sm">
+          <div className="bg-white border border-gray-200 overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50/80 border-b border-gray-200">
@@ -231,7 +262,11 @@ const UnitsPage = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {rawUnits.map((unit) => {
-                    const inArrears = unit.balance && unit.balance > 0;
+                    const isNotOccupied = unit.status === "vacant" || unit.status === "maintenance";
+                    const isSettled = unit.rent_status.balance === 0 && unit.rent_status.status !== "not_billed";
+                    const inCredit = unit.rent_status.balance && unit.rent_status.balance < 0;
+                    const inArrears = unit.rent_status.balance && unit.rent_status.balance > 0;
+                    const NotBilled = unit.rent_status.status === "not_billed";
 
                     return (
                       <tr key={unit.id} className="hover:bg-gray-300/20 transition-colors">
@@ -287,26 +322,35 @@ const UnitsPage = () => {
                         </td>
 
                         <td className="py-3.5 px-4">
-                          {unit.balance === null ? (
+                          {unit.rent_status.balance === null || isNotOccupied ? (
                             <span className="text-xs text-gray-400">—</span>
                           ) : inArrears ? (
                             <span className="text-sm font-semibold text-rose-600">
-                              {currency(unit.balance)}
+                              {currency(unit.rent_status.balance)}
                             </span>
-                          ) : unit.balance < 0 ? (
+                          ) : inCredit ? (
                             <span className="text-sm font-medium text-emerald-600">
-                              {currency(unit.balance)}
+                              {currency(Math.abs(unit.rent_status.balance))}
                             </span>
-                          ) : (
+                          ) : isSettled ? (
                             <span className="text-sm text-gray-500">Settled</span>
+                          ) : NotBilled ? (
+                            <p className="flex flex-col gap-0.5">
+                              <span className="text-sm text-blue-600">Not Billed</span>
+                              <span className="text-xs text-gray-400">{unit.rent_status.billing_start}</span>
+                            </p>
+                          ) : (
+                            <span className="text-sm font-semibold text-sky-600">
+                              {currency(unit.rent_status.balance)}
+                            </span>
                           )}
                         </td>
 
                         <td className="py-3.5 px-4 text-sm text-gray-700 whitespace-nowrap">
-                          {unit.deposit == null ? (
+                          {unit.rent_status.deposit == null ? (
                             <span className="text-xs text-gray-400">—</span>
                           ) : (
-                            currency(unit.deposit)
+                            currency(unit.rent_status.deposit)
                           )}
                         </td>
 

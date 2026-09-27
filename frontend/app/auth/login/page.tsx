@@ -6,19 +6,52 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { handleLogin } from "@/app/src/lib/actions";
 import apiService from "@/app/services/apiService";
 import { jwtDecode } from "jwt-decode";
-import { Mail, Lock, AlertCircle, Building2, UserRound, Shield } from "lucide-react";
+import { Mail, Lock, AlertCircle, Building2, UserRound, Shield, CircleAlert, Loader2, LogIn } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/app/providers/ToastProvider";
 
 const DEBUG = process.env.NODE_ENV !== 'production';
+
+const formatApiErrors = (data: any): Record<string, string[]> => {
+    const formatted: Record<string, string[]> = {};
+
+    if (!data) return formatted;
+
+    if (typeof data === 'string') {
+        return { non_field_errors: [data] };
+    }
+
+    if (data.non_field_errors) {
+        formatted.non_field_errors = Array.isArray(data.non_field_errors)
+            ? data.non_field_errors
+            : [data.non_field_errors];
+    } else if (data.detail) {
+        formatted.non_field_errors = [data.detail];
+    } else if (data.error) {
+        formatted.non_field_errors = [data.error];
+    }
+
+    Object.keys(data).forEach((key) => {
+        if (key === 'detail' || key === 'error') return;
+        if (key === 'non_field_errors' && formatted.non_field_errors) return;
+
+        const value = data[key];
+        formatted[key] = Array.isArray(value) ? value : [value];
+    });
+
+    return formatted;
+};
 
 const Login = () => {
     const searchParams = useSearchParams();
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
 
+    const { showToast } = useToast();
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [errors, setErrors] = useState<string[]>([]);
+    const [errors, setErrors] = useState<Record<string, string[]>>({});
     const [loading, setLoading] = useState(false);
 
     const getPortalType = () => {
@@ -81,30 +114,35 @@ const Login = () => {
     const submitLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        setErrors([]);
+        setErrors({});
+
+
+        if (!email || !password) {
+            showToast("Missing Information!", "Please fill in all required fields", "error");
+            setErrors({
+                ...(email.trim() === "" && { email: ["Email address is required"] }),
+                ...(password === "" && { password: ["Password is required"] }),
+            });
+            setLoading(false);
+            return;
+        }
 
         const formData = { email, password, portal_type: portalType };
 
         try {
             const response = await apiService.post('/api/auth/login/', formData);
 
-            if (DEBUG) console.log(response);
-
             if (!response?.access || !response?.refresh) {
-                const messages =
-                    response?.non_field_errors ||
-                    response?.detail ||
-                    response?.error ||
-                    ['Invalid login response'];
-
-                setErrors(Array.isArray(messages) ? messages : [messages]);
+                setErrors({
+                    non_field_errors: ['Invalid login response'],
+                });
                 return;
             }
 
             const decoded: any = jwtDecode(response.access);
             const userId = decoded.user_id ?? decoded.sub;
 
-            await handleLogin(userId, response.access, response.refresh);
+            await handleLogin(userId, response.access, response.refresh, response.portal_access);
             
             const next = searchParams.get('next');
 
@@ -131,19 +169,19 @@ const Login = () => {
             }
 
             // Default: landlord
-            window.location.href =
-                `${process.env.NEXT_PUBLIC_LANDLORD_PORTAL_URL}/landlord-portal`;
+            window.location.href = `${process.env.NEXT_PUBLIC_LANDLORD_PORTAL_URL}/landlord-portal`;
         } catch (error: any) {
-            console.error('Login error:', error);
-
             const data = error?.response?.data;
-            const messages =
-                data?.non_field_errors ||
-                data?.detail ||
-                data?.error ||
-                ['Network error or server unavailable'];
 
-            setErrors(Array.isArray(messages) ? messages : [messages]);
+            if (data && typeof data === 'object') {
+                setErrors(formatApiErrors(data));
+            } else {
+                setErrors({
+                    non_field_errors: [
+                        'Network error or server unavailable'
+                    ],
+                });
+            }
         } finally {
             setLoading(false);
         }
@@ -183,8 +221,8 @@ const Login = () => {
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <form onSubmit={submitLogin} className="space-y-4">
                         {/* Email */}
-                        <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+                        <div className="space-y-1.5">
+                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                                 Email
                             </label>
                             <div className="relative">
@@ -195,16 +233,21 @@ const Login = () => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="you@example.com"
-                                    required
                                     disabled={loading}
                                     className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                                 />
                             </div>
+                            {errors.email && (
+                                <p className="text-xs text-red-600 flex items-center gap-1">
+                                    <CircleAlert className="w-4 h-4 text-red-600" />
+                                    {errors.email}
+                                </p>
+                            )}
                         </div>
 
                         {/* Password */}
-                        <div>
-                            <div className="flex items-center justify-between mb-1.5">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
                                 <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                                     Password
                                 </label>
@@ -223,53 +266,60 @@ const Login = () => {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="Enter your password"
-                                    required
                                     disabled={loading}
                                     className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                                 />
                             </div>
+                            {errors.password && (
+                                <p className="text-xs text-red-600 flex items-center gap-1">
+                                    <CircleAlert className="w-4 h-4 text-red-600" />
+                                    {errors.password[0]}
+                                </p>
+                            )}
                         </div>
 
-                        {/* Errors */}
-                        {errors.length > 0 && (
-                            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                                <div className="flex items-start gap-2">
-                                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                                    <div>
-                                        <p className="text-xs font-medium text-red-600 uppercase tracking-wide mb-0.5">
-                                            Error
-                                        </p>
-                                        <ul className="text-sm text-red-700 space-y-0.5">
-                                            {errors.map((error, index) => (
-                                                <li key={index}>{error}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                </div>
+                        {/* Non-field errors */}
+                        {errors.non_field_errors && (
+                            <div className="flex items-start gap-2.5 rounded-lg border border-red-100 bg-red-50 p-3.5">
+                                <CircleAlert className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                                <p className="text-xs text-red-800">{errors.non_field_errors[0]}</p>
                             </div>
                         )}
 
                         {/* Submit */}
                         <button
                             type="submit"
+                            onClick={submitLogin}
                             disabled={loading}
-                            className={`w-full py-2.5 ${config.button} text-white text-sm font-medium rounded-md transition disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2`}
+                            className="w-full flex items-center justify-center gap-2 py-3 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            {loading ? 'Signing in...' : 'Sign in'}
+                            {loading ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Logging in...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <LogIn className="w-4 h-4" />
+                                    <span>Log in</span>
+                                </>
+                            )}
                         </button>
 
-                        {/* Register Link */}
-                        <div className="pt-3 border-t border-gray-100">
-                            <p className="text-center text-sm text-gray-500">
-                                Need an account?{' '}
-                                <Link
-                                    href="/auth/register"
-                                    className={`${config.text} font-medium hover:underline transition`}
-                                >
-                                    Create one
-                                </Link>
-                            </p>
-                        </div>
+                        {portalType !== 'tenant' && (
+                            // Register
+                            <div className="pt-3 border-t border-gray-100">
+                                <p className="text-center text-sm text-gray-500">
+                                    Need an account?{' '}
+                                    <Link
+                                        href={process.env.NEXT_PUBLIC_MAIN_SITE_URL + '/auth/register'}
+                                        className={`${config.text} font-medium hover:underline transition`}
+                                    >
+                                        Create one
+                                    </Link>
+                                </p>
+                            </div>
+                        )}
                     </form>
                 </div>
             </div>

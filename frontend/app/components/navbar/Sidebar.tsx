@@ -18,6 +18,7 @@ import CustomTooltip from "../ui/CustomTooltip";
 interface SidebarProps {
   appUser: any,
   portal: "landlord" | "tenant" | "admin",
+  isExcludedHost: boolean
 }
 
 const LandlordNavItems = [
@@ -44,17 +45,12 @@ const PORTAL_LABELS = {
   admin: "ADMIN",
 } as const;
 
-const EXCLUDED_PATHS = [
-  '/accept-invitation', 
-  process.env.NEXT_PUBLIC_MAIN_SITE_URL
-].filter((path): path is string => Boolean(path));
+const EXCLUDED_PATHS = ['/accept-invitation', '/auth'];
 
-const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
+const Sidebar: React.FC<SidebarProps> = ({ appUser, portal, isExcludedHost }) => {
   const pathname = usePathname();
 
-  if (EXCLUDED_PATHS.some(excluded => pathname.startsWith(excluded))) {
-    return null;
-  }
+  const isExcludedPath = EXCLUDED_PATHS.some(excluded => pathname.startsWith(excluded));
   
   const router = useRouter();
   const { showToast } = useToast();
@@ -141,6 +137,10 @@ const Sidebar: React.FC<SidebarProps> = ({ appUser, portal }) => {
   : isSmallScreen
     ? "w-0 -translate-x-full"
     : "w-20 translate-x-0";
+
+  if (isExcludedPath || isExcludedHost) {
+    return null;
+  }
 
   return (
     <>

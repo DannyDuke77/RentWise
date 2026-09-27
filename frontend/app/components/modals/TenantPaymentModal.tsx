@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   CreditCard,
   Phone,
@@ -14,6 +14,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useInitiateTenantPayment } from "@/app/hooks/mutations/useTenantPaymentMutations";
+import { useTenantPaymentStatus } from "@/app/hooks/queries/useTenantPaymentsQueries";
 import Modal from "../ui/Modal";
 import Image from "next/image";
 import { TenantProfile, TenantTenancy } from "@/app/src/types/Types";
@@ -22,14 +23,16 @@ import { useToast } from "@/app/providers/ToastProvider";
 type TenantPaymentModalProps = {
   tenant: TenantProfile;
   onClose: () => void;
+  onPaymentSuccess?: () => void;
 };
 
 export default function TenantPaymentModal({
   tenant,
   onClose,
+  onPaymentSuccess,
 }: TenantPaymentModalProps) {
   const { showToast } = useToast();
-
+  
   // Only tenancies that can actually receive M-Pesa payments.
   const payableTenancies = useMemo(
     () => tenant.tenancies.filter((t: TenantTenancy) => t.mpesa_available),
@@ -46,7 +49,15 @@ export default function TenantPaymentModal({
   const [errors, setErrors] = useState<Record<string, string[]>>({});
 
   const initiatePayment = useInitiateTenantPayment();
-  const [success, setSuccess] = useState(false);
+
+  const [transactionId, setTransactionId] = useState<string | null>(null);
+  const paymentStatus = useTenantPaymentStatus(transactionId);
+  const status = paymentStatus.data?.status;
+
+  const isProcessing = transactionId !== null && (!paymentStatus.data || status === "pending");
+  const isPaymentSuccessful = status === "success";
+  const isPaymentFailed = status === "failed" || status === "cancelled";
+  const paymentSuccessHandled = useRef(false);
 
   const selectedTenancy = payableTenancies.find((t: TenantTenancy) => t.id === tenancyId);
 
@@ -83,20 +94,17 @@ export default function TenantPaymentModal({
 
     try {
       const response = await initiatePayment.mutateAsync({
-        tenancy_id: tenancyId,
-        phone_number: phoneNumber,
-        amount,
-        category,
-        notes: notes.trim(),
+          tenancy_id: tenancyId,
+          phone_number: phoneNumber,
+          amount,
+          category,
+          notes: notes.trim(),
       });
-      
-      if (response.success) {
-        showToast("Success", "Payment initiated successfully", "success");
-        setSuccess(true);
-        setTimeout(() => {
-          onClose();
-        }, 2200)
-      }
+
+      paymentSuccessHandled.current = false;
+      setTransactionId(response.transaction_id);
+
+      showToast("Success", "Payment initiated successfully", "success");
     } catch (error) {
       showToast("Error", getErrorMessage(error) || "Something went wrong", "error");
       console.error("Payment initiation failed:", error);
@@ -118,6 +126,17 @@ export default function TenantPaymentModal({
     if (typeof data === "string") return data;
     return "Something went wrong. Please try again.";
   };
+
+
+  useEffect(() => {
+    if (paymentStatus.data?.status !== "success" || paymentSuccessHandled.current) {
+      return;
+    }
+
+    paymentSuccessHandled.current = true;
+    showToast("Payment Successful", "Your payment has been received.", "success");
+    onPaymentSuccess?.();
+  }, [paymentStatus.data?.status]);
 
   const inputClass = (field: string) =>
     `w-full pl-9 pr-3 py-2.5 border rounded-lg text-sm text-gray-900 placeholder-gray-400 transition focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
@@ -159,21 +178,89 @@ export default function TenantPaymentModal({
 
   const content = (
     <div className="p-6 space-y-5">
-      {success ? (
-      <div className="flex flex-col items-center gap-3 text-center py-4">
-        <div className="relative">
-          <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-          <span className="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping" />
+      {isPaymentSuccessful ? (
+        <div className="flex flex-col items-center gap-3 text-center py-6">
+          <div className="relative">
+            <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+            <span className="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping" />
+          </div>
+
+          <p className="text-sm font-semibold text-slate-900">
+            Payment Successful
+          </p>
+
+          <p className="text-xs text-slate-500 max-w-xs">
+            Your payment of{" "}
+            <span className="font-medium text-slate-700">
+              KES {Number(amount).toLocaleString()}
+            </span>{" "}
+            has been received successfully.
+          </p>
+
+          {paymentStatus.data?.mpesa_receipt_number && (
+            <p className="text-xs text-slate-500">
+              M-Pesa receipt:{" "}
+              <span className="font-medium text-slate-700">
+                {paymentStatus.data.mpesa_receipt_number}
+              </span>
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700"
+          >
+            Done
+          </button>
         </div>
-        <p className="text-sm font-semibold text-slate-900">
-          Payment initiated successfully
-        </p>
-        <p className="text-xs text-slate-500 max-w-xs">
-          An STK push prompt has been sent to{" "}
-          <span className="font-medium text-slate-700">{phoneNumber}</span>.
-          Enter your M-Pesa PIN to complete.
-        </p>
-      </div>
+      ) : isPaymentFailed ? (
+        <div className="flex flex-col items-center gap-3 text-center py-6">
+          <div className="w-10 h-10 rounded-full bg-red-50 border border-red-100 flex items-center justify-center">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+          </div>
+
+          <p className="text-sm font-semibold text-slate-900">
+            Payment Failed
+          </p>
+
+          <p className="text-xs text-slate-500 max-w-xs">
+            {paymentStatus.data?.result_description ||
+              "The M-Pesa payment could not be completed."}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              setTransactionId(null);
+            }}
+            className="mt-2 px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
+          >
+            Try Again
+          </button>
+        </div>
+      ) : transactionId ? (
+        <div className="flex flex-col items-center gap-3 text-center py-6">
+          <div className="relative">
+            <Loader2 className="w-10 h-10 text-emerald-600 animate-spin" />
+          </div>
+
+          <p className="text-sm font-semibold text-slate-900">
+            Waiting for payment
+          </p>
+
+          <p className="text-xs text-slate-500 max-w-xs">
+            An M-Pesa prompt has been sent to{" "}
+            <span className="font-medium text-slate-700">
+              {phoneNumber}
+            </span>
+            . Enter your M-Pesa PIN to complete the payment.
+          </p>
+
+          <p className="text-[11px] text-slate-400">
+            Waiting for M-Pesa confirmation...
+          </p>
+        </div>
     ) : (
       <>
         {/* Header */}

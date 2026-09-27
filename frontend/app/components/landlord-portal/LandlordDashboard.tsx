@@ -4,18 +4,19 @@ import Link from "next/link";
 import {
   ArrowUpRight,
   Building2,
-  CalendarClock,
   Home,
   TrendingUp,
   TrendingDown,
-  Plus,
   Wallet,
   Wrench,
-  UserCheck,
   AlertCircle,
   ChevronRight,
-  RefreshCcw,
   Receipt,
+  ArrowDownLeft,
+  ArrowUpFromLine,
+  Banknote,
+  Smartphone,
+  Landmark,
 } from "lucide-react";
 import { useBusiness } from "@/app/providers/BusinessProvider";
 import { useDashboard } from "@/app/hooks/queries/useDashboardQueries";
@@ -42,12 +43,19 @@ const greeting = () => {
 const relativeTime = (iso: string) => {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return days === 1 ? "Yesterday" : `${days}d ago`;
 };
+
+const METHOD_ICONS = {
+  mpesa: Smartphone,
+  cash: Banknote,
+  bank: Landmark,
+} as const;
 
 /* ─────────────── page ─────────────── */
 
@@ -62,7 +70,7 @@ export default function LandlordDashboard() {
   const currencyCode = activeBusiness?.currency ?? "KES";
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-8 mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-6 mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -112,43 +120,59 @@ export default function LandlordDashboard() {
           sub={`${kpis.unpaid_units_count} units behind`}
           icon={AlertCircle}
           tone="amber"
+          href="/units?rent_status=arrears"
         />
         <KpiCard
-          label="Open maintenance"
+          label="Maintenance"
           value={kpis.maintenance}
           sub="units needing attention"
           icon={Wrench}
           tone="rose"
-          href="/units"
+          href="/units?status=maintenance"
         />
       </div>
 
-      {/* Main grid */}
+      {/* Row 1: Overdue (left, wide) + Rent comparison (right, narrow) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2">
           <OverdueRentPanel
             units={data.overdue_units}
             currencyCode={currencyCode}
           />
-          <RecentProperties properties={data.properties_preview} />
-          <RecentChargesPanel
-            charges={data.recent_charges}
-            currencyCode={currencyCode}
-          />
         </div>
-
-        <div className="space-y-6">
+        <div>
           <RentCollectionComparison
             thisMonth={kpis.rent_collected_this_month}
             lastMonth={kpis.rent_collected_prev_month}
             changePct={kpis.rent_collected_change_pct}
             currencyCode={currencyCode}
           />
+        </div>
+      </div>
+
+      {/* Row 2: Payments (left, wide) + Occupancy (right, narrow) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <RecentPaymentsPanel
+            payments={data.recent_payments}
+            currencyCode={currencyCode}
+          />
+        </div>
+        <div>
           <OccupancyPanel kpis={kpis} />
         </div>
       </div>
 
-      {/* Activity */}
+      {/* Row 3: Properties + Charges side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <RecentProperties properties={data.properties_preview} />
+        <RecentChargesPanel
+          charges={data.recent_charges}
+          currencyCode={currencyCode}
+        />
+      </div>
+
+      {/* Activity — full width footer */}
       <ActivityFeed items={data.recent_activity} />
     </div>
   );
@@ -240,15 +264,8 @@ function OverdueRentPanel({
   currencyCode,
 }: {
   units: Array<{
-    unit: {
-      id: string;
-      name: string;
-      status?: string;
-    };
-    property: {
-      id: string;
-      name: string;
-    };
+    unit: { id: string; name: string; status?: string };
+    property: { id: string; name: string };
     tenant_name: string | null;
     amount_due: number;
     days_overdue: number;
@@ -259,7 +276,8 @@ function OverdueRentPanel({
     <Panel
       title="Overdue rent"
       subtitle="Tenants with a balance past due"
-      action={{ label: "View all", href: "/units" }}
+      action={{ label: "View all", href: "/units?rent_status=arrears" }}
+      fillHeight
     >
       {units.length === 0 ? (
         <EmptyRow icon={Wallet} message="No units with overdue rent." />
@@ -300,6 +318,102 @@ function OverdueRentPanel({
   );
 }
 
+function RecentPaymentsPanel({
+  payments,
+  currencyCode,
+}: {
+  payments: Array<{
+    id: string;
+    type_name: string;
+    payment_method: string;
+    amount: number;
+    source: string;
+    reference: string;
+    unit: { id: string; name: string; status?: string };
+    property: { id: string; name: string };
+    notes: string;
+    created_at: string;
+  }>;
+  currencyCode: string;
+}) {
+  return (
+    <Panel
+      title="Recent payments"
+      subtitle="Latest money in and out"
+      action={{ label: "View all", href: "/payments" }}
+      fillHeight
+    >
+      {payments.length === 0 ? (
+        <EmptyRow icon={Receipt} message="No payments recorded yet." />
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {payments.map((p) => {
+            const isRefund = p.type_name === "refund";
+            const MethodIcon =
+              METHOD_ICONS[p.payment_method as keyof typeof METHOD_ICONS] ?? Receipt;
+
+            return (
+              <li key={p.id}>
+                <Link
+                  href={`/properties/${p.property.id}/units/${p.unit.id}/?tab=payments`}
+                  className="flex items-center gap-4 py-3 px-1 -mx-1 rounded-lg hover:bg-slate-50 transition-colors group"
+                >
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      isRefund
+                        ? "bg-rose-50 text-rose-600"
+                        : "bg-emerald-50 text-emerald-600"
+                    }`}
+                  >
+                    {isRefund ? (
+                      <ArrowUpFromLine className="w-4 h-4" />
+                    ) : (
+                      <ArrowDownLeft className="w-4 h-4" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                      {p.unit.name} · {p.property.name}
+                    </p>
+                    <p className="text-xs text-slate-500 flex items-center gap-1.5 truncate">
+                      <MethodIcon className="w-3 h-3 shrink-0" />
+                      <span className="capitalize">{p.payment_method}</span>
+                      <span>{p.source && `(${p.source})`}</span>
+                      {p.reference && (
+                        <>
+                          <span className="text-slate-300">·</span>
+                          <span className="font-mono text-[11px] truncate">
+                            {p.reference}
+                          </span>
+                        </>
+                      )}
+                      <span className="text-slate-300">·</span>
+                      <span>{relativeTime(p.created_at)}</span>
+                    </p>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <p
+                      className={`text-sm font-semibold ${
+                        isRefund ? "text-rose-600" : "text-slate-900"
+                      }`}
+                    >
+                      {isRefund ? "−" : "+"}
+                      {currency(p.amount, currencyCode)}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 shrink-0" />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
 function RecentProperties({
   properties,
 }: {
@@ -315,6 +429,7 @@ function RecentProperties({
       title="Your properties"
       subtitle="Recently added or updated"
       action={{ label: "Manage", href: "/properties" }}
+      fillHeight
     >
       {properties.length === 0 ? (
         <EmptyRow
@@ -371,14 +486,8 @@ function RecentChargesPanel({
     type_name: string;
     amount: number;
     status: "pending" | "paid" | "waived";
-    unit: {
-      id: string;
-      name: string;
-    };
-    property: {
-      id: string;
-      name: string;
-    };
+    unit: { id: string; name: string };
+    property: { id: string; name: string };
     description: string;
     created_at: string;
   }>;
@@ -395,6 +504,7 @@ function RecentChargesPanel({
       title="Recent charges"
       subtitle="Levied against tenancies"
       action={{ label: "View all", href: "/charges" }}
+      fillHeight
     >
       {charges.length === 0 ? (
         <EmptyRow icon={Receipt} message="No charges recorded yet." />
@@ -464,7 +574,7 @@ function OccupancyPanel({
     .join(", ");
 
   return (
-    <Panel title="Portfolio occupancy">
+    <Panel title="Portfolio occupancy" fillHeight>
       <div className="flex items-center gap-6 py-2">
         <div className="relative w-32 h-32 shrink-0">
           <div
@@ -531,15 +641,21 @@ function Panel({
   subtitle,
   action,
   children,
+  fillHeight,
 }: {
   title: string;
   subtitle?: string;
   action?: { label: string; href: string };
   children: React.ReactNode;
+  fillHeight?: boolean;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+    <div
+      className={`bg-white max-h-[fit-content] rounded-2xl border border-slate-200/80 overflow-hidden ${
+        fillHeight ? "h-full flex flex-col" : ""
+      }`}
+    >
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
           {subtitle && (
@@ -556,7 +672,7 @@ function Panel({
           </Link>
         )}
       </div>
-      <div className="px-5 py-4">{children}</div>
+      <div className={`px-5 py-4 ${fillHeight ? "flex-1" : ""}`}>{children}</div>
     </div>
   );
 }
@@ -582,17 +698,24 @@ function EmptyRow({
 
 function DashboardSkeleton() {
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-8 mx-auto animate-pulse">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-6 mx-auto animate-pulse">
       <div className="h-20 bg-slate-100 rounded-2xl" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="h-32 bg-slate-100 rounded-2xl" />
         ))}
       </div>
-      <div className="h-56 bg-slate-100 rounded-2xl" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 h-96 bg-slate-100 rounded-2xl" />
-        <div className="h-96 bg-slate-100 rounded-2xl" />
+        <div className="lg:col-span-2 h-64 bg-slate-100 rounded-2xl" />
+        <div className="h-64 bg-slate-100 rounded-2xl" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 h-72 bg-slate-100 rounded-2xl" />
+        <div className="h-72 bg-slate-100 rounded-2xl" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="h-64 bg-slate-100 rounded-2xl" />
+        <div className="h-64 bg-slate-100 rounded-2xl" />
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getPortalAccess } from "@/app/src/lib/portal";
+import { getPortalAccess } from "@/app/src/lib/actions";
 import LandlordDashboard from "@/app/components/landlord-portal/LandlordDashboard";
 
 export default async function LandlordPortalPage() {

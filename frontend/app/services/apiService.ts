@@ -14,6 +14,21 @@ export function setApiBusinessId(id: string | null) {
   activeBusinessId = id;
 }
 
+function createApiError(status: number, data: any) {
+  const error = new Error(
+    data?.detail ||
+    data?.message ||
+    `HTTP error! status: ${status}`
+  );
+
+  (error as any).response = {
+    status,
+    data,
+  };
+
+  return error;
+}
+
 const apiService = {
   get: async (url: string) => {
     try {
@@ -71,16 +86,12 @@ const apiService = {
   post: async function (url: string, data: any): Promise<any> {
     const headers: Record<string, string> = {};
 
-    // Only attach token if NOT logging in
-    if (!url.includes('/auth/login')) {
-        const token = await getAccessToken();
+    if (!url.includes("/auth/login")) {
+      const token = await getAccessToken();
 
-        if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
-            console.log('TOKEN FOUND');
-        } else {
-            console.log('NO TOKEN');
-        }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
     }
 
     if (activeBusinessId) {
@@ -88,31 +99,30 @@ const apiService = {
     }
 
     if (!(data instanceof FormData)) {
-        headers["Content-Type"] = "application/json";
-        data = JSON.stringify(data);
+      headers["Content-Type"] = "application/json";
+      data = JSON.stringify(data);
     }
 
-    console.log("🌐 Sending to:", `${API_URL}${url}`);
-
     const response = await fetch(`${API_URL}${url}`, {
-        method: "POST",
-        headers,
-        body: data,
+      method: "POST",
+      headers,
+      body: data,
     });
 
-    const responseData = await response.json();
+    const responseText = await response.text();
+    const responseData = responseText
+      ? JSON.parse(responseText)
+      : null;
 
-  if (!response.ok) {
-      const error = new Error(`HTTP error! status: ${response.status}`);
-      (error as any).response = {
-          status: response.status,
-          data: responseData,
-      };
-      throw error;
-  }
+    if (!response.ok) {
+      throw createApiError(
+        response.status,
+        responseData
+      );
+    }
 
-  return responseData;
-},
+    return responseData;
+  },
 
   patch: async function (url: string, data: any): Promise<any> {
     const token = await getAccessToken();
@@ -131,19 +141,25 @@ const apiService = {
       data = JSON.stringify(data);
     }
 
-    console.log("🌐 Patching to:", `${API_URL}${url}`);
-
     const response = await fetch(`${API_URL}${url}`, {
       method: "PATCH",
       headers,
       body: data,
     });
 
-    if (response.status === 200) {
-      return { success: true };
+    const responseText = await response.text();
+    const responseData = responseText
+      ? JSON.parse(responseText)
+      : null;
+
+    if (!response.ok) {
+      throw createApiError(
+        response.status,
+        responseData
+      );
     }
 
-    return response.json();
+    return responseData;
   },
 
   delete: async function (url: string): Promise<any> {
@@ -153,11 +169,10 @@ const apiService = {
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
+
     if (activeBusinessId) {
       headers["X-Business-ID"] = activeBusinessId;
     }
-
-    console.log("🗑️ Deleting:", `${API_URL}${url}`);
 
     const response = await fetch(`${API_URL}${url}`, {
       method: "DELETE",
@@ -168,7 +183,19 @@ const apiService = {
       return { success: true };
     }
 
-    return response.json();
+    const responseText = await response.text();
+    const responseData = responseText
+      ? JSON.parse(responseText)
+      : null;
+
+    if (!response.ok) {
+      throw createApiError(
+        response.status,
+        responseData
+      );
+    }
+
+    return responseData;
   },
 
   getBlob: async (url: string): Promise<Blob> => {

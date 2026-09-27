@@ -9,6 +9,8 @@ import Modal from "@/app/components/ui/Modal";
 import { Payment } from "@/app/src/types/Types";
 import { useToday } from "@/app/src/utils/timeStore";
 import Toggle from "../ui/Toggle";
+import { useBusiness } from "@/app/providers/BusinessProvider";
+import { start } from "repl";
 
 export interface PaymentFormPayload {
     amount_paid: number;
@@ -44,6 +46,9 @@ export const PaymentModal = ({
     isValidMpesa,
     onSubmit,
 }: PaymentModalProps) => {
+    const { activeBusinessRole } = useBusiness();
+    const isOwnerOrManager = activeBusinessRole === "owner" || activeBusinessRole === "manager";
+
     const today = useToday();
 
     const [category, setCategory] = useState<"rent" | "deposit">("rent");
@@ -80,8 +85,8 @@ export const PaymentModal = ({
         setDate(payment.paid_on ? payment.paid_on.slice(0, 16) : "");
         setNotes(payment.notes ?? "");
         setMessage("");
-        setEditEnabled(startInEdit);
-    }, [isOpen, payment, createMode, startInEdit, today]);
+        setEditEnabled(isOwnerOrManager && startInEdit);
+    }, [isOpen, payment, createMode, startInEdit, today, isOwnerOrManager]);
 
     const isReadOnly = !editEnabled;
 
@@ -112,10 +117,12 @@ export const PaymentModal = ({
         ? "Edit Payment"
         : "Payment Details";
 
+    const showModeBanner = !createMode && !!payment;
+
     const content = (
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
             {/* Mode banner */}
-            {!createMode && payment && (
+            {showModeBanner && (
                 <div
                     className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 border rounded-xl transition-all duration-200 ${
                         isReadOnly
@@ -123,7 +130,6 @@ export const PaymentModal = ({
                             : "bg-blue-50/60 border-blue-200 shadow-xs"
                     }`}
                 >
-                    {/* Left Side: Icon & Metadata */}
                     <div className="flex items-start gap-3 min-w-0">
                         <div
                             className={`p-2 rounded-lg shrink-0 ${
@@ -145,7 +151,11 @@ export const PaymentModal = ({
                                     isReadOnly ? "text-slate-800" : "text-blue-950"
                                 }`}
                             >
-                                {isReadOnly ? "Read-Only Mode" : "Editing Payment"}
+                                {!isOwnerOrManager
+                                    ? "Read-Only Mode"
+                                    : isReadOnly
+                                    ? "Read-Only Mode"
+                                    : "Editing Payment"}
                             </p>
 
                             <div
@@ -164,20 +174,28 @@ export const PaymentModal = ({
                                     Date: {new Date(payment.paid_on).toLocaleDateString()}
                                 </span>
                             </div>
+
+                            {!isOwnerOrManager && (
+                                <p className="text-xs text-slate-500 pt-0.5">
+                                    Only owners and managers can edit recorded payments.
+                                </p>
+                            )}
                         </div>
                     </div>
 
-                    {/* Right Side: Toggle Control */}
-                    <label className="flex items-center justify-between sm:justify-end gap-2.5 cursor-pointer select-none shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
-                        <span
-                            className={`text-xs font-semibold tracking-wide uppercase ${
-                                isReadOnly ? "text-slate-600" : "text-blue-700"
-                            }`}
-                        >
-                            {isReadOnly ? "Enable editing" : "Editing"}
-                        </span>
-                        <Toggle checked={editEnabled} onChange={setEditEnabled} />
-                    </label>
+                    {/* Toggle only shown to users who can actually edit */}
+                    {isOwnerOrManager && (
+                        <label className="flex items-center justify-between sm:justify-end gap-2.5 cursor-pointer select-none shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
+                            <span
+                                className={`text-xs font-semibold tracking-wide uppercase ${
+                                    isReadOnly ? "text-slate-600" : "text-blue-700"
+                                }`}
+                            >
+                                {isReadOnly ? "Enable editing" : "Editing"}
+                            </span>
+                            <Toggle checked={editEnabled} onChange={setEditEnabled} />
+                        </label>
+                    )}
                 </div>
             )}
 

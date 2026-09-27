@@ -16,6 +16,7 @@ import { Property } from "@/app/src/types/Types";
 import { useUpdateProperty } from "@/app/hooks/mutations/usePropertyMutations";
 import ConfirmModal from "../modals/ConfirmModal";
 import { useToast } from "@/app/providers/ToastProvider";
+import { useBusiness } from "@/app/providers/BusinessProvider";
 
 interface PropertyCardProps {
   property: Property;
@@ -47,6 +48,8 @@ const getStatus = (units: number, occupied: number) => {
 };
 
 const PropertyCard: React.FC<PropertyCardProps> = ({ property }) => {
+  const { activeBusinessRole } = useBusiness();
+
   const propertyModal = usePropertyModal();
   const updateProperty = useUpdateProperty();
   const { showToast } = useToast();
@@ -60,9 +63,15 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property }) => {
     : 0;
 
   const handleDeactivateClick = () => {
+    if (!activeBusinessRole || !['manager', 'owner'].includes(activeBusinessRole)) {
+      showToast('Permission Denied', 'Only owners and managers can deactivate properties.', 'error');
+      return;
+    }
+    
     if (isPropertyOccupied) {
+      console.log(isPropertyOccupied);
       showToast(
-        'Property Occupied!', 
+        'Property Occupado!', 
         `${property.occupied_units_count} ${property.occupied_units_count === 1 ? 'unit is' : 'units are'} currently occupied. Please terminate active tenancies before deactivating.`, 
         'error', 
         6000
@@ -78,19 +87,21 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property }) => {
     if (!property) return;
 
     try {
-      await updateProperty.mutateAsync({ 
+      await updateProperty.mutateAsync({
         propertyId: property.id,
-        payload: { is_active: false } 
+        payload: { is_active: false }
       });
 
       setIsDeactivateModalOpen(false);
       showToast('Property Deactivated', 'Your property has been deactivated successfully.', 'success');
     } catch (error: any) {
       console.error("Error deactivating property:", error);
+
       const backendMessage = error?.response?.data?.detail
         || (Array.isArray(error?.response?.data) ? error.response.data[0] : null)
         || error?.message
         || "Something went wrong while deactivating this property.";
+
       setDeactivateError(backendMessage);
     }
   };

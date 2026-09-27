@@ -135,40 +135,30 @@ const UnitModal = () => {
 
         try {
             if (isEditing && unit?.id) {
-                const response = await updateUnitMutation.mutateAsync({
+                await updateUnitMutation.mutateAsync({
                     unitId: unit.id,
                     propertyId: property.id,
-                    payload: payload
+                    payload
                 });
 
-                if (response.success) {
-                    unitModal.close();
-                    showToast('Unit Updated!', 'Your unit has been updated successfully.', 'success');
-                } else {
-                    setErrors(response?.errors || response);
-                }
+                unitModal.close();
+                showToast('Unit Updated!', 'Your unit has been updated successfully.', 'success');
             } else {
-                const response = await createUnitMutation.mutateAsync({ 
-                    propertyId: property.id, 
-                    payload  
+                await createUnitMutation.mutateAsync({
+                    propertyId: property.id,
+                    payload
                 });
 
-                if (response?.id) {
-                    unitModal.close();
-                    showToast('Unit Created!', 'Your unit has been created successfully.', 'success');
-                } else {
-                    showToast('Failed to create', 'An unexpected error occurred. Please try again.', 'error');
-                    console.error('Failed to create unit:', response);
-                    setErrors({
-                        general: ['An unexpected error occurred. Please try again.']
-                    });
-                }
+                unitModal.close();
+                showToast('Unit Created!', 'Your unit has been created successfully.', 'success');
             }
         } catch (error: any) {
             console.error('Error submitting unit:', error);
-            const serverErrors = error.response?.data?.errors || 
-                error.response?.data || 
+
+            const serverErrors = error.response?.data?.errors ||
+                error.response?.data ||
                 { general: ['An unexpected error occurred. Please try again.'] };
+
             setErrors(serverErrors);
         }
     };

@@ -35,7 +35,6 @@ const PropertyModal = () => {
 
     const { showToast } = useToast();
 
-    // ✅ Helper to clear a specific error
     const clearError = (field: string) => {
         setErrors(prev => {
             const newErrors = { ...prev };
@@ -81,7 +80,7 @@ const PropertyModal = () => {
 
         setErrors({});
         setSuccess(false);
-        
+
         if (name.trim() === "" || selectedPropertyType === "" || location.trim() === "") {
             showToast('Missing Information', 'Please fill in all required fields.', 'error');
             setErrors({
@@ -109,44 +108,28 @@ const PropertyModal = () => {
 
         try {
             if (isEditing && property?.id) {
-                if (!property?.id) {
-                    setErrors({
-                        general: ['Property information is missing. Please close and reopen the property.']
-                    });
-                    return;
-                }
-
-                const response = await updatePropertyMutation.mutateAsync({
+                await updatePropertyMutation.mutateAsync({
                     propertyId: property.id,
                     payload: payload
                 });
 
-                if (response.id || response.status === 200) {
-                    showToast('Property Updated!', 'Your property has been saved successfully.', 'success');
-                    propertyModal.close();
-                } else {
-                    showToast('Failed to update', 'Please check the form for errors.', 'error');
-                    setErrors(response);
-                }
+                showToast('Property Updated!', 'Your property has been saved successfully.', 'success');
+                propertyModal.close();
             } else {
                 const formData = new FormData();
+
                 Object.entries(payload).forEach(([key, val]) => {
                     formData.append(key, String(val));
                 });
 
-                const response = await createPropertyMutation.mutateAsync(formData);
+                await createPropertyMutation.mutateAsync(formData);
 
-                if (response.id) {
-                    showToast('Property Created!', 'Your property has been created successfully.', 'success');
-                    propertyModal.close();
-                } else {
-                    showToast('Failed to create', 'Please check the form for errors.', 'error');
-                    setErrors(response);
-                }
+                showToast('Property Created!', 'Your property has been created successfully.', 'success');
+                propertyModal.close();
             }
         } catch (error: any) {
-            console.error('Error submitting property:', error);
-            const serverErrors = error.response?.data || { general: ['An unexpected error occurred. Please try again.'] };
+            const serverErrors = error?.response?.data || { general: ['An unexpected error occurred. Please try again.'] };
+            showToast('Failed to submit', serverErrors.detail || 'Failed to submit property.', 'error');
             setErrors(serverErrors);
         } finally {
             isSubmitting.current = false;

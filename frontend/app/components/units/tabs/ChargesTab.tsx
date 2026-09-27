@@ -104,26 +104,22 @@ const ChargesTab = ({ unit, tenancyId }: ChargesTabProps) => {
         e.preventDefault();
         if (!tenancyId) return;
 
-        console.log("Selected charge id:", formData.charge_type)
+        console.log("Selected charge id:", formData.charge_type);
+
         if (!formData.charge_type || !formData.amount) {
-            showToast("Missing Information!", "Please fill in all required fields", "error")
+            showToast("Missing Information!", "Please fill in all required fields", "error");
             setErrors({
-                ...(formData.charge_type.trim() === "" && { chargeType: ["Charge type is required"]}),
-                ...(formData.amount === "" && { amount: ["Charge amount is required"]})
-            })
-            console.log("Errors: ", errors)
+                ...(formData.charge_type.trim() === "" && { chargeType: ["Charge type is required"] }),
+                ...(formData.amount === "" && { amount: ["Charge amount is required"] })
+            });
+            return;
         }
 
         try {
-            const response = await createCharge.mutateAsync(formData);
+            await createCharge.mutateAsync(formData);
 
-            if (response.tenancy) {
-                setFormData({ charge_type: "", amount: "", description: "" });
-                showToast('Charge Created!', 'Your charge has been created successfully.', 'success');
-            } else {
-                setErrors(response);
-                showToast('Failed to create', 'Please check the form for errors.', 'error');
-            }
+            setFormData({ charge_type: "", amount: "", description: "" });
+            showToast('Charge Created!', 'Your charge has been created successfully.', 'success');
         } catch (error) {
             console.error("Creation failed", error);
         }
@@ -187,18 +183,6 @@ const ChargesTab = ({ unit, tenancyId }: ChargesTabProps) => {
     };
 
     const submitting = createCharge.isPending || deleteCharge.isPending;
-
-    if (!tenancyId) {
-        return (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-                <div className="w-24 h-24 bg-gradient-to-br from-red-50 to-red-200 rounded-3xl flex items-center justify-center mb-6 shadow-xl">
-                    <UserRoundX className="w-12 h-12 text-red-600 animate-bounce" strokeWidth={1.5} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-700 mb-2">No Active Tenancy</h3>
-                <p className="text-gray-400">Assign a tenant first to manage charges</p>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">

@@ -144,7 +144,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         if (!modalPayment) return;
 
         try {
-            const response = await updatePaymentMutation.mutateAsync({
+            await updatePaymentMutation.mutateAsync({
                 paymentId: modalPayment.id,
                 unitId: unit.id,
                 propertyId: property.id,
@@ -153,12 +153,8 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                 targetYear: new Date(modalPayment.paid_on).getFullYear(),
             });
 
-            if (response.success || response.id) {
-                showToast('Payment Updated', 'Payment updated successfully', 'success');
-                closePaymentModal();
-            } else {
-                setEditErrors(response.errors || response);
-            }
+            showToast('Payment Updated', 'Payment updated successfully', 'success');
+            closePaymentModal();
         } catch (error: any) {
             console.error('Error updating payment:', error);
             setEditErrors(error.response?.data || { general: ['Failed to update payment'] });
@@ -205,7 +201,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         }
 
         try {
-            const response = await paymentMutation.mutateAsync({
+            await paymentMutation.mutateAsync({
                 unitId: unit.id,
                 propertyId: property.id,
                 payload: {
@@ -224,13 +220,8 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                 targetYear,
             });
 
-            if (response.success) {
-                showToast("Payment Recorded!", `Payment of ${payload.amount_paid} recorded successfully`, "success");
-                closeCreateModal();
-            } else {
-                setCreateErrors(response);
-                showToast("Payment Failed!", 'Please check the form for errors', "error");
-            }
+            showToast("Payment Recorded!", `Payment of ${payload.amount_paid} recorded successfully`, "success");
+            closeCreateModal();
         } catch (error: any) {
             console.error(error);
             setCreateErrors(error.response?.data || error.response || {});
@@ -278,7 +269,7 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         const targetYear = selectedDate.getFullYear();
 
         try {
-            const response = await paymentMutation.mutateAsync({
+            await paymentMutation.mutateAsync({
                 unitId: unit.id,
                 propertyId: property.id,
                 payload: {
@@ -297,14 +288,9 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
                 targetYear,
             });
 
-            if (response.success) {
-                showToast("Refund Recorded!", `Refund of ${refundAmount} recorded successfully`, "success");
-                setIsRefundModalOpen(false);
-                setRefundReference("");
-            } else {
-                setRefundErrors(response);
-                showToast("Refund Failed!", 'Please check the form for errors', "error");
-            }
+            showToast("Refund Recorded!", `Refund of ${refundAmount} recorded successfully`, "success");
+            setIsRefundModalOpen(false);
+            setRefundReference("");
         } catch (error: any) {
             console.error(error);
             setRefundErrors(error.response?.data || error.response || {});
@@ -370,18 +356,6 @@ const PaymentTab = ({ property, unit }: PaymentTabProps) => {
         setFilterDate("");
         setSearchTerm("");
     };
-
-    if (unit.status !== "occupied") {
-        return (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-                <div className="w-24 h-24 bg-gradient-to-br from-red-50 to-red-200 rounded-3xl flex items-center justify-center mb-6 shadow-xl offset-4">
-                    <UserRoundX className="w-12 h-12 text-red-600 animate-bounce" strokeWidth={1.5} />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-700 mb-2">No Active Tenancy</h3>
-                <p className="text-gray-400">Assign a tenant first to manage payments and track transactions</p>
-            </div>
-        );
-    }
 
     if (isPaymentsPending && !searchTerm && !filterMethod && !filterDate) return <PaymentTabSkeleton />;
 

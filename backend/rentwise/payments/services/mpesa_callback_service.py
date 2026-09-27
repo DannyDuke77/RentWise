@@ -58,8 +58,6 @@ def process_mpesa_callback(data):
 
     receipt_number = metadata.get("MpesaReceiptNumber")
     amount = metadata.get("Amount")
-    phone_number = metadata.get("PhoneNumber")
-    transaction_date = metadata.get("TransactionDate")
 
     if not receipt_number:
         raise ValueError(

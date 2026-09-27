@@ -150,7 +150,7 @@ const TenantModal = ({ isOpen, onClose, tenant, unit, onSuccess }: TenantModalPr
                     showToast('No Changes', 'No changes were made to the tenant.', 'warning');
                     return;
                 }
-                // ---- EDIT ----
+
                 const payload: Record<string, string> = {};
                 if (full_name !== tenant.full_name) payload.full_name = full_name;
                 if (phone !== (tenant.phone || '')) payload.phone = phone;
@@ -162,13 +162,17 @@ const TenantModal = ({ isOpen, onClose, tenant, unit, onSuccess }: TenantModalPr
                     return;
                 }
 
-                await updateTenantMutation.mutateAsync({ tenantId: tenant.id, unitId: unit!.id, payload });
+                await updateTenantMutation.mutateAsync({ 
+                    tenantId: tenant.id, 
+                    unitId: unit!.id, 
+                    payload 
+                });
                 showToast('Updated!', 'Tenant details updated successfully.', 'success');
                 onSuccess?.();
                 onClose();
             } else {
-                // ---- CREATE ----
                 if (!unit) return;
+
                 const payload = { full_name, phone, email, id_number, billing_start_date, first_month_rent };
                 const response = await addTenantMutation.mutateAsync({
                     unitId: unit.id,
@@ -176,20 +180,14 @@ const TenantModal = ({ isOpen, onClose, tenant, unit, onSuccess }: TenantModalPr
                     propertyId: unit.property.id,
                 });
 
-                if (response.success) {
-                    setDetailMessage(response.detail);
-                    setSuccess(true);
-                    showToast(
-                        hasTenant ? 'Roommate Assigned!' : 'Tenant Assigned!',
-                        hasTenant ? 'Roommate assigned successfully.' : 'Tenant assigned successfully.',
-                        'success'
-                    );
-                    onSuccess?.();
-                } else {
-                    showToast('Failed!', 'Failed to assign tenant.', 'error');
-                    setErrors(response.errors);
-                    console.log("Failed to assign tenant:", response.errors);
-                }
+                setDetailMessage(response.detail);
+                setSuccess(true);
+                showToast(
+                    hasTenant ? 'Roommate Assigned!' : 'Tenant Assigned!',
+                    hasTenant ? 'Roommate assigned successfully.' : 'Tenant assigned successfully.',
+                    'success'
+                );
+                onSuccess?.();
             }
         } catch (error: any) {
             const apiErrors = error?.response?.data?.errors;
@@ -413,57 +411,59 @@ const TenantModal = ({ isOpen, onClose, tenant, unit, onSuccess }: TenantModalPr
                         )}
                     </div>
 
-                    {/* Billing start date — create mode only, and only when assigning the primary tenant */}
+                    {/* Billing start date and first month rent */}
                     {!isEdit && !hasTenant && (
-                        <div className="space-y-2">
-                            <label className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">
-                                Billing Start Date <span className="text-red-400">*</span>
-                            </label>
-                            <div className="relative max-w-xs">
-                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
-                                <input
-                                    type="date"
-                                    className={inputClass('billing_start_date')}
-                                    value={billing_start_date}
-                                    onChange={(e) => { setBillingStartDate(e.target.value); clearError('billing_start_date'); }}
-                                />
-                            </div>
-                            {errors.billing_start_date && (
-                                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                                    <AlertTriangle className="w-3 h-3" />{errors.billing_start_date[0]}
+                        <>
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">
+                                    Billing Start Date <span className="text-red-400">*</span>
+                                </label>
+                                <div className="relative max-w-xs">
+                                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+                                    <input
+                                        type="date"
+                                        className={inputClass('billing_start_date')}
+                                        value={billing_start_date}
+                                        onChange={(e) => { setBillingStartDate(e.target.value); clearError('billing_start_date'); }}
+                                    />
+                                </div>
+                                {errors.billing_start_date && (
+                                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                        <AlertTriangle className="w-3 h-3" />{errors.billing_start_date[0]}
+                                    </p>
+                                )}
+                                <p className="text-xs text-gray-400 mt-1 ml-1">
+                                    The date when billing for this tenant will commence
                                 </p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1 ml-1">
-                                The date when billing for this tenant will commence
-                            </p>
-                        </div>
-                    )}
+                            </div>
 
-                    {/* First month rent */}
-                    <div className="space-y-2">
-                        <label className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">
-                            First Month Rent [Default: {unit?.monthly_rent ? unit.monthly_rent : '3500'}]
-                        </label>
-                        <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">KES</span>
-                            <input
-                                type="number"
-                                className={inputClass('first_month_rent') + ' pl-12'}
-                                value={first_month_rent}
-                                onChange={(e) => { setFirstMonthRent(e.target.value); clearError('first_month_rent'); }}
-                                placeholder={unit?.monthly_rent ? unit.monthly_rent : '3500'}
-                            />
-                        </div>
-                        {errors.first_month_rent && (
-                            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                                <AlertTriangle className="w-3 h-3" />{errors.first_month_rent[0]}
-                            </p>
-                        )}
-                        <p className="text-xs text-gray-400 flex items-start gap-1.5 mt-1.5">
-                            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-                            <span>For a negotiated first payment, enter the agreed amount. Leave blank to charge the full monthly rent.</span>
-                        </p>
-                    </div>
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">
+                                    First Month Rent [Default: {unit?.monthly_rent ? unit.monthly_rent : '3500'}]
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">KES</span>
+                                    <input
+                                        type="number"
+                                        className={inputClass('first_month_rent') + ' pl-12'}
+                                        value={first_month_rent}
+                                        onChange={(e) => { setFirstMonthRent(e.target.value); clearError('first_month_rent'); }}
+                                        placeholder={unit?.monthly_rent ? unit.monthly_rent : '3500'}
+                                    />
+                                </div>
+                                {errors.first_month_rent && (
+                                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                        <AlertTriangle className="w-3 h-3" />{errors.first_month_rent[0]}
+                                    </p>
+                                )}
+                                <p className="text-xs text-gray-400 flex items-start gap-1.5 mt-1.5">
+                                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                                    <span>For a negotiated first payment, enter the agreed amount. Leave blank to charge the full monthly rent.</span>
+                                </p>
+                            </div>
+                        </>
+                    )}
+                    
                 </div>
 
                 {/* Submit */}

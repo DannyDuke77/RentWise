@@ -1,5 +1,7 @@
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from rest_framework import serializers
+from django.contrib.auth.password_validation import validate_password
+from django.db import IntegrityError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from PIL import Image
 from rest_framework.exceptions import AuthenticationFailed
@@ -23,7 +25,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if portal not in {"public", "tenant", "landlord", "admin"}:
             raise AuthenticationFailed("Invalid portal.")
 
-        data = super().validate(attrs)
+        try:
+            data = super().validate(attrs)
+        except AuthenticationFailed:
+            raise AuthenticationFailed("Invalid email or password")
 
         user = self.user
         portal_access = get_user_portal_access(user)
@@ -70,8 +75,15 @@ class CustomRegisterSerializer(RegisterSerializer):
     address = serializers.CharField(required=False, allow_blank=True)
     avatar = serializers.ImageField(required=False, allow_null=True)
 
+    def validate_email(self, value):
+        email = value.strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError(
+                "An account with this email already exists."
+            )
+        return email
+
     def validate_avatar(self, value):
-        # Max file size: 2MB
         max_size = 2 * 1024 * 1024  # 2 MB
 
         if value.size > max_size:
@@ -89,7 +101,7 @@ class CustomRegisterSerializer(RegisterSerializer):
             )
 
         return value
-    
+
     def validate_phone_number(self, value):
         return normalize_kenyan_phone(value)
 
@@ -101,7 +113,7 @@ class CustomRegisterSerializer(RegisterSerializer):
         data['address'] = self.validated_data.get('address', '')
         data['avatar'] = self.validated_data.get('avatar', None)
         return data
-    
+
     def validate(self, attrs):
         if attrs.get('password1') != attrs.get('password2'):
             raise serializers.ValidationError({
@@ -110,14 +122,19 @@ class CustomRegisterSerializer(RegisterSerializer):
         return super().validate(attrs)
 
     def save(self, request):
-        return create_user(
-            name=self.validated_data["name"],
-            email=self.validated_data["email"],
-            password=self.validated_data["password1"],
-            phone_number=self.validated_data.get("phone_number"),
-            address=self.validated_data.get("address"),
-            avatar=self.validated_data.get("avatar"),
-        )
+        try:
+            return create_user(
+                name=self.validated_data["name"],
+                email=self.validated_data["email"],
+                password=self.validated_data["password1"],
+                phone_number=self.validated_data.get("phone_number"),
+                address=self.validated_data.get("address"),
+                avatar=self.validated_data.get("avatar"),
+            )
+        except IntegrityError:
+            raise serializers.ValidationError({
+                "email": ["An account with this email already exists."]
+            })
     
 class UserSettingsSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)

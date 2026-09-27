@@ -10,8 +10,9 @@ import json
 from django.conf import settings
 
 from accounts.models import Business, BusinessMembership
+from accounts.permissions import HasBusinessContext, IsBusinessManagerOrOwner
 from properties.models import Tenancy
-from .models import MpesaConfiguration
+from .models import MpesaConfiguration, MpesaTransaction
 from .serializers import MpesaConfigurationSerializer, MpesaPaymentSerializer
 from .services.mpesa_callback_service import process_mpesa_callback
 from .services.payment_service import initiate_mpesa_payment
@@ -50,9 +51,23 @@ def mpesa_callback(request):
     })
 
 class MpesaConfigurationViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated]
     serializer_class = MpesaConfigurationSerializer
     lookup_field = "id"
+
+    def get_permissions(self):
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            permission_classes = [
+                IsAuthenticated,
+                HasBusinessContext,
+                IsBusinessManagerOrOwner,
+            ]
+        else:
+            permission_classes = [
+                IsAuthenticated,
+                HasBusinessContext,
+            ]
+
+        return [permission() for permission in permission_classes]
 
     def get_business(self):
         business_id = self.request.headers.get("X-Business-ID")
@@ -61,16 +76,6 @@ class MpesaConfigurationViewSet(ModelViewSet):
             return None
 
         return get_object_or_404(Business, id=business_id, memberships__user=self.request.user,)
-
-    def check_owner(self, business):
-        if not BusinessMembership.objects.filter(
-            business=business,
-            user=self.request.user,
-            role="owner",
-        ).exists():
-            raise PermissionDenied(
-                "Only the business owner can manage M-Pesa configuration."
-            )
 
     def get_queryset(self):
         business = self.get_business()
@@ -100,12 +105,9 @@ class MpesaConfigurationViewSet(ModelViewSet):
                 "business": "Business context is required."
             })
 
-        self.check_owner(business)
-
         serializer.save()
 
     def perform_destroy(self, instance):
-        self.check_owner(instance.business)
         instance.delete()
 
 class InitiateMpesaPaymentView(APIView):
@@ -159,3 +161,23 @@ class InitiateMpesaPaymentView(APIView):
             "checkout_request_id": mpesa_transaction.checkout_request_id,
             "status": mpesa_transaction.status,
         }, status=201)
+
+class MpesaTransactionStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, transaction_id):
+        transaction = get_object_or_404(
+            MpesaTransaction,
+            id=transaction_id,
+            tenancy__tenancy_members__tenant__user=request.user,
+            tenancy__tenancy_members__is_active=True,
+        )
+
+        return Response({
+            "transaction_id": str(transaction.id),
+            "status": transaction.status,
+            "result_code": transaction.result_code,
+            "result_description": transaction.result_description,
+            "mpesa_receipt_number": transaction.mpesa_receipt_number,
+            "completed_at": transaction.completed_at,
+        })

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import UnitRow from "./UnitRow";
+import UnitRow from "../units/UnitRow";
 import { Building, Search, X, Grid3X3, LayoutList } from "lucide-react";
 import { Property, Unit } from "@/app/src/types/Types";
 import Pagination from "../ui/Pagination";
@@ -124,7 +124,6 @@ const UnitsSection = ({ property }: Props) => {
               <option value="paid">Paid</option>
               <option value="unpaid">Unpaid</option>
               <option value="partial">Partial</option>
-              <option value="vacant">Vacant</option>
             </select>
           </div>
 

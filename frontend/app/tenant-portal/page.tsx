@@ -573,6 +573,7 @@ export default function TenantPortal() {
         <TenantPaymentModal
           tenant={tenant}
           onClose={() => setShowPaymentModal(false)}
+          onPaymentSuccess={() => refetch()}
         />
       )}
     </div>

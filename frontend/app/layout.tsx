@@ -24,11 +24,12 @@ export const metadata: Metadata = {
   description: "RentWise is a modern property management application built with Django and Next.js, designed to streamline rental operations and enhance landlord experiences.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>

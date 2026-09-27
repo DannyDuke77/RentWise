@@ -2,9 +2,11 @@ import { useState, useCallback } from "react";
 import { useDeletePayment, useUpdatePayment } from "./mutations/usePaymentMutations";
 import { useToast } from "@/app/providers/ToastProvider";
 import { Payment } from "@/app/src/types/Types";
+import { usePermissions } from "./usePermissions";
 
 export const usePaymentActions = () => {
     const { showToast } = useToast();
+    const { isOwnerOrManager } = usePermissions();
     const deletePaymentMutation = useDeletePayment();
     const updatePaymentMutation = useUpdatePayment();
 
@@ -27,12 +29,22 @@ export const usePaymentActions = () => {
     }, []);
 
     const handleDeleteClick = useCallback((payment: Payment) => {
+        if (!isOwnerOrManager) {
+            showToast('Error', 'Only owners and managers can delete payments', 'error');
+            return;
+        }
         setDeletingPayment(payment);
         setIsDeleteModalOpen(true);
     }, []);
 
     const handleConfirmDelete = useCallback(async () => {
         if (!deletingPayment) return false;
+
+        if (!isOwnerOrManager) {
+            showToast('Error', 'Only owners and managers can delete payments', 'error');
+            return false;
+        }
+
         try {
             await deletePaymentMutation.mutateAsync({
                 paymentId: deletingPayment.id,
@@ -41,12 +53,15 @@ export const usePaymentActions = () => {
                 targetMonth: new Date(deletingPayment.paid_on).getMonth() + 1,
                 targetYear: new Date(deletingPayment.paid_on).getFullYear(),
             });
+
             setIsDeleteModalOpen(false);
             setDeletingPayment(null);
             showToast('Payment Deleted', 'Payment deleted successfully', 'success');
+
             return true;
-        } catch (error) {
-            showToast('Error', 'Failed to delete payment', 'error');
+        } catch (error: any) {
+            showToast('Error', error.response?.data.detail || 'Failed to delete payment', 'error');
+            setIsDeleteModalOpen(false);
             return false;
         }
     }, [deletingPayment, deletePaymentMutation, showToast]);

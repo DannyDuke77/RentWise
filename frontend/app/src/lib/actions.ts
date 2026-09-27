@@ -1,5 +1,6 @@
 'use server';
 
+import apiService from "@/app/services/apiService";
 import { cookies } from "next/headers";
 
 const accessTokenMaxAge =
@@ -13,7 +14,12 @@ const COOKIE_DOMAIN =
         : '.rentwise.localhost';
 
 
-export async function handleLogin(userId: string, accessToken: string, refreshToken: string) {
+export async function handleLogin(
+    userId: string, 
+    accessToken: string, 
+    refreshToken: string, 
+    portalAccess: { landlord: boolean; tenant: boolean; admin: boolean }
+) {
     const requestCookies = await cookies();
 
     requestCookies.set('session_userid', userId, {
@@ -35,13 +41,23 @@ export async function handleLogin(userId: string, accessToken: string, refreshTo
     requestCookies.set('session_refresh_token', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 24 * 7, // 7 days
+        maxAge: 60 * 60 * 24 * 7,
         path: '/',
         domain: COOKIE_DOMAIN
     });
 
-        console.log('handleLogin: Access token set:', accessToken);
-        console.log('handleLogin: Refresh token set:', refreshToken);
+    requestCookies.set('session_portal_access', JSON.stringify(portalAccess), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 7,
+        path: '/',
+        domain: COOKIE_DOMAIN,
+    });
+
+    console.log('handleLogin: User ID set:', userId);
+    console.log('handleLogin: Access token set:', accessToken);
+    console.log('handleLogin: Refresh token set:', refreshToken);
+    console.log('handleLogin: Portal access set:', portalAccess);
 }
 
 /** Clears all auth cookies */
@@ -58,6 +74,7 @@ export async function resetAuthCookies() {
     requestCookies.set('session_userid', '', options);
     requestCookies.set('session_access_token', '', options);
     requestCookies.set('session_refresh_token', '', options);
+    requestCookies.set('session_portal_access', '', options);
 
     console.log('Auth cookies reset');
 }
@@ -70,43 +87,30 @@ export async function handleRefresh() {
 
     if (!refreshToken) {
         console.log('No refresh token available, skipping refresh.');
-        return null; // stop if no refresh token
+        return null;
     }
 
     console.log('Refresh token found:', refreshToken);
 
     try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/token/refresh/`, {
-            method: 'POST',
-            body: JSON.stringify({ refresh: refreshToken }),
-            headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-            },
+        const response = await apiService.post(`/api/auth/token/refresh/`, {
+            refresh: refreshToken,
         });
 
-        const json = await response.json();
+        console.log('Refresh response:', response);
 
-        console.log('Refresh response:', json);
+        const requestCookies = await cookies();
+        const accessToken = response.access;
 
-        if (json.access) {
-            const requestCookies = await cookies();
-            const accessToken = json.access;
+        requestCookies.set('session_access_token', accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 60 * 60,
+            path: '/',
+            domain: COOKIE_DOMAIN
+        });
 
-            requestCookies.set('session_access_token', accessToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                maxAge: 60 * 60, // 1 hour
-                path: '/',
-                domain: COOKIE_DOMAIN
-            });
-
-            return accessToken;
-        } else {
-            console.log('No access token in refresh response, resetting cookies');
-            resetAuthCookies();
-            return null;
-        }
+        return accessToken;
     } catch (error) {
         console.error('Error refreshing token:', error);
         resetAuthCookies();
@@ -130,4 +134,13 @@ export async function getAccessToken() {
 export async function getRefreshToken() {
     const requestCookies = await cookies();
     return requestCookies.get('session_refresh_token')?.value;
+}
+
+export async function getPortalAccess(): Promise<{ 
+    landlord: boolean; 
+    tenant: boolean; 
+    admin: boolean 
+}> {
+    const response = await apiService.get("/api/auth/me/");
+    return response.portal_access;
 }

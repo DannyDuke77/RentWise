@@ -171,29 +171,26 @@ const PaymentsPage = () => {
     };
 
     const handleUpdateSubmit = async (payload: PaymentFormPayload) => {
-    if (!modalPayment) return;
+        if (!modalPayment) return;
 
-    try {
-        const response = await updatePaymentMutation.mutateAsync({
-            paymentId: modalPayment.id,
-            unitId: modalPayment.unit.id,
-            propertyId: modalPayment.property.id,
-            payload,
-            targetMonth: new Date(modalPayment.paid_on).getMonth() + 1,
-            targetYear: new Date(modalPayment.paid_on).getFullYear(),
-        });
+        try {
+            await updatePaymentMutation.mutateAsync({
+                paymentId: modalPayment.id,
+                unitId: modalPayment.unit.id,
+                propertyId: modalPayment.property.id,
+                payload,
+                targetMonth: new Date(modalPayment.paid_on).getMonth() + 1,
+                targetYear: new Date(modalPayment.paid_on).getFullYear(),
+            });
 
-        if (response.success || response.id) {
             showToast('Payment Updated', 'Payment updated successfully', 'success');
             closePaymentModal();
-        } else {
-            setEditErrors(response.errors || response);
+        } catch (error: any) {
+            console.error('Error updating payment:', error);
+            closePaymentModal();
+            setEditErrors(error.response?.data || error.response?.detail || { general: ['Failed to update payment'] });
         }
-    } catch (error: any) {
-        console.error('Error updating payment:', error);
-        setEditErrors(error.response?.data || { general: ['Failed to update payment'] });
-    }
-};
+    };
 
     if (paymentsLoading && !searchTerm && !paymentMethod && !filterType && !filterDate) {
         return (

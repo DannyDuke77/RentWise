@@ -1,4 +1,5 @@
 import base64
+from django.conf import settings
 from datetime import datetime
 import requests
 from requests.auth import HTTPBasicAuth
@@ -11,9 +12,9 @@ class MpesaService:
         self.configuration = configuration
 
         if configuration.environment == "production":
-            self.base_url = "https://api.safaricom.co.ke"
+            self.base_url = settings.MPESA_LIVE_URL
         else:
-            self.base_url = "https://sandbox.safaricom.co.ke"
+            self.base_url = settings.MPESA_SANDBOX_URL
 
     def get_access_token(self):
         consumer_key = self.configuration.consumer_key

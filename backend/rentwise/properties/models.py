@@ -224,6 +224,7 @@ class UnitPayment(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenancy = models.ForeignKey(Tenancy, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
+    mpesa_transaction = models.ForeignKey("payments.MpesaTransaction", on_delete=models.SET_NULL, null=True, blank=True, related_name="unit_payments",)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='rent')
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
     year = models.IntegerField()
@@ -231,12 +232,6 @@ class UnitPayment(models.Model):
     paid_on = models.DateTimeField(default=timezone.now)
     payment_method = models.CharField(max_length=30, choices=PAYMENT_CHOICES)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
-    mpesa_transaction = models.ForeignKey(
-        "payments.MpesaTransaction",
-        null=True, blank=True,
-        on_delete=models.SET_NULL,
-        related_name="unit_payments",
-    )
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='payment')
     reference = models.CharField(max_length=100, blank=True, null=True)
     notes = models.TextField(blank=True)

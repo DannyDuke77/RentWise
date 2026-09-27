@@ -301,6 +301,32 @@ def _get_recent_charges(business, limit=5):
         for c in charges
     ]
 
+def _get_recent_payments(business, limit=5):
+    from properties.models import UnitPayment
+
+    payments = (
+        UnitPayment.objects
+        .filter(tenancy__unit__property__business=business)
+        .select_related("mpesa_transaction", "tenancy", "tenancy__unit", "tenancy__unit__property")
+        .order_by("-created_at")[:limit]
+    )
+
+    return [
+        {
+            "id": str(p.id),
+            "type_name": p.type if p.type else "Payment",
+            "payment_method": p.payment_method,
+            "amount": float(p.amount_paid),
+            "source": p.source,
+            "reference": p.reference if p.reference else "",
+            "unit": UnitListSerializer(p.tenancy.unit).data,
+            "property": PropertyShortSerializer(p.tenancy.unit.property).data,
+            "notes": p.notes,
+            "created_at": p.created_at.isoformat(),
+        }
+        for p in payments
+    ]
+
 
 # ═════════════════════════════════════════════════════════════
 # DASHBOARD — CHANGELOG ACTIVITY
@@ -484,24 +510,6 @@ def get_business_dashboard(business):
     # ── Recent activity ───────────────────────────────────
     recent = []
 
-    recent_payments = (
-        UnitPayment.objects
-        .filter(tenancy__unit__property__business=business)
-        .select_related("tenancy", "tenancy__unit")
-        .prefetch_related("tenancy__tenants")
-        .order_by("-created_at")[:5]
-    )
-    for p in recent_payments:
-        tenant = p.tenancy.tenants.first() if p.tenancy else None
-        label = tenant.full_name if tenant else "A tenant"
-        verb = "paid" if p.type == "payment" else "was refunded"
-        recent.append({
-            "id": str(p.id),
-            "type": "payment",
-            "text": f"{label} {verb} {business.currency} {p.amount_paid:,.0f} for Unit {p.tenancy.unit.name}",
-            "created_at": p.created_at.isoformat(),
-        })
-
     recent_tenancies = (
         Tenancy.objects
         .filter(
@@ -583,6 +591,7 @@ def get_business_dashboard(business):
             "unpaid_units_count": unpaid_units_count,
         },
         "overdue_units": overdue_top5,
+        "recent_payments": _get_recent_payments(business, limit=5),
         "recent_activity": recent,
         "recent_charges": _get_recent_charges(business, limit=5),
         "properties_preview": preview_list,

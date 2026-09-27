@@ -12,4 +12,5 @@ urlpatterns = [
     path('api/v1/payments/', include(router.urls)),
     path('api/v1/payments/callback/', api.mpesa_callback, name='mpesa-callback'),
     path('api/v1/payments/initiate/', api.InitiateMpesaPaymentView.as_view(), name='initiate-mpesa-payment'),
+    path("api/v1/payments/transactions/<uuid:transaction_id>/status/", api.MpesaTransactionStatusView.as_view(), name="mpesa-transaction-status"),
 ]

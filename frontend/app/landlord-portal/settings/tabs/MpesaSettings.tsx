@@ -18,6 +18,7 @@ import ConfirmModal from "@/app/components/modals/ConfirmModal";
 import { useToast } from "@/app/providers/ToastProvider";
 import { useBusiness } from "@/app/providers/BusinessProvider";
 import Toggle from "@/app/components/ui/Toggle";
+import { usePermissions } from "@/app/hooks/usePermissions";
 
 type AccountType = "paybill" | "till";
 type Environment = "sandbox" | "production";
@@ -185,14 +186,14 @@ function SectionCard({
 export default function MpesaSettings() {
   const [confirmDisable, setConfirmDisable] = useState(false);
 
-  const { activeBusinessId, activeBusinessRole } = useBusiness();
+  const { activeBusinessId } = useBusiness();
+  const { isOwnerOrManager } = usePermissions();
+
   const { data: configuration, isLoading, isError } = useMpesaConfiguration();
   const createConfiguration = useCreateMpesaConfiguration();
   const updateConfiguration = useUpdateMpesaConfiguration();
   const isSubmitting = createConfiguration.isPending || updateConfiguration.isPending;
   const { showToast } = useToast();
-
-  const isOwner = activeBusinessRole === "owner";
 
   const [form, setForm] = useState<MpesaForm>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
@@ -303,7 +304,7 @@ export default function MpesaSettings() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!isOwner || !editingSection) return;
+    if (!isOwnerOrManager || !editingSection) return;
     if (!hasChanges()) return;
     setErrors({});
 
@@ -317,35 +318,30 @@ export default function MpesaSettings() {
       is_active: form.isActive,
     };
 
-    try {
-      const response = configuration
-        ? await updateConfiguration.mutateAsync({
-            configurationId: configuration.id,
-            payload,
-          })
-        : await createConfiguration.mutateAsync({
-            payload: {
-              ...payload,
-              consumer_key: form.consumerKey,
-              consumer_secret: form.consumerSecret,
-              passkey: form.passkey,
-            },
-          });
-
-      console.log("response", response);
-
-      if (response.success) {
-        showToast("Success", "M-Pesa configuration saved successfully.", "success");
-        setEditingSection(null);
-        setReplaceSecret(false);
-        setReplacePasskey(false);
-      } else {
-        showToast("Error", response?.detail, "error");
-        setApiErrors(response);
-      }
-    } catch (err: any) {
-      setApiErrors(err?.response?.data ?? { detail: "Something went wrong." });
+  try {
+    if (configuration) {
+      await updateConfiguration.mutateAsync({
+        configurationId: configuration.id,
+        payload,
+      });
+    } else {
+      await createConfiguration.mutateAsync({
+        payload: {
+          ...payload,
+          consumer_key: form.consumerKey,
+          consumer_secret: form.consumerSecret,
+          passkey: form.passkey,
+        },
+      });
     }
+
+      showToast("Success", "M-Pesa configuration saved successfully.", "success");
+      setEditingSection(null);
+      setReplaceSecret(false);
+      setReplacePasskey(false);
+  } catch (err: any) {
+    setApiErrors(err?.response?.data ?? { detail: "Something went wrong." });
+  }
   };
 
   const applyActiveChange = async (checked: boolean) => {
@@ -484,13 +480,13 @@ export default function MpesaSettings() {
       </div>
 
       {/* Non-owner notice */}
-      {!isOwner && isConfigured && (
+      {!isOwnerOrManager && isConfigured && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start gap-3">
           <Lock className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-slate-700">Read-only view</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              Only the business owner can change M-Pesa settings.
+              Only the business owner or manager can change M-Pesa settings.
             </p>
           </div>
         </div>
@@ -529,7 +525,7 @@ export default function MpesaSettings() {
 
           <Toggle
             checked={form.isActive}
-            disabled={!isOwner || isSubmitting}
+            disabled={!isOwnerOrManager || isSubmitting}
             aria-label="Toggle M-Pesa payments"
             onChange={handleToggleChange}
           />
@@ -553,7 +549,7 @@ export default function MpesaSettings() {
         description="From your Safaricom Daraja developer account"
         icon={Key}
         editing={editingSection === "credentials"}
-        canEdit={isOwner}
+        canEdit={isOwnerOrManager}
         onEdit={() => setEditingSection("credentials")}
         onCancel={cancelSection}
       >
@@ -635,7 +631,7 @@ export default function MpesaSettings() {
           description="Where customer payments land"
           icon={Building2}
           editing={editingSection === "payment"}
-          canEdit={isOwner}
+          canEdit={isOwnerOrManager}
           onEdit={() => setEditingSection("payment")}
           onCancel={cancelSection}
         >
@@ -724,7 +720,7 @@ export default function MpesaSettings() {
           description="Where transactions are sent"
           icon={Globe}
           editing={editingSection === "environment"}
-          canEdit={isOwner}
+          canEdit={isOwnerOrManager}
           onEdit={() => setEditingSection("environment")}
           onCancel={cancelSection}
         >

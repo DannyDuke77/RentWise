@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from .models import User, Business, BusinessMembership, BusinessInvitation
-from .permissions import HasBusinessContext
+from .permissions import HasBusinessContext, IsBusinessManagerOrOwner
 from .serializers import BusinessSerializer, UserSettingsSerializer, BusinessInvitationSerializer, BusinessMembershipSerializer
 from .services import (
     create_business,
@@ -45,7 +45,7 @@ class Pagination(PageNumberPagination):
 def create_object(request):
     return Response({"detail": "object created"})
 
-class CurrentUserView(APIView):
+class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -75,10 +75,16 @@ class BusinessViewSet(ModelViewSet):
     lookup_field = "id"
 
     def get_permissions(self):
-        if self.action in ["list", "create"]:
-            permission_classes = [IsAuthenticated]
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            permission_classes = [
+                IsAuthenticated,
+                HasBusinessContext,
+                IsBusinessManagerOrOwner,
+            ]
         else:
-            permission_classes = [HasBusinessContext]
+            permission_classes = [
+                IsAuthenticated,
+            ]
 
         return [permission() for permission in permission_classes]
 
@@ -94,17 +100,6 @@ class BusinessViewSet(ModelViewSet):
         serializer.instance = business
 
     def perform_update(self, serializer):
-        business_id = self.request.headers.get("X-Business-ID")
-
-        business = get_object_or_404(Business, id=business_id, memberships__user=self.request.user,)
-
-        if not BusinessMembership.objects.filter(
-            business=business,
-            user=self.request.user,
-            role="owner",
-        ).exists():
-            raise PermissionDenied("You do not have permission to perform this action.")
-
         serializer.save()
 
     @action(detail=True, methods=["get"], url_path="dashboard")
@@ -172,9 +167,9 @@ class BusinessViewSet(ModelViewSet):
 
         business = get_object_or_404(Business, id=business_id, memberships__user=request.user)
 
-        if not BusinessMembership.objects.filter(business=business, user=request.user, role="owner").exists():
+        if not BusinessMembership.objects.filter(business=business, user=request.user, role__in=["owner", "manager"]).exists():
             raise PermissionDenied(
-                "Only the business owner can cancel invitations."
+                "Only the business owner or manager can cancel invitations."
             )
 
         invitation = get_object_or_404(BusinessInvitation, id=invitation_id, business=business,)

@@ -88,7 +88,7 @@ const UserSettings = () => {
     e.preventDefault();
     setErrors({});
 
-    // Never send email to the server — it's read-only and would 400.
+    // Never send email to the server, only read-only
     const { email: _omit, ...editable } = form;
 
     const payload: any = avatarFile ? new FormData() : { ...editable };
@@ -98,21 +98,15 @@ const UserSettings = () => {
     }
 
     try {
-      const response = await updateProfile.mutateAsync(payload);
+      await updateProfile.mutateAsync(payload);
+
       if (avatarFile) {
         setCurrentAvatar(avatarPreview);
         setAvatarFile(null);
         setAvatarPreview(null);
       }
-      if (response.success) {
-        showToast(
-          "Success",
-          "Profile updated successfully.",
-          "success"
-        );
-      } else {
-        setErrors(response.errors || response);
-      }
+
+      showToast("Success", "Profile updated successfully.", "success");
     } catch (err: any) {
       showToast("Error", "Failed to update user details.", "error");
       setErrors(err?.response?.data || err?.response || {});

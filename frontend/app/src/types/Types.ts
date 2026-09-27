@@ -211,8 +211,14 @@ export interface UnitRow {
   is_active: boolean;
   tenant_names: string;
   tenancy_id: string | null;
-  balance: number | null;
-  deposit: number | null;
+  rent_status: {
+      rent: number;
+      paid: number;
+      balance: number;
+      deposit: number;
+      status: "paid" | "partial" | "unpaid" | "vacant" | "not_billed";
+      billing_start: string;
+  }
 }
 
 export interface UnitsStats {
@@ -251,19 +257,24 @@ export interface DashboardData {
     amount_due: number;
     days_overdue: number;
   }>;
-  expiring_leases: Array<{
+  recent_payments: Array<{
     id: string;
-    tenant_name: string;
+    type_name: "payment" | "refund";
+    payment_method: "mpesa" | "cash" | "bank";
+    amount: number;
+    source: "stk" | "manual";
+    reference: string;
     unit: {
       id: string;
       name: string;
+      status?: string;
     };
     property: {
       id: string;
       name: string;
     };
-    end_date: string;
-    days_until_expiry: number;
+    notes: string;
+    created_at: string;
   }>;
   recent_activity: Array<{
     id: string;

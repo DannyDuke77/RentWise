@@ -8,12 +8,12 @@ export function useChangeLogs(
     pageSize: number,
     unitId?: string,
     fieldName?: string,
-    search?: string
+    query?: string
 ) {
     return useQuery({
-        queryKey: ['change-logs', page, pageSize, unitId, fieldName, search],
+        queryKey: ['change-logs', page, pageSize, unitId, fieldName, query],
         queryFn: async () => {
-            let url = `/api/units/${unitId}/change-logs/?page=${page}&page_size=${pageSize}&search=${search}&field_name=${fieldName}`;
+            let url = `/api/units/${unitId}/change-logs/?page=${page}&page_size=${pageSize}&query=${query}&field_name=${fieldName}`;
                         
             const data = await apiService.get(url);
             return data;

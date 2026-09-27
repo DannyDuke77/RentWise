@@ -2,18 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import {
-  Building2,
-  Plus,
-  ArrowRight,
-  ShieldCheck,
-  Layers,
-  Users,
-  Dot,
+import { Building2, ArrowRight,
+  ShieldCheck, Layers, Users, Dot,
 } from "lucide-react";
 import { useBusiness } from "@/app/providers/BusinessProvider";
-import LoadingSpinner from "../ui/LoadingSpinner";
-import { useEffect, useState } from "react";
 
 const BUSINESSLESS_ROUTES = ["/onboarding"];
 

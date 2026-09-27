@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from .models import ChangeLog, Property, Unit, Tenant, UnitPayment, Tenancy, Charge, ChargeType
 from accounts.validators import normalize_kenyan_phone
+from .services.unit_service import get_active_tenancy, get_unit_rent_info, get_tenant_names
 
 class UnitListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,56 +35,35 @@ class UnitDetailSerializer(serializers.ModelSerializer):
     property = PropertyShortSerializer(read_only=True)
     tenant_names = serializers.SerializerMethodField()
     tenancy_id = serializers.SerializerMethodField()
-    balance = serializers.SerializerMethodField()
-    deposit = serializers.SerializerMethodField()
+    rent_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Unit
         fields = [
-            'id', 'property', 'name', 'monthly_rent', 'status', 
-            'floor', 'is_active', 'tenant_names', 'tenancy_id', 'balance', 'deposit'
+            'id', 'property', 'name', 'monthly_rent', 'status',
+            'floor', 'is_active', 'tenant_names', 'tenancy_id', 'rent_status',
         ]
         read_only_fields = ['property']
 
-    def _get_active_tenancy(self, obj):
-        tenancies = list(obj.tenancies.all())
-        return tenancies[0] if tenancies else None
-    
     def get_tenant_names(self, obj):
-        active_tenancy = self._get_active_tenancy(obj)
-        if active_tenancy:
-            return ", ".join([
-                member.tenant.full_name 
-                for member in active_tenancy.tenancy_members.all() 
-                if member.is_active
-            ])
-        return ""
+        return get_tenant_names(get_active_tenancy(obj))
 
     def get_tenancy_id(self, obj):
-        tenancy = self._get_active_tenancy(obj)
+        tenancy = get_active_tenancy(obj)
         return str(tenancy.id) if tenancy else None
 
-    def get_balance(self, obj):
-        tenancy = self._get_active_tenancy(obj)
-        if not tenancy:
-            return None
-        return float(tenancy.balance)
-
-    def get_deposit(self, obj):
-        tenancy = self._get_active_tenancy(obj)
-        if not tenancy:
-            return None
-        try:
-            return float(tenancy.get_deposit_held_prefetched())
-        except Exception:
-            return None
-
-    
-    def get_balance(self, obj):
-        tenancy = self._get_active_tenancy(obj)
-        if not tenancy:
-            return None
-        return float(tenancy.balance)
+    def get_rent_status(self, obj):
+        tenancy = get_active_tenancy(obj)
+        info = get_unit_rent_info(obj, tenancy=tenancy)
+        payload = {
+            "paid": float(info["paid"]),
+            "balance": float(info["balance"]),
+            "deposit": float(info["deposit"]) if info["deposit"] is not None else None,
+            "status": info["status"],
+        }
+        if "billing_start" in info:
+            payload["billing_start"] = info["billing_start"]
+        return payload
 
 class TenantSerializer(serializers.ModelSerializer):
     units = serializers.SerializerMethodField()
